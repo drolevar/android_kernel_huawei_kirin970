@@ -1642,6 +1642,8 @@ int bpf_prog_array_copy_to_user(struct bpf_prog_array __rcu *progs,
 	rcu_read_lock();
 	prog = rcu_dereference(progs)->progs;
 	for (; *prog; prog++) {
+		if (*prog == &dummy_bpf_prog.prog)
+			continue;
 		id = (*prog)->aux->id;
 		if (copy_to_user(prog_ids + i, &id, sizeof(id))) {
 			rcu_read_unlock();
