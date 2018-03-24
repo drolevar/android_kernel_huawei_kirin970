@@ -10,6 +10,33 @@
 #include <linux/bpf.h> /* for enum bpf_reg_type */
 #include <linux/filter.h> /* for MAX_BPF_STACK */
 #include <linux/tnum.h>
+#include <stdarg.h>
+
+#define BPF_VERIFIER_TMP_LOG_SIZE	1024
+
+/* Object BTF owns one diagnostic buffer per load.  The legacy program
+ * verifier's serialized global log remains independent of this API.
+ */
+struct bpf_verifier_log {
+	u32 len_used;
+	u32 len_total;
+	u32 level;
+	char __user *ubuf;
+	char kbuf[BPF_VERIFIER_TMP_LOG_SIZE];
+};
+
+static inline bool bpf_verifier_log_full(const struct bpf_verifier_log *log)
+{
+	return log->len_used >= log->len_total - 1;
+}
+
+static inline bool bpf_verifier_log_needed(const struct bpf_verifier_log *log)
+{
+	return log->level && log->ubuf && !bpf_verifier_log_full(log);
+}
+
+void bpf_verifier_vlog(struct bpf_verifier_log *log, const char *fmt,
+		       va_list args);
 
 /* Maximum variable offset umax_value permitted when resolving memory accesses.
  * In practice this is far bigger than any realistic pointer offset; this limit
