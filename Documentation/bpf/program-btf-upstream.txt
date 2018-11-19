@@ -1,0 +1,505 @@
+Pinned donor bb17b7de4b570f2c0c32ddba0543cac03c58dd84.
+Semantic references, not a dependency-closed cherry-pick series.
+Huawei integration is a separate commit.
+
+commit 5c21d913fa4b74ce9338d5d07a38209f2bd2e10f
+Author:     Yonghong Song <yhs@fb.com>
+AuthorDate: Mon Nov 19 15:29:11 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:13 2025 +0300
+
+    UPSTREAM: bpf: Introduce bpf_func_info
+    
+    This patch added interface to load a program with the following
+    additional information:
+       . prog_btf_fd
+       . func_info, func_info_rec_size and func_info_cnt
+    where func_info will provide function range and type_id
+    corresponding to each function.
+    
+    The func_info_rec_size is introduced in the UAPI to specify
+    struct bpf_func_info size passed from user space. This
+    intends to make bpf_func_info structure growable in the future.
+    If the kernel gets a different bpf_func_info size from userspace,
+    it will try to handle user request with part of bpf_func_info
+    it can understand. In this patch, kernel can understand
+      struct bpf_func_info {
+           __u32   insn_offset;
+           __u32   type_id;
+      };
+    If user passed a bpf func_info record size of 16 bytes, the
+    kernel can still handle part of records with the above definition.
+    
+    If verifier agrees with function range provided by the user,
+    the bpf_prog ksym for each function will use the func name
+    provided in the type_id, which is supposed to provide better
+    encoding as it is not limited by 16 bytes program name
+    limitation and this is better for bpf program which contains
+    multiple subprograms.
+    
+    The bpf_prog_info interface is also extended to
+    return btf_id, func_info, func_info_rec_size and func_info_cnt
+    to userspace, so userspace can print out the function prototype
+    for each xlated function. The insn_offset in the returned
+    func_info corresponds to the insn offset for xlated functions.
+    With other jit related fields in bpf_prog_info, userspace can also
+    print out function prototypes for each jited function.
+    
+    Change-Id: Ic0b0f678153f135b70711bfab7d33207d99b8308
+    Signed-off-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/linux/bpf.h          |   5 +-
+ include/linux/bpf_verifier.h |   1 +
+ include/linux/btf.h          |   2 +
+ include/uapi/linux/bpf.h     |  13 +++++
+ kernel/bpf/btf.c             |   4 +-
+ kernel/bpf/core.c            |  13 +++++
+ kernel/bpf/syscall.c         |  59 +++++++++++++++++++--
+ kernel/bpf/verifier.c        | 120 ++++++++++++++++++++++++++++++++++++++++++-
+ 8 files changed, 209 insertions(+), 8 deletions(-)
+
+commit ea34e2ac84ba3a78870c4a3df8fe71c3208416d7
+Author:     Yonghong Song <yhs@fb.com>
+AuthorDate: Sat Nov 24 23:20:44 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:15 2025 +0300
+
+    UPSTREAM: bpf: btf: support proper non-jit func info
+    
+    Commit 838e96904ff3 ("bpf: Introduce bpf_func_info")
+    added bpf func info support. The userspace is able
+    to get better ksym's for bpf programs with jit, and
+    is able to print out func prototypes.
+    
+    For a program containing func-to-func calls, the existing
+    implementation returns user specified number of function
+    calls and BTF types if jit is enabled. If the jit is not
+    enabled, it only returns the type for the main function.
+    
+    This is undesirable. Interpreter may still be used
+    and we should keep feature identical regardless of
+    whether jit is enabled or not.
+    This patch fixed this discrepancy.
+    
+    Fixes: 838e96904ff3 ("bpf: Introduce bpf_func_info")
+    Change-Id: I208a85d244c88fe71c9301945cec0099b1284459
+    Signed-off-by: Yonghong Song <yhs@fb.com>
+    Acked-by: Martin KaFai Lau <kafai@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/linux/bpf.h          |  6 +++--
+ include/linux/bpf_verifier.h |  1 -
+ kernel/bpf/core.c            |  3 ++-
+ kernel/bpf/syscall.c         | 33 +++++++-------------------
+ kernel/bpf/verifier.c        | 55 ++++++++++++++++++++++++++++++--------------
+ 5 files changed, 52 insertions(+), 46 deletions(-)
+
+commit 43b00f9207f2dcb9511b9d66af38524d30e89f6a
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Sat Dec 1 17:08:44 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:15 2025 +0300
+
+    UPSTREAM: bpf: Fix memleak in aux->func_info and aux->btf
+    
+    The aux->func_info and aux->btf are leaked in the error out cases
+    during bpf_prog_load().  This patch fixes it.
+    
+    Fixes: ba64e7d85252 ("bpf: btf: support proper non-jit func info")
+    Cc: Yonghong Song <yhs@fb.com>
+    Change-Id: Ic290514ffa2f0659c835c467c72aaea171c67565
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ kernel/bpf/syscall.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+commit d974f448e2f390b22d945c41d464270ded7a7fa3
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Wed Dec 5 17:35:43 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:15 2025 +0300
+
+    BACKPORT: bpf: Improve the info.func_info and info.func_info_rec_size behavior
+    
+    1) When bpf_dump_raw_ok() == false and the kernel can provide >=1
+       func_info to the userspace, the current behavior is setting
+       the info.func_info_cnt to 0 instead of setting info.func_info
+       to 0.
+    
+       It is different from the behavior in jited_func_lens/nr_jited_func_lens,
+       jited_ksyms/nr_jited_ksyms...etc.
+    
+       This patch fixes it. (i.e. set func_info to 0 instead of
+       func_info_cnt to 0 when bpf_dump_raw_ok() == false).
+    
+    2) When the userspace passed in info.func_info_cnt == 0, the kernel
+       will set the expected func_info size back to the
+       info.func_info_rec_size.  It is a way for the userspace to learn
+       the kernel expected func_info_rec_size introduced in
+       commit 838e96904ff3 ("bpf: Introduce bpf_func_info").
+    
+       An exception is the kernel expected size is not set when
+       func_info is not available for a bpf_prog.  This makes the
+       returned info.func_info_rec_size has different values
+       depending on the returned value of info.func_info_cnt.
+    
+       This patch sets the kernel expected size to info.func_info_rec_size
+       independent of the info.func_info_cnt.
+    
+    3) The current logic only rejects invalid func_info_rec_size if
+       func_info_cnt is non zero.  This patch also rejects invalid
+       nonzero info.func_info_rec_size and not equal to the kernel
+       expected size.
+    
+    4) Set info.btf_id as long as prog->aux->btf != NULL.  That will
+       setup the later copy_to_user() codes look the same as others
+       which then easier to understand and maintain.
+    
+       prog->aux->btf is not NULL only if prog->aux->func_info_cnt > 0.
+    
+       Breaking up info.btf_id from prog->aux->func_info_cnt is needed
+       for the later line info patch anyway.
+    
+       A similar change is made to bpf_get_prog_name().
+    
+    Fixes: 838e96904ff3 ("bpf: Introduce bpf_func_info")
+    Change-Id: I11f04196794fe750dc346d13683de1140f96ea90
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ kernel/bpf/core.c    |  2 +-
+ kernel/bpf/syscall.c | 46 ++++++++++++++++++++--------------------------
+ 2 files changed, 21 insertions(+), 27 deletions(-)
+
+commit d4215b8778dcdd24982492e5f253f543eb38a1ae
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Wed Dec 5 17:35:44 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:15 2025 +0300
+
+    UPSTREAM: bpf: Change insn_offset to insn_off in bpf_func_info
+    
+    The later patch will introduce "struct bpf_line_info" which
+    has member "line_off" and "file_off" referring back to the
+    string section in btf.  The line_"off" and file_"off"
+    are more consistent to the naming convention in btf.h that
+    means "offset" (e.g. name_off in "struct btf_type").
+    
+    The to-be-added "struct bpf_line_info" also has another
+    member, "insn_off" which is the same as the "insn_offset"
+    in "struct bpf_func_info".  Hence, this patch renames "insn_offset"
+    to "insn_off" for "struct bpf_func_info".
+    
+    Change-Id: I239669161b1994507bd22141dea4177579fc5447
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/uapi/linux/bpf.h |  2 +-
+ kernel/bpf/verifier.c    | 18 +++++++++---------
+ 2 files changed, 10 insertions(+), 10 deletions(-)
+
+commit 31bb90da3c1aa8a9d546b176a622ebd5bd03a3f4
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Fri Dec 7 16:42:25 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:16 2025 +0300
+
+    BACKPORT: bpf: Add bpf_line_info support
+    
+    This patch adds bpf_line_info support.
+    
+    It accepts an array of bpf_line_info objects during BPF_PROG_LOAD.
+    The "line_info", "line_info_cnt" and "line_info_rec_size" are added
+    to the "union bpf_attr".  The "line_info_rec_size" makes
+    bpf_line_info extensible in the future.
+    
+    The new "check_btf_line()" ensures the userspace line_info is valid
+    for the kernel to use.
+    
+    When the verifier is translating/patching the bpf_prog (through
+    "bpf_patch_insn_single()"), the line_infos' insn_off is also
+    adjusted by the newly added "bpf_adj_linfo()".
+    
+    If the bpf_prog is jited, this patch also provides the jited addrs (in
+    aux->jited_linfo) for the corresponding line_info.insn_off.
+    "bpf_prog_fill_jited_linfo()" is added to fill the aux->jited_linfo.
+    It is currently called by the x86 jit.  Other jits can also use
+    "bpf_prog_fill_jited_linfo()" and it will be done in the followup patches.
+    In the future, if it deemed necessary, a particular jit could also provide
+    its own "bpf_prog_fill_jited_linfo()" implementation.
+    
+    A few "*line_info*" fields are added to the bpf_prog_info such
+    that the user can get the xlated line_info back (i.e. the line_info
+    with its insn_off reflecting the translated prog).  The jited_line_info
+    is available if the prog is jited.  It is an array of __u64.
+    If the prog is not jited, jited_line_info_cnt is 0.
+    
+    The verifier's verbose log with line_info will be done in
+    a follow up patch.
+    
+    Change-Id: Iec9c1ec3b75aa358d4961d2434e2dee92543f193
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ arch/x86/net/bpf_jit_comp.c  |   2 +
+ include/linux/bpf.h          |  21 +++++
+ include/linux/bpf_verifier.h |   1 +
+ include/linux/btf.h          |   1 +
+ include/linux/filter.h       |   7 ++
+ include/uapi/linux/bpf.h     |  19 +++++
+ kernel/bpf/btf.c             |   2 +-
+ kernel/bpf/core.c            | 118 +++++++++++++++++++++++++-
+ kernel/bpf/syscall.c         |  83 ++++++++++++++++--
+ kernel/bpf/verifier.c        | 198 +++++++++++++++++++++++++++++++++++++------
+ 10 files changed, 419 insertions(+), 33 deletions(-)
+
+commit af15d496e6446cbbdb6d32096948b81e2e097049
+Author:     Yonghong Song <yhs@fb.com>
+AuthorDate: Mon Dec 10 14:14:08 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:17 2025 +0300
+
+    BACKPORT: bpf: rename *_info_cnt to nr_*_info in bpf_prog_info
+    
+    In uapi bpf.h, currently we have the following fields in
+    the struct bpf_prog_info:
+            __u32 func_info_cnt;
+            __u32 line_info_cnt;
+            __u32 jited_line_info_cnt;
+    The above field names "func_info_cnt" and "line_info_cnt"
+    also appear in union bpf_attr for program loading.
+    
+    The original intention is to keep the names the same
+    between bpf_prog_info and bpf_attr
+    so it will imply what we returned to user space will be
+    the same as what the user space passed to the kernel.
+    
+    Such a naming convention in bpf_prog_info is not consistent
+    with other fields like:
+            __u32 nr_jited_ksyms;
+            __u32 nr_jited_func_lens;
+    
+    This patch made this adjustment so in bpf_prog_info
+    newly introduced *_info_cnt becomes nr_*_info.
+    
+    Acked-by: Song Liu <songliubraving@fb.com>
+    Acked-by: Martin KaFai Lau <kafai@fb.com>
+    Change-Id: If09e2055af54d981612e2a9d4e9aca402ed3119c
+    Signed-off-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/uapi/linux/bpf.h |  6 +++---
+ kernel/bpf/syscall.c     | 38 +++++++++++++++++++-------------------
+ 2 files changed, 22 insertions(+), 22 deletions(-)
+
+commit 72572dd4a2c6099d5ed2a42168562939bbe9465d
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Wed Dec 12 10:18:21 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:17 2025 +0300
+
+    BACKPORT: bpf: Remove bpf_dump_raw_ok() check for func_info and line_info
+    
+    The func_info and line_info have the bpf insn offset but
+    they do not contain kernel address.  They will still be useful
+    for the userspace tool to annotate the xlated insn.
+    
+    This patch removes the bpf_dump_raw_ok() guard for the
+    func_info and line_info during bpf_prog_get_info_by_fd().
+    
+    The guard stays for jited_line_info which contains the kernel
+    address.
+    
+    Although this bpf_dump_raw_ok() guard behavior has started since
+    the earlier func_info patch series, I marked the Fixes tag to the
+    latest line_info patch series which contains both func_info and
+    line_info and this patch is fixing for both of them.
+    
+    Fixes: c454a46b5efd ("bpf: Add bpf_line_info support")
+    Change-Id: Ibabbd53dfb5d10bb2df2bbc6e7dbd6ed6891e1bf
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+
+ kernel/bpf/syscall.c | 32 ++++++++++++--------------------
+ 1 file changed, 12 insertions(+), 20 deletions(-)
+
+commit f9f030d5a36624e9d93abc19e61d88ac1b4ccacb
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Thu Dec 13 10:41:46 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:18 2025 +0300
+
+    UPSTREAM: bpf: Create a new btf_name_by_offset() for non type name use case
+    
+    The current btf_name_by_offset() is returning "(anon)" type name for
+    the offset == 0 case and "(invalid-name-offset)" for the out-of-bound
+    offset case.
+    
+    It fits well for the internal BTF verbose log purpose which
+    is focusing on type.  For example,
+    offset == 0 => "(anon)" => anonymous type/name.
+    Returning non-NULL for the bad offset case is needed
+    during the BTF verification process because the BTF verifier may
+    complain about another field first before discovering the name_off
+    is invalid.
+    
+    However, it may not be ideal for the newer use case which does not
+    necessary mean type name.  For example, when logging line_info
+    in the BPF verifier in the next patch, it is better to log an
+    empty src line instead of logging "(anon)".
+    
+    The existing bpf_name_by_offset() is renamed to __bpf_name_by_offset()
+    and static to btf.c.
+    
+    A new bpf_name_by_offset() is added for generic context usage.  It
+    returns "\0" for name_off == 0 (note that btf->strings[0] is "\0")
+    and NULL for invalid offset.  It allows the caller to decide
+    what is the best output in its context.
+    
+    The new btf_name_by_offset() is overlapped with btf_name_offset_valid().
+    Hence, btf_name_offset_valid() is removed from btf.h to keep the btf.h API
+    minimal.  The existing btf_name_offset_valid() usage in btf.c could also be
+    replaced later.
+    
+    Change-Id: Ibfdef031fd224d26f5d8be7a8fff5d02f32aaa6e
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/linux/btf.h   |  1 -
+ kernel/bpf/btf.c      | 31 ++++++++++++++++++++-----------
+ kernel/bpf/verifier.c |  4 ++--
+ 3 files changed, 22 insertions(+), 14 deletions(-)
+
+commit a054055c6107bd8b5a76322566afbefa89c5e599
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Wed Dec 19 13:01:01 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:20 2025 +0300
+
+    UPSTREAM: bpf: Ensure line_info.insn_off cannot point to insn with zero code
+    
+    This patch rejects a line_info if the bpf insn code referred by
+    line_info.insn_off is 0. F.e. a broken userspace tool might generate
+    a line_info.insn_off that points to the second 8 bytes of a BPF_LD_IMM64.
+    
+    Change-Id: I28b5191bee0773a0fb92caa9ee849c2fe486f64a
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ kernel/bpf/verifier.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+commit 274e6ee57f55cbb5eeb0eeac392e07e25b7b0374
+Author:     Yonghong Song <yhs@fb.com>
+AuthorDate: Tue Nov 20 14:08:20 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:16 2025 +0300
+
+    UPSTREAM: bpf: fix a compilation error when CONFIG_BPF_SYSCALL is not defined
+    
+    Kernel test robot (lkp@intel.com) reports a compilation error at
+      https://www.spinics.net/lists/netdev/msg534913.html
+    introduced by commit 838e96904ff3 ("bpf: Introduce bpf_func_info").
+    
+    If CONFIG_BPF is defined and CONFIG_BPF_SYSCALL is not defined,
+    the following error will appear:
+      kernel/bpf/core.c:414: undefined reference to `btf_type_by_id'
+      kernel/bpf/core.c:415: undefined reference to `btf_name_by_offset'
+    
+    When CONFIG_BPF_SYSCALL is not defined,
+    let us define stub inline functions for btf_type_by_id()
+    and btf_name_by_offset() in include/linux/btf.h.
+    This way, the compilation failure can be avoided.
+    
+    Fixes: 838e96904ff3 ("bpf: Introduce bpf_func_info")
+    Reported-by: kbuild test robot <lkp@intel.com>
+    Cc: Martin KaFai Lau <kafai@fb.com>
+    Change-Id: I36eb14214637283d1429dc886c7612b04325e660
+    Signed-off-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/linux/btf.h | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+commit cb99028ffc361640f83ef3af35d7e6eb9107df27
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Thu Dec 13 10:41:48 2018 -0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:18 2025 +0300
+
+    BACKPORT: bpf: verbose log bpf_line_info in verifier
+    
+    This patch adds bpf_line_info during the verifier's verbose.
+    It can give error context for debug purpose.
+    
+    ~~~~~~~~~~
+    Here is the verbose log for backedge:
+            while (a) {
+                    a += bpf_get_smp_processor_id();
+                    bpf_trace_printk(fmt, sizeof(fmt), a);
+            }
+    
+    ~> bpftool prog load ./test_loop.o /sys/fs/bpf/test_loop type tracepoint
+    13: while (a) {
+    3: a += bpf_get_smp_processor_id();
+    back-edge from insn 13 to 3
+    
+    ~~~~~~~~~~
+    Here is the verbose log for invalid pkt access:
+    Modification to test_xdp_noinline.c:
+    
+            data = (void *)(long)xdp->data;
+            data_end = (void *)(long)xdp->data_end;
+    /*
+            if (data + 4 > data_end)
+                    return XDP_DROP;
+    */
+            *(u32 *)data = dst->dst;
+    
+    ~> bpftool prog load ./test_xdp_noinline.o /sys/fs/bpf/test_xdp_noinline type xdp
+    ; data = (void *)(long)xdp->data;
+    224: (79) r2 = *(u64 *)(r10 -112)
+    225: (61) r2 = *(u32 *)(r2 +0)
+    ; *(u32 *)data = dst->dst;
+    226: (63) *(u32 *)(r2 +0) = r1
+    invalid access to packet, off=0 size=4, R2(id=0,off=0,r=0)
+    R2 offset is outside of the packet
+    
+    Change-Id: I3851c21fd61e282ac6bab184b57bce38d8795a20
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Acked-by: Yonghong Song <yhs@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+
+ include/linux/bpf_verifier.h |  1 +
+ kernel/bpf/verifier.c        | 74 +++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 70 insertions(+), 5 deletions(-)
+
+commit 8ff2fe997afd7ef4025297863adea5456ab0c337
+Author:     Dan Carpenter <dan.carpenter@oracle.com>
+AuthorDate: Thu Jun 4 11:54:36 2020 +0300
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:37:44 2026 +0300
+
+    UPSTREAM: bpf: Fix an error code in check_btf_func()
+    
+    This code returns success if the "info_aux" allocation fails but it
+    should return -ENOMEM.
+    
+    Fixes: 8c1b6e69dcc1 ("bpf: Compare BTF types of functions arguments with actual types")
+    Change-Id: I7d883756e8f176b5db77527dc4671bc43ab5be2b
+    Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Acked-by: Song Liu <songliubraving@fb.com>
+    Link: https://lore.kernel.org/bpf/20200604085436.GA943001@mwanda
+
+ kernel/bpf/verifier.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
