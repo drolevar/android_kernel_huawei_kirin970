@@ -3591,7 +3591,7 @@ static bool bpf_skb_is_valid_access(int off, int size, enum bpf_access_type type
 {
 	const int size_default = sizeof(__u32);
 
-	if (off < 0 || off >= sizeof(struct __sk_buff))
+	if (off < 0 || off >= offsetof(struct __sk_buff, data_meta))
 		return false;
 
 	/* The verifier guarantees that size > 0. */
@@ -3682,6 +3682,15 @@ static bool lwt_is_valid_access(int off, int size,
 	}
 
 	return bpf_skb_is_valid_access(off, size, type, info);
+}
+
+static bool cg_skb_is_valid_access(int off, int size,
+				  enum bpf_access_type type,
+				  struct bpf_insn_access_aux *info)
+{
+	if (off == offsetof(struct __sk_buff, gso_segs))
+		return type == BPF_READ && size == 4;
+	return sk_filter_is_valid_access(off, size, type, info);
 }
 
 static bool sock_filter_is_valid_access(int off, int size,
@@ -4248,6 +4257,34 @@ static u32 sock_filter_convert_ctx_access(enum bpf_access_type type,
 	return insn - insn_buf;
 }
 
+static u32 cg_skb_convert_ctx_access(enum bpf_access_type type,
+	const struct bpf_insn *si, struct bpf_insn *insn_buf,
+	struct bpf_prog *prog, u32 *target_size)
+{
+	struct bpf_insn *insn = insn_buf;
+
+	switch (si->off) {
+	case offsetof(struct __sk_buff, gso_segs):
+#ifdef NET_SKBUFF_DATA_USES_OFFSET
+		/* Read end before clobbering src when dst == src. */
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, end),
+			BPF_REG_AX, si->src_reg, offsetof(struct sk_buff, end));
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, head),
+			si->dst_reg, si->src_reg, offsetof(struct sk_buff, head));
+		*insn++ = BPF_ALU64_REG(BPF_ADD, si->dst_reg, BPF_REG_AX);
+#else
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, end),
+			si->dst_reg, si->src_reg, offsetof(struct sk_buff, end));
+#endif
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct skb_shared_info, gso_segs),
+			si->dst_reg, si->dst_reg, offsetof(struct skb_shared_info, gso_segs));
+		break;
+	default:
+		return bpf_convert_ctx_access(type, si, insn_buf, prog, target_size);
+	}
+	return insn - insn_buf;
+}
+
 static u32 tc_cls_act_convert_ctx_access(enum bpf_access_type type,
 					 const struct bpf_insn *si,
 					 struct bpf_insn *insn_buf,
@@ -4476,8 +4513,8 @@ const struct bpf_verifier_ops xdp_prog_ops = {
 
 const struct bpf_verifier_ops cg_skb_prog_ops = {
 	.get_func_proto		= sk_filter_func_proto,
-	.is_valid_access	= sk_filter_is_valid_access,
-	.convert_ctx_access	= bpf_convert_ctx_access,
+	.is_valid_access	= cg_skb_is_valid_access,
+	.convert_ctx_access	= cg_skb_convert_ctx_access,
 	.test_run		= bpf_prog_test_run_skb,
 };
 
