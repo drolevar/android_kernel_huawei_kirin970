@@ -113,6 +113,8 @@ enum bpf_arg_type {
 	ARG_CONST_SIZE,		/* number of bytes accessed from memory */
 	ARG_CONST_SIZE_OR_ZERO,	/* number of bytes accessed from memory or 0 */
 
+	ARG_PTR_TO_SOCK_COMMON,
+	ARG_PTR_TO_SOCK_COMMON_OR_NULL,
 	ARG_PTR_TO_CTX,		/* pointer to context */
 	ARG_ANYTHING,		/* any (initialized) argument is ok */
 	ARG_CONST_ALLOC_SIZE_OR_ZERO, /* constant allocation size, no buffer */
@@ -122,6 +124,7 @@ enum bpf_arg_type {
 /* type of values returned from helper functions */
 enum bpf_return_type {
 	RET_INTEGER,			/* function returns integer */
+	RET_PTR_TO_SOCKET_OR_NULL, /* borrowed, never an acquired reference */
 	RET_VOID,			/* function doesn't return anything */
 	RET_PTR_TO_MAP_VALUE_OR_NULL,	/* returns a pointer to map elem value or NULL */
 	RET_PTR_TO_ALLOC_MEM_OR_NULL,
@@ -168,6 +171,10 @@ enum bpf_access_type {
 enum bpf_reg_type {
 	NOT_INIT = 0,		 /* nothing was written into register */
 	SCALAR_VALUE,		 /* reg doesn't contain a valid pointer */
+	PTR_TO_SOCK_COMMON,
+	PTR_TO_SOCK_COMMON_OR_NULL,
+	PTR_TO_SOCKET,
+	PTR_TO_SOCKET_OR_NULL,
 	PTR_TO_CTX,		 /* reg points to bpf_context */
 	CONST_PTR_TO_MAP,	 /* reg points to struct bpf_map */
 	PTR_TO_MAP_VALUE,	 /* reg points to map element value */

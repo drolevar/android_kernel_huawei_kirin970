@@ -958,6 +958,7 @@ struct __sk_buff {
 	__u64 tstamp;
 	__u32 wire_len;
 	__u32 gso_segs;
+	union { struct bpf_sock *sk; __u64 :64; } __attribute__((aligned(8)));
 };
 
 struct bpf_tunnel_key {

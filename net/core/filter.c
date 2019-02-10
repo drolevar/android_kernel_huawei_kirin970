@@ -3586,6 +3586,19 @@ lwt_xmit_func_proto(enum bpf_func_id func_id)
 	}
 }
 
+BPF_CALL_1(bpf_sk_fullsock, struct sock *, sk)
+{
+	/* Never convert a request socket to its listener. No reference acquired. */
+	return sk && sk_fullsock(sk) ? (unsigned long)sk : (unsigned long)NULL;
+}
+
+static const struct bpf_func_proto bpf_sk_fullsock_proto = {
+	.func = bpf_sk_fullsock,
+	.gpl_only = false,
+	.ret_type = RET_PTR_TO_SOCKET_OR_NULL,
+	.arg1_type = ARG_PTR_TO_SOCK_COMMON,
+};
+
 static bool bpf_skb_is_valid_access(int off, int size, enum bpf_access_type type,
 				    struct bpf_insn_access_aux *info)
 {
