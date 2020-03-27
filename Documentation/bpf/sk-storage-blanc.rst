@@ -17,6 +17,8 @@ buffer. Map/helper compatibility is enforced in both directions. Generic map
 lookup/update/delete helpers and sk_storage_delete are not exposed for this
 map. CLONE and value spinlocks are not implemented. No BPF version override
 is selected. The broader netd program set remains unsupported.
+The socket-create route also exposes helper46 using the dedicated struct sock
+cookie adapter from 48f9dd874a07; it never reuses the skb-context helper.
 
 Ownership follows Martin KaFai Lau's original sk-storage design: each socket
 owns its storage list and cache; map buckets index elements for teardown.

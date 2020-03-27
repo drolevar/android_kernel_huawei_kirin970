@@ -1,0 +1,55 @@
+From 48f9dd874a07bfa12bfc5fba98a8e58bf13b950d Mon Sep 17 00:00:00 2001
+From: Daniel Borkmann <daniel@iogearbox.net>
+Date: Fri, 27 Mar 2020 16:58:50 +0100
+Subject: [PATCH] UPSTREAM: bpf: Enable retrieval of socket cookie for
+ bind/post-bind hook
+
+We currently make heavy use of the socket cookie in BPF's connect(),
+sendmsg() and recvmsg() hooks for load-balancing decisions. However,
+it is currently not enabled/implemented in BPF {post-}bind hooks
+where it can later be used in combination for correlation in the tc
+egress path, for example.
+
+Change-Id: Ic5ac5dfa74a8bb85eb5cafbebfa231f48cc77b96
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Link: https://lore.kernel.org/bpf/e9d71f310715332f12d238cc650c1edc5be55119.1585323121.git.daniel@iogearbox.net
+---
+ net/core/filter.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 6389f27984c3..10817b2b8017 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -4187,6 +4187,18 @@ static const struct bpf_func_proto bpf_get_socket_cookie_sock_addr_proto = {
+ 	.arg1_type	= ARG_PTR_TO_CTX,
+ };
+ 
++BPF_CALL_1(bpf_get_socket_cookie_sock, struct sock *, ctx)
++{
++	return sock_gen_cookie(ctx);
++}
++
++static const struct bpf_func_proto bpf_get_socket_cookie_sock_proto = {
++	.func		= bpf_get_socket_cookie_sock,
++	.gpl_only	= false,
++	.ret_type	= RET_INTEGER,
++	.arg1_type	= ARG_PTR_TO_CTX,
++};
++
+ BPF_CALL_1(bpf_get_socket_cookie_sock_ops, struct bpf_sock_ops_kern *, ctx)
+ {
+ 	return sock_gen_cookie(ctx->sk);
+@@ -6057,6 +6069,8 @@ sock_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+ 		return &bpf_get_current_uid_gid_proto;
+ 	case BPF_FUNC_get_local_storage:
+ 		return &bpf_get_local_storage_proto;
++	case BPF_FUNC_get_socket_cookie:
++		return &bpf_get_socket_cookie_sock_proto;
+ 	default:
+ 		return bpf_base_func_proto(func_id);
+ 	}
+-- 
+2.56.0
+
