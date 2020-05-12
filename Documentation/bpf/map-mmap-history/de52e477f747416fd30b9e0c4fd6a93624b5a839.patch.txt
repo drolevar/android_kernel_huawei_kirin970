@@ -1,0 +1,43 @@
+From de52e477f747416fd30b9e0c4fd6a93624b5a839 Mon Sep 17 00:00:00 2001
+From: Andrii Nakryiko <andriin@fb.com>
+Date: Tue, 12 May 2020 16:59:25 -0700
+Subject: [PATCH] UPSTREAM: bpf: Fix bug in mmap() implementation for BPF array
+ map
+
+mmap() subsystem allows user-space application to memory-map region with
+initial page offset. This wasn't taken into account in initial implementation
+of BPF array memory-mapping. This would result in wrong pages, not taking into
+account requested page shift, being memory-mmaped into user-space. This patch
+fixes this gap and adds a test for such scenario.
+
+Fixes: fc9702273e2e ("bpf: Add mmap() support for BPF_MAP_TYPE_ARRAY")
+Change-Id: Ie03d8c1417b261b601d869a4e546f52f93e28f9d
+Signed-off-by: Andrii Nakryiko <andriin@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Acked-by: Yonghong Song <yhs@fb.com>
+Link: https://lore.kernel.org/bpf/20200512235925.3817805-1-andriin@fb.com
+---
+ kernel/bpf/arraymap.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/bpf/arraymap.c b/kernel/bpf/arraymap.c
+index d4316733e3cb..8ac3a3d8cd3a 100644
+--- a/kernel/bpf/arraymap.c
++++ b/kernel/bpf/arraymap.c
+@@ -489,7 +489,12 @@ static int array_map_mmap(struct bpf_map *map, struct vm_area_struct *vma)
+ 	if (!(map->map_flags & BPF_F_MMAPABLE))
+ 		return -EINVAL;
+ 
+-	return remap_vmalloc_range(vma, array_map_vmalloc_addr(array), pgoff);
++	if (vma->vm_pgoff * PAGE_SIZE + (vma->vm_end - vma->vm_start) >
++	    PAGE_ALIGN((u64)array->map.max_entries * array->elem_size))
++		return -EINVAL;
++
++	return remap_vmalloc_range(vma, array_map_vmalloc_addr(array),
++				   vma->vm_pgoff + pgoff);
+ }
+ 
+ const struct bpf_map_ops array_map_ops = {
+-- 
+2.56.0
+
