@@ -3,12 +3,13 @@
  * Included by devmap.c; see Documentation/bpf/devmap-hash-history/.
  */
 
-static struct hlist_head *dev_map_create_hash(unsigned int entries)
+static struct hlist_head *dev_map_create_hash(unsigned int entries,
+					      int numa_node)
 {
 	int i;
 	struct hlist_head *hash;
 
-	hash = kmalloc_array(entries, sizeof(*hash), GFP_KERNEL);
+	hash = bpf_map_area_alloc(entries * sizeof(*hash), numa_node);
 	if (hash != NULL)
 		for (i = 0; i < entries; i++)
 			INIT_HLIST_HEAD(&hash[i]);
