@@ -1,0 +1,39 @@
+commit 3d012ce7647e4a9f45b00336957c7961e0de0585
+Author:     Andrey Ignatov <rdna@fb.com>
+AuthorDate: Fri Jun 19 14:11:44 2020 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:37:47 2026 +0300
+
+    UPSTREAM: bpf: Set map_btf_{name, id} for all map types
+    
+    Set map_btf_name and map_btf_id for all map types so that map fields can
+    be accessed by bpf programs.
+    
+    Change-Id: I22a721bcafb3a890b260e3235348a28ac43d21d9
+    Signed-off-by: Andrey Ignatov <rdna@fb.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Acked-by: John Fastabend <john.fastabend@gmail.com>
+    Acked-by: Martin KaFai Lau <kafai@fb.com>
+    Link: https://lore.kernel.org/bpf/a825f808f22af52b018dbe82f1c7d29dab5fc978.1592600985.git.rdna@fb.com
+
+diff --git a/kernel/bpf/ringbuf.c b/kernel/bpf/ringbuf.c
+index 180414bb0d3e..dbf37aff4827 100644
+--- a/kernel/bpf/ringbuf.c
++++ b/kernel/bpf/ringbuf.c
+@@ -294,6 +294,7 @@ static __poll_t ringbuf_map_poll(struct bpf_map *map, struct file *filp,
+ 	return 0;
+ }
+ 
++static int ringbuf_map_btf_id;
+ const struct bpf_map_ops ringbuf_map_ops = {
+ 	.map_alloc = ringbuf_map_alloc,
+ 	.map_free = ringbuf_map_free,
+@@ -303,6 +304,8 @@ const struct bpf_map_ops ringbuf_map_ops = {
+ 	.map_update_elem = ringbuf_map_update_elem,
+ 	.map_delete_elem = ringbuf_map_delete_elem,
+ 	.map_get_next_key = ringbuf_map_get_next_key,
++	.map_btf_name = "bpf_ringbuf_map",
++	.map_btf_id = &ringbuf_map_btf_id,
+ };
+ 
+ /* Given pointer to ring buffer record metadata and struct bpf_ringbuf itself,
