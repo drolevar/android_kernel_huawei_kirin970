@@ -1,0 +1,57 @@
+commit ed31077c894f5e6aa4a01fad73ddb9ef24637e60
+Author:     Andrii Nakryiko <andriin@fb.com>
+AuthorDate: Mon Jun 29 23:15:00 2020 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:37:50 2026 +0300
+
+    UPSTREAM: bpf: Enforce BPF ringbuf size to be the power of 2
+    
+    BPF ringbuf assumes the size to be a multiple of page size and the power of
+    2 value. The latter is important to avoid division while calculating position
+    inside the ring buffer and using (N-1) mask instead. This patch fixes omission
+    to enforce power-of-2 size rule.
+    
+    Fixes: 457f44363a88 ("bpf: Implement BPF ring buffer and verifier support for it")
+    Change-Id: I449c65cb76f3441920d1d1b92d2462ed1ea39880
+    Signed-off-by: Andrii Nakryiko <andriin@fb.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Link: https://lore.kernel.org/bpf/20200630061500.1804799-1-andriin@fb.com
+
+diff --git a/kernel/bpf/ringbuf.c b/kernel/bpf/ringbuf.c
+index dbf37aff4827..d5db2905ddb6 100644
+--- a/kernel/bpf/ringbuf.c
++++ b/kernel/bpf/ringbuf.c
+@@ -132,15 +132,6 @@ static struct bpf_ringbuf *bpf_ringbuf_alloc(size_t data_sz, int numa_node)
+ {
+ 	struct bpf_ringbuf *rb;
+ 
+-	if (!data_sz || !PAGE_ALIGNED(data_sz))
+-		return ERR_PTR(-EINVAL);
+-
+-#ifdef CONFIG_64BIT
+-	/* on 32-bit arch, it's impossible to overflow record's hdr->pgoff */
+-	if (data_sz > RINGBUF_MAX_DATA_SZ)
+-		return ERR_PTR(-E2BIG);
+-#endif
+-
+ 	rb = bpf_ringbuf_area_alloc(data_sz, numa_node);
+ 	if (!rb)
+ 		return ERR_PTR(-ENOMEM);
+@@ -166,9 +157,16 @@ static struct bpf_map *ringbuf_map_alloc(union bpf_attr *attr)
+ 		return ERR_PTR(-EINVAL);
+ 
+ 	if (attr->key_size || attr->value_size ||
+-	    attr->max_entries == 0 || !PAGE_ALIGNED(attr->max_entries))
++	    !is_power_of_2(attr->max_entries) ||
++	    !PAGE_ALIGNED(attr->max_entries))
+ 		return ERR_PTR(-EINVAL);
+ 
++#ifdef CONFIG_64BIT
++	/* on 32-bit arch, it's impossible to overflow record's hdr->pgoff */
++	if (attr->max_entries > RINGBUF_MAX_DATA_SZ)
++		return ERR_PTR(-E2BIG);
++#endif
++
+ 	rb_map = kzalloc(sizeof(*rb_map), GFP_USER);
+ 	if (!rb_map)
+ 		return ERR_PTR(-ENOMEM);
