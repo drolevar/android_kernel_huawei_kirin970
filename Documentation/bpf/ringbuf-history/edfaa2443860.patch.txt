@@ -1,0 +1,40 @@
+commit edfaa2443860a4314e195e6a9690726c077aee1a
+Author:     Alexei Starovoitov <ast@kernel.org>
+AuthorDate: Mon Jun 29 21:33:39 2020 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:37:52 2026 +0300
+
+    UPSTREAM: bpf: Remove redundant synchronize_rcu.
+    
+    bpf_free_used_maps() or close(map_fd) will trigger map_free callback.
+    bpf_free_used_maps() is called after bpf prog is no longer executing:
+    bpf_prog_put->call_rcu->bpf_prog_free->bpf_free_used_maps.
+    Hence there is no need to call synchronize_rcu() to protect map elements.
+    
+    Note that hash_of_maps and array_of_maps update/delete inner maps via
+    sys_bpf() that calls maybe_wait_bpf_programs() and synchronize_rcu().
+    
+    Change-Id: Ieb62da9bae28794e125ccacd414e58f0a242b8a3
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+    Acked-by: Andrii Nakryiko <andriin@fb.com>
+    Acked-by: Paul E. McKenney <paulmck@kernel.org>
+    Link: https://lore.kernel.org/bpf/20200630043343.53195-2-alexei.starovoitov@gmail.com
+
+diff --git a/kernel/bpf/ringbuf.c b/kernel/bpf/ringbuf.c
+index d5db2905ddb6..002f8a5c9e51 100644
+--- a/kernel/bpf/ringbuf.c
++++ b/kernel/bpf/ringbuf.c
+@@ -213,13 +213,6 @@ static void ringbuf_map_free(struct bpf_map *map)
+ {
+ 	struct bpf_ringbuf_map *rb_map;
+ 
+-	/* at this point bpf_prog->aux->refcnt == 0 and this map->refcnt == 0,
+-	 * so the programs (can be more than one that used this map) were
+-	 * disconnected from events. Wait for outstanding critical sections in
+-	 * these programs to complete
+-	 */
+-	synchronize_rcu();
+-
+ 	rb_map = container_of(map, struct bpf_ringbuf_map, map);
+ 	bpf_ringbuf_free(rb_map->rb);
+ 	kfree(rb_map);
