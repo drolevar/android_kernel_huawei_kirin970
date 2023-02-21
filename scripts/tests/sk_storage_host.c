@@ -33,7 +33,8 @@ typedef unsigned long ulong;
 #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
 #define likely(x) (x)
 #define unlikely(x) (x)
-#define READ_ONCE(x) (x)
+static int explicit_reads;
+#define READ_ONCE(x) (explicit_reads++, (x))
 #define WRITE_ONCE(x,y) ((x)=(y))
 #define ERR_PTR(e) ((void *)(intptr_t)(e))
 #define PTR_ERR(p) ((int)(intptr_t)(p))
@@ -177,6 +178,15 @@ static void competing_delete(void) {CHECK(!del(race_map,0));}
 static void competing_destroy(void) {bpf_sk_storage_free(&socks[0]);}
 int main(int argc,char **argv) {
  CHECK(argc==2);const char *c=argv[1];
+ if(!strcmp(c,"lockless_prechecks")) {
+  struct bpf_sk_storage_elem element={0};struct hlist_node *dummy=NULL;
+  element.snode.pprev=&dummy;element.map_node.pprev=&dummy;
+  explicit_reads=0;CHECK(selem_linked_to_sk(&element));CHECK(explicit_reads==1);
+  explicit_reads=0;CHECK(selem_linked_to_map(&element));CHECK(explicit_reads==1);
+  element.snode.pprev=NULL;element.map_node.pprev=NULL;
+  explicit_reads=0;CHECK(!selem_linked_to_sk(&element));CHECK(explicit_reads==1);
+  explicit_reads=0;CHECK(!selem_linked_to_map(&element));CHECK(explicit_reads==1);return 0;
+ }
  if(!strcmp(c,"corpus_btf")) {
   corpus_mode=true;for(unsigned i=1;i<sizeof(offsets)/sizeof(offsets[0]);i++)types[i]=(const struct btf_type *)(corpus+offsets[i]);
   CHECK(!strcmp(corpus_strings+types[70]->name_off,"SkStorageValue"));CHECK(types[70]->type==71);CHECK(types[71]->size==128);

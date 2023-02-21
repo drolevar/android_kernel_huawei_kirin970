@@ -79,3 +79,14 @@ suite extracts the exact RCU-protected lookup branch and checks callback count.
 Actual BPF syscalls, full emitted-program acceptance, real socket teardown,
 networking and Android loader behavior remain runtime gates. Complete kernel
 and disabled-config builds are recorded separately in the workspace receipt.
+
+Later donor corrections reviewed
+-------------------------------
+
+6c876b06e330 confirms the RCU publication operation already used here.
+f191cca43620 annotates lockless hlist-membership prechecks. This older tree
+has no hlist_unhashed_lockless, so both linked predicates use READ_ONCE on
+pprev directly; this is safe for their locked rechecks as well. The regression
+fixture instruments READ_ONCE and rejects an unannotated load. It establishes
+that the production predicate executes the annotation, not a reproduced
+hardware load-tearing failure or real SMP/KCSAN validation.

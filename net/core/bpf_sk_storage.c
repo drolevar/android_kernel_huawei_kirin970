@@ -108,12 +108,14 @@ static int omem_charge(struct sock *sk, unsigned int size)
 
 static bool selem_linked_to_sk(const struct bpf_sk_storage_elem *selem)
 {
-	return !hlist_unhashed(&selem->snode);
+	/* Also used before taking the storage lock. */
+	return !!READ_ONCE(selem->snode.pprev);
 }
 
 static bool selem_linked_to_map(const struct bpf_sk_storage_elem *selem)
 {
-	return !hlist_unhashed(&selem->map_node);
+	/* Also used before taking the bucket lock. */
+	return !!READ_ONCE(selem->map_node.pprev);
 }
 
 static struct bpf_sk_storage_elem *selem_alloc(struct bpf_sk_storage_map *smap,
