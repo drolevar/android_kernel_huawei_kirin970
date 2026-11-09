@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "inspected_at_utc": "2026-11-09T13:46:04.648602+00:00",
+  "download": {
+    "url": "https://download-c1.huawei.com/download/downloadCenter?downloadId=50FCDCF62DD8AFADE7EB8DCCE5AB0971&version=474E0A4FBE05E1C1B9C6BD724C63071D&siteCode=worldwide",
+    "filename": "BLA-AL00B_10_EMUI10.0_opensource.tar.gz",
+    "size_bytes": 548702193,
+    "sha256": "af91156db6d6ebff38c1ca3efcaf9de25db754324648032d4aadc1aa9b6308c0",
+    "verification": "SHA256 computed over complete downloaded archive; verified HTTP range sizes and Content-Range during retrieval",
+    "http_last_modified": "Mon, 03 Feb 2020 08:02:54 GMT"
+  },
+  "official_source": {
+    "package_device_label": "BLA-AL00B",
+    "package_emui_label": "EMUI10.0",
+    "readme_phone_software_version": "2020-01-13",
+    "kernel_version": "4.14.116",
+    "archive_kernel_prefix": "Code_Opensource/kernel/",
+    "extracted_kernel_path": "external reference: official-emui10-kernel/",
+    "regular_files": 71829,
+    "regular_file_bytes": 997428604,
+    "file_manifest": "Retained with the external source reference; intentionally not committed.",
+    "defconfig": "arch/arm64/configs/merge_kirin970_defconfig",
+    "config_sha256": "6572edf67de4aec0de0fd0a9266c0758f5816e85900f1e8584b0926ba43ea43b",
+    "makefile_sha256": "9c5d4f83fee8fa6723451f8dd68d6e02d72ebf69b5b0ab0638004b4d4b76ce8e",
+    "copying_sha256": "af8067302947c01fd9eee72befa54c7e3ef8a48fecde7fd71277f2290b2bf0f7",
+    "archive_scope": "Kernel and additional Android external/vendor source; only Code_Opensource/kernel extracted in full.",
+    "extraction_safety": {
+      "absolute_or_parent_traversal_members": 0,
+      "kernel_symlinks_or_hardlinks": 0
+    },
+    "license": "COPYING states GPL version 2 unless explicitly otherwise stated; preserve individual file license notices.",
+    "intended_toolchains": {
+      "clang_revision": "r346389c",
+      "gcc_distribution": "aarch64-linux-android-4.9",
+      "cross_compile": "aarch64-linux-android-",
+      "clang_triple": "aarch64-linux-gnu-",
+      "lto_linker": "GNU gold with Clang lib64/LLVMgold.so"
+    },
+    "build_recipe": "Documentation/huawei/build-official-reference.sh",
+    "build_recipe_evidence": [
+      "Code_Opensource/README_Kernel.txt",
+      "Code_Opensource/kernel/Makefile",
+      "Code_Opensource/kernel/arch/arm64/configs/merge_kirin970_defconfig"
+    ],
+    "expected_kernel_output": "out/arch/arm64/boot/Image.gz",
+    "matches_installed_bla_l29_emui12_225": null,
+    "match_limitation": "Official package is BLA-AL00B EMUI10, not source explicitly matched to BLA-L29 EMUI12 .225. Requires live config, DT, firmware interface and boot validation."
+  },
+  "development_base": {
+    "repository": "https://github.com/drolevar/android_kernel_huawei_kirin970",
+    "upstream": "https://github.com/hisi-oss/android_kernel_huawei_kirin970",
+    "upstream_branch": "lineage-22.2",
+    "commit": "f39fdf340fe2ee29db13cb8838653161d6ad7c57",
+    "kernel_version": "4.14.116",
+    "defconfig": "arch/arm64/configs/merge_kirin970_defconfig",
+    "common_boardconfig": {
+      "repository": "drolevar/android_device_huawei_kirin970-common",
+      "commit": "c6e08caaa721c82bc9b0723cc2aa203ca790ca9a",
+      "path": "BoardConfigCommon.mk",
+      "clang_revision": "r416183b",
+      "clang_path": "prebuilts/clang/kernel/linux-x86/clang-r416183b",
+      "llvm_binutils": false
+    },
+    "recommendation": "Retain the existing hisi-oss-derived fork for development, preserve the verified official BLA10 source as a separate reference outside Git, and compare device-critical differences before hardware tests.",
+    "preparation_branch": "blanc-lineage-24.0"
+  },
+  "comparison": {
+    "scope": "Selected kernel build, config, partition and Kirin970 platform files; not a complete source audit.",
+    "reference": "Documentation/huawei/blanc-source-preparation.md",
+    "evidence_retention": "Detailed per-file hashes and diffs retained with the separately downloaded official source, outside this repository.",
+    "config_limitation": "Official defconfig is a full configuration; development defconfig is compact. Omitted declarations cannot be treated as disabled features without Kconfig resolution."
+  },
+  "validation": {
+    "archive_downloaded_and_hashed": true,
+    "kernel_safely_extracted": true,
+    "selected_source_files_compared": true,
+    "build_script_syntax_checked": true,
+    "kernel_compiled": false,
+    "phone_boot_tested": false,
+    "partition_layout_detected": false,
+    "build_script_missing_input_checked": true
+  }
+}
