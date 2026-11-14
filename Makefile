@@ -859,6 +859,9 @@ endif
 ifneq ($(LLVM_IAS),1)
 KBUILD_AFLAGS	+= -Wa,-gdwarf-2
 endif
+# Keep object-tree DWARF paths from varying retained linker build IDs.
+KBUILD_CFLAGS	+= -fdebug-prefix-map=$(abspath $(objtree))=/kernel-build
+KBUILD_AFLAGS	+= -fdebug-prefix-map=$(abspath $(objtree))=/kernel-build
 endif
 
 ifdef CONFIG_DEBUG_INFO_DWARF4
