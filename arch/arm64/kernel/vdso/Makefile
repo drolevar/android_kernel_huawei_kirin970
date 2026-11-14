@@ -15,6 +15,8 @@ obj-vdso := $(addprefix $(obj)/, $(obj-vdso))
 ldflags-y := -shared -nostdlib -soname=linux-vdso.so.1  --hash-style=sysv \
 		--build-id $(call ld-option,-n) -T
 ccflags-y += $(DISABLE_LTO)
+# Keep output-directory DWARF out of the build ID retained in the vDSO.
+asflags-y += -fdebug-prefix-map=$(abspath $(objtree))=/kernel-build
 
 # Disable gcov profiling for VDSO code
 GCOV_PROFILE := n
