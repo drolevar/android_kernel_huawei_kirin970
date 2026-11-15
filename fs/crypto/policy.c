@@ -47,9 +47,7 @@ static int create_encryption_context_from_policy(struct inode *inode,
 	int res;
 	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
-	struct key *keyring_key = NULL;
-	struct fscrypt_key *master_key;
-	const struct user_key_payload *ukp;
+	struct fscrypt_ce_key lease;
 	struct crypto_aead *tfm = NULL;
 
 	ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
@@ -75,62 +73,23 @@ static int create_encryption_context_from_policy(struct inode *inode,
 	get_random_bytes(ctx.iv, FS_KEY_DERIVATION_IV_SIZE);
 	memcpy(plain_text, nonce, FS_KEY_DERIVATION_NONCE_SIZE);
 
-	/* get DEK */
-	keyring_key = fscrypt_request_key(ctx.master_key_descriptor,
-				FS_KEY_DESC_PREFIX, FS_KEY_DESC_PREFIX_SIZE);
-	if (IS_ERR(keyring_key)) {
-		if (inode->i_sb->s_cop->key_prefix) {
-			const u8 *prefix = inode->i_sb->s_cop->key_prefix;
-			int prefix_size;
-
-			prefix_size = strlen(prefix);
-			keyring_key = fscrypt_request_key(ctx.master_key_descriptor,
-						prefix, prefix_size);
-			if (!IS_ERR(keyring_key))
-				goto got_key;
-		}
-		return PTR_ERR(keyring_key);
-	}
-
-got_key:
-	if (keyring_key->type != &key_type_logon) {
-		printk_once(KERN_WARNING
-				"%s: key type must be logon\n", __func__);
-		res = -ENOKEY;
-		goto out;
-	}
-
-	down_read(&keyring_key->sem);
-
-	ukp = user_key_payload_rcu(keyring_key);
-	if (ukp->datalen != sizeof(struct fscrypt_key)) {
-		res = -EINVAL;
-		up_read(&keyring_key->sem);
-		goto out;
-	}
-
-	master_key = (struct fscrypt_key *)ukp->data;
-	//force the size equal to FS_AES_256_GCM_KEY_SIZE since user space might pass FS_AES_256_XTS_KEY_SIZE
-	master_key->size = FS_AES_256_GCM_KEY_SIZE;
-	if (master_key->size != FS_AES_256_GCM_KEY_SIZE) {
-		printk_once(KERN_WARNING
-				"%s: key size incorrect: %d\n",
-				__func__, master_key->size);
-		res = -ENOKEY;
-		up_read(&keyring_key->sem);
-		goto out;
+	res = fscrypt_acquire_ce_key(ctx.master_key_descriptor,
+			inode->i_sb->s_cop->key_prefix, &lease);
+	if (res) {
+		memzero_explicit(nonce, sizeof(nonce));
+		memzero_explicit(plain_text, sizeof(plain_text));
+		return res;
 	}
 	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
 	if (IS_ERR(tfm)) {
-		up_read(&keyring_key->sem);
 		res = PTR_ERR(tfm);
 		tfm = NULL;
 		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
 		goto out;
 	}
-	res = fscrypt_set_gcm_key(tfm, master_key->raw);
+	res = fscrypt_set_gcm_key(tfm, lease.material.raw);
+	fscrypt_release_ce_key(&lease);
 
-	up_read(&keyring_key->sem);
 	if (res)
 		goto out;
 
@@ -142,7 +101,9 @@ got_key:
 out:
 	if (tfm)
 		crypto_free_aead(tfm);
-	key_put(keyring_key);
+	fscrypt_release_ce_key(&lease);
+	memzero_explicit(nonce, sizeof(nonce));
+	memzero_explicit(plain_text, sizeof(plain_text));
 	return res;
 }
 

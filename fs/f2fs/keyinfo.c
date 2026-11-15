@@ -57,67 +57,86 @@ static void f2fs_put_crypt_info(struct fscrypt_info *ci)
 	kmem_cache_free(fscrypt_info_cachep, ci);
 }
 
+/* expected_class == 0 denotes CE, never an SDP-shaped payload. */
 static int
-f2fs_do_get_keyring_payload(u8 *descriptor, u8 *raw, int *size, bool filepubkey)
+f2fs_do_get_keyring_payload(u8 *descriptor, u8 *raw, size_t capacity,
+			   int *size, bool filepubkey, u32 expected_class)
 {
-	int res = -EKEYREVOKED;
-	struct key *keyring_key = NULL;
-	const struct user_key_payload *ukp = NULL;
-	struct fscrypt_key *mst_key = NULL;
-	struct fscrypt_sdp_key *mst_sdp = NULL;
+	int res;
+	struct key *keyring_key;
+	const struct user_key_payload *ukp;
+	const struct fscrypt_sdp_key *mst_sdp;
+	struct fscrypt_ce_key lease;
+	size_t private_size, public_size;
+
+	*size = 0;
+	if (!expected_class) {
+		if (capacity < FS_AES_256_GCM_KEY_SIZE)
+			return -EOVERFLOW;
+		res = fscrypt_acquire_ce_key(descriptor, NULL, &lease);
+		if (res)
+			return res;
+		memcpy(raw, lease.material.raw, FS_AES_256_GCM_KEY_SIZE);
+		*size = FS_AES_256_GCM_KEY_SIZE;
+		fscrypt_release_ce_key(&lease);
+		return 0;
+	}
+	if (expected_class != FSCRYPT_SDP_ECE_CLASS &&
+	    expected_class != FSCRYPT_SDP_SECE_CLASS)
+		return -EINVAL;
 
 	keyring_key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
-			FS_KEY_DESC_PREFIX_SIZE);
+					 FS_KEY_DESC_PREFIX_SIZE);
 	if (IS_ERR(keyring_key))
 		return PTR_ERR(keyring_key);
-
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res)
+		goto out;
+	res = -EKEYREVOKED;
 	if (keyring_key->type != &key_type_logon)
 		goto out;
-
 	ukp = user_key_payload_locked(keyring_key);
-	if (!ukp) {
-		/* key was revoked before we acquired its semaphore */
-		res = -EKEYREVOKED;
+	if (!ukp)
 		goto out;
-	}
+	res = -EINVAL;
+	if (ukp->datalen != sizeof(*mst_sdp))
+		goto out;
+	mst_sdp = (const struct fscrypt_sdp_key *)ukp->data;
+	if (mst_sdp->sdpclass != expected_class)
+		goto out;
 
-	if (ukp->datalen == sizeof(struct fscrypt_key)) {
-		mst_key = (struct fscrypt_key *)ukp->data;
-		if (mst_key->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_key->size;
-			memcpy(raw, mst_key->raw, mst_key->size);
-			res = 0;
-		}
-	} else if (ukp->datalen == sizeof(struct fscrypt_sdp_key)) {
-		mst_sdp = (struct fscrypt_sdp_key *)ukp->data;
+	private_size = mst_sdp->size;
+	public_size = 0;
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-		if ((mst_sdp->sdpclass == FSCRYPT_SDP_ECE_CLASS
-			|| mst_sdp->sdpclass == FSCRYPT_SDP_SECE_CLASS)
-			&& mst_sdp->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			res = 0;
-		}
+	if (private_size != FS_AES_256_GCM_KEY_SIZE)
+		goto out;
 #else
-		if (mst_sdp->sdpclass == FSCRYPT_SDP_ECE_CLASS
-			&& mst_sdp->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			res = 0;
-		} else if (mst_sdp->sdpclass == FSCRYPT_SDP_SECE_CLASS
-			/* if filepubkey is ture, class private key doesn't need exist.
-			 * if filepubkey is false, class private key must exist.*/
-			&& (!filepubkey || mst_sdp->size == FS_SDP_ECC_PRIV_KEY_SIZE)
-			&& mst_sdp->pubkeysize == FS_SDP_ECC_PUB_KEY_SIZE) {
-			*size = mst_sdp->pubkeysize + mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			memcpy(raw + mst_sdp->size, mst_sdp->pubkey,
-					mst_sdp->pubkeysize);
-			res = 0;
-		}
-#endif
+	if (expected_class == FSCRYPT_SDP_ECE_CLASS) {
+		if (private_size != FS_AES_256_GCM_KEY_SIZE)
+			goto out;
+	} else {
+		/* has-file-public-key/unwrap needs the private key.  Creating
+		 * a file key may use a public-only class key (size == 0).
+		 */
+		if (private_size != FS_SDP_ECC_PRIV_KEY_SIZE &&
+		    (filepubkey || private_size != 0))
+			goto out;
+		public_size = mst_sdp->pubkeysize;
+		if (public_size != FS_SDP_ECC_PUB_KEY_SIZE)
+			goto out;
 	}
+#endif
+	if (private_size > sizeof(mst_sdp->raw) ||
+	    public_size > sizeof(mst_sdp->pubkey))
+		goto out;
+	res = -EOVERFLOW;
+	if (private_size > capacity || public_size > capacity - private_size)
+		goto out;
+	memcpy(raw, mst_sdp->raw, private_size);
+	memcpy(raw + private_size, mst_sdp->pubkey, public_size);
+	*size = private_size + public_size;
+	res = 0;
 out:
 	up_read(&keyring_key->sem);
 	key_put(keyring_key);
@@ -236,7 +255,8 @@ out:
 	return res;
 }
 
-static int f2fs_do_get_fek(u8 *descriptor, u8 *nonce, u8 *fek, u8 *iv, int enc)
+static int f2fs_do_get_fek(u8 *descriptor, u8 *nonce, u8 *fek, u8 *iv, int enc,
+			   u32 expected_class)
 {
 	int res = 0;
 	struct crypto_aead *tfm = NULL;
@@ -247,7 +267,8 @@ static int f2fs_do_get_fek(u8 *descriptor, u8 *nonce, u8 *fek, u8 *iv, int enc)
 	if (IS_ERR(tfm))
 		return (int)PTR_ERR(tfm);
 
-	res = f2fs_do_get_keyring_payload(descriptor, raw, &size, false);
+	res = f2fs_do_get_keyring_payload(descriptor, raw, sizeof(raw),
+					  &size, false, expected_class);
 	if (res)
 		goto out;
 
@@ -283,7 +304,7 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 		return -EINVAL;
 #else
 		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce, fek,
-							  ctx->iv, 0);
+							  ctx->iv, 0, 0);
 		if (res)
 			return res;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -294,7 +315,7 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 			return res;
 		if (F2FS_INODE_IS_ENABLED_SDP_ECE_ENCRYPTION(flag)) {
 			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0);
+					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0, FSCRYPT_SDP_ECE_CLASS);
 			if (res)
 				return res;
 		} else {
@@ -330,7 +351,7 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
 	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor, sdp_ctx->nonce,
-			      fek, sdp_ctx->iv, 1);
+			      fek, sdp_ctx->iv, 1, FSCRYPT_SDP_ECE_CLASS);
 	if (res) {
 		pr_err("f2fs_sdp %s: error %d (inode %lu) encrypt ece key failed!\n",
 				__func__, res, inode->i_ino);
@@ -456,8 +477,9 @@ f2fs_do_get_sece_fek(struct f2fs_sdp_fscrypt_context *ctx, u8 *fek,
 	if (IS_ERR(tfm))
 		return (int)PTR_ERR(tfm);
 
-	res = f2fs_do_get_keyring_payload(ctx->master_key_descriptor, raw, &size,
-									  haspubkey==1);
+	res = f2fs_do_get_keyring_payload(ctx->master_key_descriptor, raw,
+				  sizeof(raw), &size, haspubkey == 1,
+				  FSCRYPT_SDP_SECE_CLASS);
 	if (res)
 		goto out;
 
@@ -514,7 +536,7 @@ static int f2fs_get_sece_crypt_info_from_context(
 		return -EINVAL;
 #else
 		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce,
-				      fek, ctx->iv, 0);
+				      fek, ctx->iv, 0, 0);
 		if (res)
 			goto out;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -528,7 +550,7 @@ static int f2fs_get_sece_crypt_info_from_context(
 		if (F2FS_INODE_IS_ENABLED_SDP_SECE_ENCRYPTION(flag)) {
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0);
+					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0, FSCRYPT_SDP_SECE_CLASS);
 #else
 			res = f2fs_do_get_sece_fek(sdp_ctx, fek, 1);
 #endif
@@ -574,7 +596,7 @@ static int f2fs_get_sece_crypt_info_from_context(
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 1);
+					      sdp_ctx->nonce, fek, sdp_ctx->iv, 1, FSCRYPT_SDP_SECE_CLASS);
 #else
 	res = f2fs_do_set_sece_fek(sdp_ctx, fek);
 #endif

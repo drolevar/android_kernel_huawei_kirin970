@@ -172,59 +172,79 @@ struct key *fscrypt_request_key(const u8 *descriptor, const u8 *prefix,
 }
 
 /*
- * Search the current task's subscribed keyrings for a "logon" key with
- * description prefix:descriptor, and if found acquire a read lock on it and
- * return a pointer to its validated payload in *payload_ret.
+ * Explicit legacy-prefix policy: only request_key's -ENOKEY permits trying
+ * the alternate filesystem prefix.  This result is ambiguous (e.g. negative
+ * or expired keys), NOT evidence of absence.  Once a key is returned, failed
+ * validation never falls back.  No modern filesystem-keyring state is used.
  */
-static struct key *
-find_and_lock_process_key(const struct fscrypt_context *ctx,
-			  const char *prefix,
-			  const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
-			  unsigned int min_keysize,
-			  const struct fscrypt_key **payload_ret)
+int fscrypt_acquire_ce_key(const u8 *descriptor, const char *alternate,
+			   struct fscrypt_ce_key *lease)
 {
-	struct key *key;
 	const struct user_key_payload *ukp;
-	int prefix_size = strlen(prefix);
-	struct fscrypt_key *payload;
+	const struct fscrypt_key *payload;
+	struct key *key;
+	int err;
 
-	key = fscrypt_request_key(ctx->master_key_descriptor,
-				prefix, prefix_size);
-	if (IS_ERR(key))
-		return key;
+	memset(lease, 0, sizeof(*lease));
+	key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
+				  FS_KEY_DESC_PREFIX_SIZE);
+	if (key == ERR_PTR(-ENOKEY) && alternate) {
+		key = fscrypt_request_key(descriptor, alternate, strlen(alternate));
+		lease->alternate_prefix = true;
+	}
+	if (IS_ERR(key)) {
+		err = PTR_ERR(key);
+		goto wipe;
+	}
 
 	down_read(&key->sem);
+	err = key_validate(key);
+	if (err)
+		goto unlock;
+	if (key->type != &key_type_logon) {
+		err = -EKEYREJECTED;
+		goto unlock;
+	}
 	ukp = user_key_payload_locked(key);
-
-	if (!ukp) /* was the key revoked before we acquired its semaphore? */
-		goto invalid;
-
-	payload = (struct fscrypt_key *)ukp->data;
-
-	if (ukp->datalen != sizeof(struct fscrypt_key) ||
-	    payload->size < 1 || payload->size > FS_MAX_KEY_SIZE) {
-		fscrypt_warn(NULL,
-			     "key with description '%s' has invalid payload",
-			     key->description);
-		goto invalid;
+	if (!ukp) {
+		err = -EKEYREVOKED;
+		goto unlock;
 	}
-	//force the size equal to FS_AES_256_GCM_KEY_SIZE since user space might pass FS_AES_256_XTS_KEY_SIZE
-	payload->size = FS_AES_256_GCM_KEY_SIZE;
-	if (payload->size != FS_AES_256_GCM_KEY_SIZE) {
-		fscrypt_warn(NULL,
-			     "key with description '%s' is too short (got %u bytes, need %u+ bytes)",
-			     key->description, payload->size, min_keysize);
-		goto invalid;
+	if (ukp->datalen != sizeof(*payload)) {
+		err = -EINVAL;
+		goto unlock;
 	}
+	payload = (const struct fscrypt_key *)ukp->data;
+	/* Both existing userspace representations carry a 32-byte GCM key.
+	 * Never normalize the shared payload, nor discard raw[32..63].
+	 */
+	if (payload->size != FS_AES_256_GCM_KEY_SIZE &&
+	    payload->size != FS_MAX_KEY_SIZE) {
+		err = -EINVAL;
+		goto unlock;
+	}
+	memcpy(&lease->material, payload, sizeof(*payload));
+	lease->key = key;
+	return 0;
 
-	*payload_ret = payload;
-	return key;
-
-invalid:
+unlock:
 	up_read(&key->sem);
 	key_put(key);
-	return ERR_PTR(-ENOKEY);
+wipe:
+	memzero_explicit(lease, sizeof(*lease));
+	return err;
 }
+EXPORT_SYMBOL(fscrypt_acquire_ce_key);
+
+void fscrypt_release_ce_key(struct fscrypt_ce_key *lease)
+{
+	if (lease->key) {
+		up_read(&lease->key->sem);
+		key_put(lease->key);
+	}
+	memzero_explicit(lease, sizeof(*lease));
+}
+EXPORT_SYMBOL(fscrypt_release_ce_key);
 
 /* Find the master key, then derive the inode's actual encryption key */
 static int find_and_derive_key(const struct inode *inode,
@@ -232,34 +252,31 @@ static int find_and_derive_key(const struct inode *inode,
 			       const struct fscrypt_context *ctx,
 			       u8 *derived_key, unsigned int derived_keysize)
 {
-	struct key *key;
-	const struct fscrypt_key *payload;
+	struct fscrypt_ce_key lease;
 	struct crypto_aead *tfm = NULL;
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
 	int err;
 
-	key = find_and_lock_process_key(ctx, FS_KEY_DESC_PREFIX,
-					ctx->master_key_descriptor,
-					derived_keysize, &payload);
-	if (key == ERR_PTR(-ENOKEY) && inode->i_sb->s_cop->key_prefix) {
-		key = find_and_lock_process_key(ctx, inode->i_sb->s_cop->key_prefix,
-						ctx->master_key_descriptor,
-						derived_keysize, &payload);
-	}
-	if (IS_ERR(key))
-		return PTR_ERR(key);
+	if (derived_keysize > FS_KEY_DERIVATION_NONCE_SIZE)
+		return -EINVAL;
+	err = fscrypt_acquire_ce_key(ctx->master_key_descriptor,
+			inode->i_sb->s_cop->key_prefix, &lease);
+	if (err)
+		return err;
 
-	crypt_info->ci_key_index = (int) *(payload->raw + 63) & 0xff;
+	/* Preserve the legacy raw[63] byte even for a size32 payload.  This
+	 * does not establish that arbitrary bytes are a valid hardware slot.
+	 */
+	crypt_info->ci_key_index = lease.material.raw[63];
 
 	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
 	if (IS_ERR(tfm)) {
-		up_read(&key->sem);
 		err = (int)PTR_ERR(tfm);
 		tfm = NULL;
 		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
 		goto out;
 	}
-	err = fscrypt_set_gcm_key(tfm, payload->raw);
+	err = fscrypt_set_gcm_key(tfm, lease.material.raw);
 	if (err)
 		goto out;
 	err = fscrypt_derive_gcm_key(tfm, ctx->nonce, plain_text, (u8 *)ctx->iv, 0);
@@ -267,15 +284,15 @@ static int find_and_derive_key(const struct inode *inode,
 		goto out;
 	memcpy(derived_key, plain_text, derived_keysize);
 	crypt_info->ci_gtfm = tfm;
-	up_read(&key->sem);
-	key_put(key);
+	fscrypt_release_ce_key(&lease);
+	memzero_explicit(plain_text, sizeof(plain_text));
 	return 0;
 
 out:
 	if (tfm)
 		crypto_free_aead(tfm);
-	up_read(&key->sem);
-	key_put(key);
+	fscrypt_release_ce_key(&lease);
+	memzero_explicit(plain_text, sizeof(plain_text));
 	return err;
 }
 

@@ -77,6 +77,20 @@ extern int fscrypt_set_gcm_key(struct crypto_aead *, const u8 *);
 extern int fscrypt_derive_gcm_key(struct crypto_aead *,
 				const u8 *, u8 *, u8 *, int);
 extern struct key *fscrypt_request_key(const u8 *, const u8 *, int);
+/* Legacy logon acquisition only: not a filesystem-keyring/REMOVE token.
+ * material retains the original size and all 64 bytes, including vendor tail.
+ * A successful acquisition owns exactly one read lock and key reference.
+ * The token must not be copied, reused live, or shared between threads.
+ */
+struct fscrypt_ce_key {
+	struct key *key;
+	struct fscrypt_key material;
+	bool alternate_prefix;
+};
+extern int fscrypt_acquire_ce_key(const u8 *descriptor, const char *alternate,
+				 struct fscrypt_ce_key *lease);
+extern void fscrypt_release_ce_key(struct fscrypt_ce_key *lease);
+
 extern int fscrypt_get_encryption_info(struct inode *);
 extern void fscrypt_put_encryption_info(struct inode *);
 #ifdef CONFIG_HWDPS
