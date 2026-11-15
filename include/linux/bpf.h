@@ -15,12 +15,15 @@
 #include <linux/err.h>
 #include <linux/rbtree_latch.h>
 #include <linux/numa.h>
+#include <linux/mutex.h>
 
 struct perf_event;
 struct bpf_prog;
 struct bpf_map;
 struct btf;
 struct btf_type;
+struct vm_area_struct;
+struct poll_table_struct;
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
 struct bpf_map_ops {
@@ -31,6 +34,9 @@ struct bpf_map_ops {
 	int (*map_get_next_key)(struct bpf_map *map, void *key, void *next_key);
 	void (*map_release_uref)(struct bpf_map *map);
 	void *(*map_lookup_elem_sys_only)(struct bpf_map *map, void *key);
+	int (*map_mmap)(struct bpf_map *map, struct vm_area_struct *vma);
+	unsigned int (*map_poll)(struct bpf_map *map, struct file *filp,
+			 struct poll_table_struct *pts);
 
 	/* funcs callable from userspace and from eBPF programs */
 	void *(*map_lookup_elem)(struct bpf_map *map, void *key);
@@ -69,6 +75,7 @@ struct bpf_map {
 	u32 btf_key_type_id;
 	u32 btf_value_type_id;
 	bool unpriv_array;
+	bool frozen; /* syscall writes only; protected by freeze_mutex */
 
 	/* Separately aligned misc members to avoid false sharing
 	 * particularly with refcounting.
@@ -78,6 +85,8 @@ struct bpf_map {
 	atomic_t usercnt;
 	struct work_struct work;
 	char name[BPF_OBJ_NAME_LEN];
+	struct mutex freeze_mutex;
+	atomic64_t writecnt;
 };
 
 /* function argument constraints */
@@ -353,6 +362,7 @@ void bpf_map_put(struct bpf_map *map);
 int bpf_map_precharge_memlock(u32 pages);
 void *bpf_map_area_alloc(size_t size, int numa_node);
 void bpf_map_area_free(void *base);
+void *bpf_map_area_mmapable_alloc(size_t size, int numa_node);
 
 extern int sysctl_unprivileged_bpf_disabled;
 
