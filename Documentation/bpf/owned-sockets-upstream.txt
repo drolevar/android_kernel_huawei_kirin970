@@ -1,0 +1,292 @@
+commit f99bbe21e99fffd7b2cdd2aa927ee3f81f900e8e
+Author:     Joe Stringer <joe@wand.net.nz>
+AuthorDate: Tue Oct 2 13:35:36 2018 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:04 2025 +0300
+
+    BACKPORT: bpf: Add helper to retrieve socket in BPF
+    
+    This patch adds new BPF helper functions, bpf_sk_lookup_tcp() and
+    bpf_sk_lookup_udp() which allows BPF programs to find out if there is a
+    socket listening on this host, and returns a socket pointer which the
+    BPF program can then access to determine, for instance, whether to
+    forward or drop traffic. bpf_sk_lookup_xxx() may take a reference on the
+    socket, so when a BPF program makes use of this function, it must
+    subsequently pass the returned pointer into the newly added sk_release()
+    to return the reference.
+    
+    By way of example, the following pseudocode would filter inbound
+    connections at XDP if there is no corresponding service listening for
+    the traffic:
+    
+      struct bpf_sock_tuple tuple;
+      struct bpf_sock_ops *sk;
+    
+      populate_tuple(ctx, &tuple); // Extract the 5tuple from the packet
+      sk = bpf_sk_lookup_tcp(ctx, &tuple, sizeof tuple, netns, 0);
+      if (!sk) {
+        // Couldn't find a socket listening for this traffic. Drop.
+        return TC_ACT_SHOT;
+      }
+      bpf_sk_release(sk, 0);
+      return TC_ACT_OK;
+    
+    Change-Id: I534d92a4cc11df0c6157f1c3282e0cf262e95a7c
+    Signed-off-by: Joe Stringer <joe@wand.net.nz>
+    Acked-by: Alexei Starovoitov <ast@kernel.org>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+commit ec1fe73f17fb4cb93bdabc6e0f055a1ec1a169b3
+Author:     Joe Stringer <joe@wand.net.nz>
+AuthorDate: Mon Oct 15 10:27:45 2018 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:28 2025 +0300
+
+    UPSTREAM: bpf: Allow sk_lookup with IPv6 module
+    
+    This is a more complete fix than d71019b54bff ("net: core: Fix build
+    with CONFIG_IPV6=m"), so that IPv6 sockets may be looked up if the IPv6
+    module is loaded (not just if it's compiled in).
+    
+    Change-Id: I18c1f5d5e606d5c31f6fefca64676925ded3e38d
+    Signed-off-by: Joe Stringer <joe@wand.net.nz>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+commit 321f978dca66bbc55823d283561bccd9672383f0
+Author:     Jon Maxwell <jmaxwell37@gmail.com>
+AuthorDate: Wed Jun 15 11:15:40 2022 +1000
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:10:31 2025 +0300
+
+    UPSTREAM: bpf: Fix request_sock leak in sk lookup helpers
+    
+    [ Upstream commit 3046a827316c0e55fc563b4fb78c93b9ca5c7c37 ]
+    
+    A customer reported a request_socket leak in a Calico cloud environment. We
+    found that a BPF program was doing a socket lookup with takes a refcnt on
+    the socket and that it was finding the request_socket but returning the parent
+    LISTEN socket via sk_to_full_sk() without decrementing the child request socket
+    1st, resulting in request_sock slab object leak. This patch retains the
+    existing behaviour of returning full socks to the caller but it also decrements
+    the child request_socket if one is present before doing so to prevent the leak.
+    
+    Thanks to Curtis Taylor for all the help in diagnosing and testing this. And
+    thanks to Antoine Tenart for the reproducer and patch input.
+    
+    v2 of this patch contains, refactor as per Daniel Borkmann's suggestions to
+    validate RCU flags on the listen socket so that it balances with bpf_sk_release()
+    and update comments as per Martin KaFai Lau's suggestion. One small change to
+    Daniels suggestion, put "sk = sk2" under "if (sk2 != sk)" to avoid an extra
+    instruction.
+    
+    Fixes: f7355a6c0497 ("bpf: Check sk_fullsock() before returning from bpf_sk_lookup()")
+    Fixes: edbf8c01de5a ("bpf: add skc_lookup_tcp helper")
+    Co-developed-by: Antoine Tenart <atenart@kernel.org>
+    Change-Id: I4867220345184d2c036b76988b3267f5bc6aeb63
+    Signed-off-by: Antoine Tenart <atenart@kernel.org>
+    Signed-off-by: Jon Maxwell <jmaxwell37@gmail.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Tested-by: Curtis Taylor <cutaylor-pub@yahoo.com>
+    Cc: Martin KaFai Lau <kafai@fb.com>
+    Link: https://lore.kernel.org/bpf/56d6f898-bde0-bb25-3427-12a330b29fb8@iogearbox.net
+    Link: https://lore.kernel.org/bpf/20220615011540.813025-1-jmaxwell37@gmail.com
+    Signed-off-by: Sasha Levin <sashal@kernel.org>
+commit cffad27905f446681cd38f7e44b9f447b8165243
+Author:     Joe Stringer <joe@wand.net.nz>
+AuthorDate: Tue Oct 2 13:35:35 2018 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:04 2025 +0300
+
+    BACKPORT: bpf: Add reference tracking to verifier
+    
+    Allow helper functions to acquire a reference and return it into a
+    register. Specific pointer types such as the PTR_TO_SOCKET will
+    implicitly represent such a reference. The verifier must ensure that
+    these references are released exactly once in each path through the
+    program.
+    
+    To achieve this, this commit assigns an id to the pointer and tracks it
+    in the 'bpf_func_state', then when the function or program exits,
+    verifies that all of the acquired references have been freed. When the
+    pointer is passed to a function that frees the reference, it is removed
+    from the 'bpf_func_state` and all existing copies of the pointer in
+    registers are marked invalid.
+    
+    Change-Id: I2f03a4b8d98af0b85d24a348d9109dfb83ffaa86
+    Signed-off-by: Joe Stringer <joe@wand.net.nz>
+    Acked-by: Alexei Starovoitov <ast@kernel.org>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+commit 0773cef5d32e67f3e377c2c4ccc35bad57ad5d75
+Author:     Martin KaFai Lau <kafai@fb.com>
+AuthorDate: Tue Mar 12 10:23:02 2019 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Fri Oct 10 05:01:30 2025 +0300
+
+    BACKPORT: bpf: Fix bpf_tcp_sock and bpf_sk_fullsock issue related to bpf_sk_release
+    
+    Lorenz Bauer [thanks!] reported that a ptr returned by bpf_tcp_sock(sk)
+    can still be accessed after bpf_sk_release(sk).
+    Both bpf_tcp_sock() and bpf_sk_fullsock() have the same issue.
+    This patch addresses them together.
+    
+    A simple reproducer looks like this:
+    
+            sk = bpf_sk_lookup_tcp();
+            /* if (!sk) ... */
+            tp = bpf_tcp_sock(sk);
+            /* if (!tp) ... */
+            bpf_sk_release(sk);
+            snd_cwnd = tp->snd_cwnd; /* oops! The verifier does not complain. */
+    
+    The problem is the verifier did not scrub the register's states of
+    the tcp_sock ptr (tp) after bpf_sk_release(sk).
+    
+    [ Note that when calling bpf_tcp_sock(sk), the sk is not always
+      refcount-acquired. e.g. bpf_tcp_sock(skb->sk). The verifier works
+      fine for this case. ]
+    
+    Currently, the verifier does not track if a helper's return ptr (in REG_0)
+    is "carry"-ing one of its argument's refcount status. To carry this info,
+    the reg1->id needs to be stored in reg0.
+    
+    One approach was tried, like "reg0->id = reg1->id", when calling
+    "bpf_tcp_sock()".  The main idea was to avoid adding another "ref_obj_id"
+    for the same reg.  However, overlapping the NULL marking and ref
+    tracking purpose in one "id" does not work well:
+    
+            ref_sk = bpf_sk_lookup_tcp();
+            fullsock = bpf_sk_fullsock(ref_sk);
+            tp = bpf_tcp_sock(ref_sk);
+            if (!fullsock) {
+                 bpf_sk_release(ref_sk);
+                 return 0;
+            }
+            /* fullsock_reg->id is marked for NOT-NULL.
+             * Same for tp_reg->id because they have the same id.
+             */
+    
+            /* oops. verifier did not complain about the missing !tp check */
+            snd_cwnd = tp->snd_cwnd;
+    
+    Hence, a new "ref_obj_id" is needed in "struct bpf_reg_state".
+    With a new ref_obj_id, when bpf_sk_release(sk) is called, the verifier can
+    scrub all reg states which has a ref_obj_id match.  It is done with the
+    changes in release_reg_references() in this patch.
+    
+    While fixing it, sk_to_full_sk() is removed from bpf_tcp_sock() and
+    bpf_sk_fullsock() to avoid these helpers from returning
+    another ptr. It will make bpf_sk_release(tp) possible:
+    
+            sk = bpf_sk_lookup_tcp();
+            /* if (!sk) ... */
+            tp = bpf_tcp_sock(sk);
+            /* if (!tp) ... */
+            bpf_sk_release(tp);
+    
+    A separate helper "bpf_get_listener_sock()" will be added in a later
+    patch to do sk_to_full_sk().
+    
+    Misc change notes:
+    - To allow bpf_sk_release(tp), the arg of bpf_sk_release() is changed
+      from ARG_PTR_TO_SOCKET to ARG_PTR_TO_SOCK_COMMON.  ARG_PTR_TO_SOCKET
+      is removed from bpf.h since no helper is using it.
+    
+    - arg_type_is_refcounted() is renamed to arg_type_may_be_refcounted()
+      because ARG_PTR_TO_SOCK_COMMON is the only one and skb->sk is not
+      refcounted.  All bpf_sk_release(), bpf_sk_fullsock() and bpf_tcp_sock()
+      take ARG_PTR_TO_SOCK_COMMON.
+    
+    - check_refcount_ok() ensures is_acquire_function() cannot take
+      arg_type_may_be_refcounted() as its argument.
+    
+    - The check_func_arg() can only allow one refcount-ed arg.  It is
+      guaranteed by check_refcount_ok() which ensures at most one arg can be
+      refcounted.  Hence, it is a verifier internal error if >1 refcount arg
+      found in check_func_arg().
+    
+    - In release_reference(), release_reference_state() is called
+      first to ensure a match on "reg->ref_obj_id" can be found before
+      scrubbing the reg states with release_reg_references().
+    
+    - reg_is_refcounted() is no longer needed.
+      1. In mark_ptr_or_null_regs(), its usage is replaced by
+         "ref_obj_id && ref_obj_id == id" because,
+         when is_null == true, release_reference_state() should only be
+         called on the ref_obj_id obtained by a acquire helper (i.e.
+         is_acquire_function() == true).  Otherwise, the following
+         would happen:
+    
+            sk = bpf_sk_lookup_tcp();
+            /* if (!sk) { ... } */
+            fullsock = bpf_sk_fullsock(sk);
+            if (!fullsock) {
+                    /*
+                     * release_reference_state(fullsock_reg->ref_obj_id)
+                     * where fullsock_reg->ref_obj_id == sk_reg->ref_obj_id.
+                     *
+                     * Hence, the following bpf_sk_release(sk) will fail
+                     * because the ref state has already been released in the
+                     * earlier release_reference_state(fullsock_reg->ref_obj_id).
+                     */
+                    bpf_sk_release(sk);
+            }
+    
+      2. In release_reg_references(), the current reg_is_refcounted() call
+         is unnecessary because the id check is enough.
+    
+    - The type_is_refcounted() and type_is_refcounted_or_null()
+      are no longer needed also because reg_is_refcounted() is removed.
+    
+    Fixes: 655a51e536c0 ("bpf: Add struct bpf_tcp_sock and BPF_FUNC_tcp_sock")
+    Reported-by: Lorenz Bauer <lmb@cloudflare.com>
+    Change-Id: I8190c2d2ec5f092f3b715d002c5270580a4a4fff
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+commit 3a56d0b0da8b09e5ae4cc9a101704c1bd3a91611
+Author:     Lorenz Bauer <lmb@cloudflare.com>
+AuthorDate: Mon Sep 21 13:12:22 2020 +0100
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:38:40 2026 +0300
+
+    UPSTREAM: bpf: Make reference tracking generic
+    
+    Instead of dealing with reg->ref_obj_id individually for every arg type that
+    needs it, rely on the fact that ref_obj_id is zero if the register is not
+    reference tracked.
+    
+    Change-Id: I68181c83545a3f1de73eb863986fe4165df10a87
+    Signed-off-by: Lorenz Bauer <lmb@cloudflare.com>
+    Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+    Acked-by: Andrii Nakryiko <andriin@fb.com>
+    Acked-by: Martin KaFai Lau <kafai@fb.com>
+    Link: https://lore.kernel.org/bpf/20200921121227.255763-7-lmb@cloudflare.com
+commit 679f67688fa46a7fa57bdcbe455f5a83b5c22d51
+Author:     Youlin Li <liulin063@gmail.com>
+AuthorDate: Thu Nov 3 17:34:39 2022 +0800
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:39:24 2026 +0300
+
+    UPSTREAM: bpf: Fix wrong reg type conversion in release_reference()
+    
+    [ Upstream commit f1db20814af532f85e091231223e5e4818e8464b ]
+    
+    Some helper functions will allocate memory. To avoid memory leaks, the
+    verifier requires the eBPF program to release these memories by calling
+    the corresponding helper functions.
+    
+    When a resource is released, all pointer registers corresponding to the
+    resource should be invalidated. The verifier use release_references() to
+    do this job, by apply  __mark_reg_unknown() to each relevant register.
+    
+    It will give these registers the type of SCALAR_VALUE. A register that
+    will contain a pointer value at runtime, but of type SCALAR_VALUE, which
+    may allow the unprivileged user to get a kernel pointer by storing this
+    register into a map.
+    
+    Using __mark_reg_not_init() while NOT allow_ptr_leaks can mitigate this
+    problem.
+    
+    Fixes: fd978bf7fd31 ("bpf: Add reference tracking to verifier")
+    Change-Id: Ie4eb142733a7ff165996fd0444ecab4e287046c4
+    Signed-off-by: Youlin Li <liulin063@gmail.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Link: https://lore.kernel.org/bpf/20221103093440.3161-1-liulin063@gmail.com
+    Signed-off-by: Sasha Levin <sashal@kernel.org>

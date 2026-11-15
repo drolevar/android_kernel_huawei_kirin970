@@ -59,6 +59,10 @@
 #endif
 #include <net/busy_poll.h>
 #include <net/tcp.h>
+#include <net/udp.h>
+#include <net/inet_hashtables.h>
+#include <net/ipv6_bpf.h>
+#include <net/net_namespace.h>
 #include <linux/bpf_trace.h>
 #ifdef CONFIG_HW_PACKET_FILTER_BYPASS
 #include <hwnet/booster/hw_packet_filter_bypass.h>
@@ -3586,6 +3590,13 @@ lwt_xmit_func_proto(enum bpf_func_id func_id)
 	}
 }
 
+const struct ipv6_bpf_stub *ipv6_bpf_stub __read_mostly;
+EXPORT_SYMBOL_GPL(ipv6_bpf_stub);
+
+#ifdef CONFIG_INET
+#include "filter_owned_sockets.inc"
+#endif
+
 BPF_CALL_1(bpf_sk_fullsock, struct sock *, sk)
 {
 	/* Never convert a request socket to its listener. No reference acquired. */
@@ -3603,6 +3614,14 @@ static const struct bpf_func_proto *
 cg_skb_func_proto(enum bpf_func_id func_id)
 {
 	switch (func_id) {
+#ifdef CONFIG_INET
+	case BPF_FUNC_sk_lookup_tcp:
+		return &bpf_sk_lookup_tcp_proto;
+	case BPF_FUNC_sk_lookup_udp:
+		return &bpf_sk_lookup_udp_proto;
+	case BPF_FUNC_sk_release:
+		return &bpf_sk_release_proto;
+#endif
 	case BPF_FUNC_sk_fullsock:
 		return &bpf_sk_fullsock_proto;
 #ifdef CONFIG_BPF_SYSCALL

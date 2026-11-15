@@ -1118,4 +1118,24 @@ enum {
 #define TCP_BPF_IW		1001	/* Set TCP initial congestion window */
 #define TCP_BPF_SNDCWND_CLAMP	1002	/* Set sndcwnd_clamp */
 
+/* Socket lookup tuple sizes: IPv4 12 bytes, IPv6 36 bytes. */
+struct bpf_sock_tuple {
+	union {
+		struct {
+			__be32 saddr;
+			__be32 daddr;
+			__be16 sport;
+			__be16 dport;
+		} ipv4;
+		struct {
+			__be32 saddr[4];
+			__be32 daddr[4];
+			__be16 sport;
+			__be16 dport;
+		} ipv6;
+	};
+};
+
+enum { BPF_F_CURRENT_NETNS = (-1L) };
+
 #endif /* _UAPI__LINUX_BPF_H__ */

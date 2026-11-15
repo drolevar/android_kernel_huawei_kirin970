@@ -124,7 +124,7 @@ enum bpf_arg_type {
 /* type of values returned from helper functions */
 enum bpf_return_type {
 	RET_INTEGER,			/* function returns integer */
-	RET_PTR_TO_SOCKET_OR_NULL, /* borrowed, never an acquired reference */
+	RET_PTR_TO_SOCKET_OR_NULL, /* acquisition or nullable socket cast */
 	RET_VOID,			/* function doesn't return anything */
 	RET_PTR_TO_MAP_VALUE_OR_NULL,	/* returns a pointer to map elem value or NULL */
 	RET_PTR_TO_ALLOC_MEM_OR_NULL,
@@ -144,7 +144,8 @@ struct bpf_func_proto {
 	enum bpf_arg_type arg3_type;
 	enum bpf_arg_type arg4_type;
 	enum bpf_arg_type arg5_type;
-	bool releases_reference; /* consumes one ARG_PTR_TO_ALLOC_MEM */
+	bool releases_reference; /* consumes one memory or socket reference */
+	bool acquires_reference; /* nullable socket lookup */
 };
 
 /* bpf_context is intentionally undefined structure. Pointer to bpf_context is

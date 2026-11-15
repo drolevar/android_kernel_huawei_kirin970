@@ -20,6 +20,8 @@
 
 #define pr_fmt(fmt) "IPv6: " fmt
 
+#include <net/ipv6_bpf.h>
+#include <net/inet6_hashtables.h>
 #include <linux/module.h>
 #include <linux/capability.h>
 #include <linux/errno.h>
@@ -908,6 +910,11 @@ static struct pernet_operations inet6_net_ops = {
 	.exit = inet6_net_exit,
 };
 
+static const struct ipv6_bpf_stub ipv6_bpf_stub_impl = {
+	.tcp6_lookup = __inet6_lookup,
+	.udp6_lib_lookup = __udp6_lib_lookup,
+};
+
 static const struct ipv6_stub ipv6_stub_impl = {
 	.ipv6_sock_mc_join = ipv6_sock_mc_join,
 	.ipv6_sock_mc_drop = ipv6_sock_mc_drop,
@@ -1073,6 +1080,7 @@ static int __init inet6_init(void)
 	/* ensure that ipv6 stubs are visible only after ipv6 is ready */
 	wmb();
 	ipv6_stub = &ipv6_stub_impl;
+	ipv6_bpf_stub = &ipv6_bpf_stub_impl;
 out:
 	return err;
 
