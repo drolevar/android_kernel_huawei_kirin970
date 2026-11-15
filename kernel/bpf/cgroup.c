@@ -523,3 +523,7 @@ int __cgroup_bpf_run_filter_sock_ops(struct sock *sk,
 	return ret == 1 ? 0 : -EPERM;
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_sock_ops);
+
+#ifdef CONFIG_NET
+#include "cgroup_sockopt.inc"
+#endif

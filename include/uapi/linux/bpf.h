@@ -142,6 +142,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_LWT_XMIT,
 	BPF_PROG_TYPE_SOCK_OPS,
 	BPF_PROG_TYPE_SK_SKB,
+	BPF_PROG_TYPE_CGROUP_SOCKOPT = 25,
 };
 
 enum bpf_attach_type {
@@ -151,6 +152,8 @@ enum bpf_attach_type {
 	BPF_CGROUP_SOCK_OPS,
 	BPF_SK_SKB_STREAM_PARSER,
 	BPF_SK_SKB_STREAM_VERDICT,
+	BPF_CGROUP_GETSOCKOPT = 21,
+	BPF_CGROUP_SETSOCKOPT = 22,
 	__MAX_BPF_ATTACH_TYPE
 };
 
@@ -279,6 +282,8 @@ union bpf_attr {
 		__u32		kern_version;	/* checked when prog_type=kprobe */
 		__u32		prog_flags;
 		char		prog_name[BPF_OBJ_NAME_LEN];
+		__u32		prog_ifindex;
+		__u32		expected_attach_type;
 	};
 
 	struct { /* anonymous struct used by BPF_OBJ_* commands */
@@ -1117,6 +1122,18 @@ enum {
 
 #define TCP_BPF_IW		1001	/* Set TCP initial congestion window */
 #define TCP_BPF_SNDCWND_CLAMP	1002	/* Set sndcwnd_clamp */
+
+/* Canonical sockopt context, including pointer slots on 32-bit hosts. */
+struct bpf_sockopt {
+	union { struct bpf_sock *sk; __u64 :64; } __attribute__((aligned(8)));
+	union { void *optval; __u64 :64; } __attribute__((aligned(8)));
+	union { void *optval_end; __u64 :64; } __attribute__((aligned(8)));
+
+	__s32	level;
+	__s32	optname;
+	__s32	optlen;
+	__s32	retval;
+};
 
 /* Socket lookup tuple sizes: IPv4 12 bytes, IPv6 36 bytes. */
 struct bpf_sock_tuple {
