@@ -98,6 +98,7 @@ enum bpf_arg_type {
 	 */
 	ARG_CONST_MAP_PTR,	/* const argument used as pointer to bpf_map */
 	ARG_PTR_TO_MAP_KEY,	/* pointer to stack used as map key */
+	ARG_PTR_TO_MAP_VALUE_OR_NULL, /* optional, fully initialized value */
 	ARG_PTR_TO_MAP_VALUE,	/* pointer to stack used as map value */
 
 	/* the following constraints used to prototype bpf_memcmp() and other

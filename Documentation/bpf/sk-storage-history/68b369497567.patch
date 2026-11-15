@@ -1,0 +1,50 @@
+From 68b369497567f5a532096cae1594033c01cc006b Mon Sep 17 00:00:00 2001
+From: Arthur Fabre <afabre@cloudflare.com>
+Date: Sat, 15 Jun 2019 14:36:27 -0700
+Subject: [PATCH] UPSTREAM: bpf: Fix out of bounds memory access in
+ bpf_sk_storage
+
+bpf_sk_storage maps use multiple spin locks to reduce contention.
+The number of locks to use is determined by the number of possible CPUs.
+With only 1 possible CPU, bucket_log == 0, and 2^0 = 1 locks are used.
+
+When updating elements, the correct lock is determined with hash_ptr().
+Calling hash_ptr() with 0 bits is undefined behavior, as it does:
+
+x >> (64 - bits)
+
+Using the value results in an out of bounds memory access.
+In my case, this manifested itself as a page fault when raw_spin_lock_bh()
+is called later, when running the self tests:
+
+./tools/testing/selftests/bpf/test_verifier 773 775
+[   16.366342] BUG: unable to handle page fault for address: ffff8fe7a66f93f8
+
+Force the minimum number of locks to two.
+
+Change-Id: I7058918b2b1e35be341eeecec4976c7ea3991798
+Signed-off-by: Arthur Fabre <afabre@cloudflare.com>
+Fixes: 6ac99e8f23d4 ("bpf: Introduce bpf sk local storage")
+Acked-by: Andrii Nakryiko <andriin@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ net/core/bpf_sk_storage.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/core/bpf_sk_storage.c b/net/core/bpf_sk_storage.c
+index 3d89310ee57d..78f5720e6d70 100644
+--- a/net/core/bpf_sk_storage.c
++++ b/net/core/bpf_sk_storage.c
+@@ -725,7 +725,8 @@ struct bpf_local_storage_map *bpf_local_storage_map_alloc(union bpf_attr *attr)
+ 		return ERR_PTR(-ENOMEM);
+ 	bpf_map_init_from_attr(&smap->map, attr);
+ 
+-	smap->bucket_log = ilog2(roundup_pow_of_two(num_possible_cpus()));
++	/* Use at least 2 buckets, select_bucket() is undefined behavior with 1 bucket */
++	smap->bucket_log = max_t(u32, 1, ilog2(roundup_pow_of_two(num_possible_cpus())));
+ 	nbuckets = 1U << smap->bucket_log;
+ 	cost = sizeof(*smap->buckets) * nbuckets + sizeof(*smap);
+ 
+-- 
+2.56.0
+

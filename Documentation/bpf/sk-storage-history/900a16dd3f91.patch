@@ -1,0 +1,66 @@
+From 900a16dd3f91d37fa8e2e600b033bec628c352e1 Mon Sep 17 00:00:00 2001
+From: Roman Gushchin <guro@fb.com>
+Date: Wed, 29 May 2019 18:03:56 -0700
+Subject: [PATCH] UPSTREAM: bpf: add memlock precharge for socket local storage
+
+Socket local storage maps lack the memlock precharge check,
+which is performed before the memory allocation for
+most other bpf map types.
+
+Let's add it in order to unify all map types.
+
+Change-Id: If844b9f761a9b7a0fad3ec3399a81093fb69b9ae
+Signed-off-by: Roman Gushchin <guro@fb.com>
+Acked-by: Song Liu <songliubraving@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ net/core/bpf_sk_storage.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/net/core/bpf_sk_storage.c b/net/core/bpf_sk_storage.c
+index a8e9ac71b22d..377f3b5e53e5 100644
+--- a/net/core/bpf_sk_storage.c
++++ b/net/core/bpf_sk_storage.c
+@@ -626,7 +626,9 @@ static struct bpf_map *bpf_sk_storage_map_alloc(union bpf_attr *attr)
+ 	struct bpf_sk_storage_map *smap;
+ 	unsigned int i;
+ 	u32 nbuckets;
++	u32 pages;
+ 	u64 cost;
++	int ret;
+ 
+ 	smap = kzalloc(sizeof(*smap), GFP_USER | __GFP_NOWARN);
+ 	if (!smap)
+@@ -635,13 +637,19 @@ static struct bpf_map *bpf_sk_storage_map_alloc(union bpf_attr *attr)
+ 
+ 	smap->bucket_log = ilog2(roundup_pow_of_two(num_possible_cpus()));
+ 	nbuckets = 1U << smap->bucket_log;
++	cost = sizeof(*smap->buckets) * nbuckets + sizeof(*smap);
++	pages = round_up(cost, PAGE_SIZE) >> PAGE_SHIFT;
++
++	ret = bpf_map_precharge_memlock(pages);
++	if (ret < 0)
++		return ERR_PTR(ret);
++
+ 	smap->buckets = kvcalloc(sizeof(*smap->buckets), nbuckets,
+ 				 GFP_USER | __GFP_NOWARN);
+ 	if (!smap->buckets) {
+ 		kfree(smap);
+ 		return ERR_PTR(-ENOMEM);
+ 	}
+-	cost = sizeof(*smap->buckets) * nbuckets + sizeof(*smap);
+ 
+ 	for (i = 0; i < nbuckets; i++) {
+ 		INIT_HLIST_HEAD(&smap->buckets[i].list);
+@@ -651,7 +659,7 @@ static struct bpf_map *bpf_sk_storage_map_alloc(union bpf_attr *attr)
+ 	smap->elem_size = sizeof(struct bpf_sk_storage_elem) + attr->value_size;
+ 	smap->cache_idx = (unsigned int)atomic_inc_return(&cache_idx) %
+ 		BPF_SK_STORAGE_CACHE_SIZE;
+-	smap->map.pages = round_up(cost, PAGE_SIZE) >> PAGE_SHIFT;
++	smap->map.pages = pages;
+ 
+ 	return &smap->map;
+ }
+-- 
+2.56.0
+

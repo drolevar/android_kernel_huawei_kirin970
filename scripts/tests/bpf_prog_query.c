@@ -141,6 +141,7 @@ static int security_bpf(int cmd, const union bpf_attr *attr, unsigned int size)
 }
 #define kshield_chk_heap_spray(x) ((void)(x))
 /* Unrelated syscall commands are outside this fixture. */
+#define map_freeze(...) (-EOPNOTSUPP)
 #define map_create(...) (-EOPNOTSUPP)
 #define map_lookup_elem(...) (-EOPNOTSUPP)
 #define map_update_elem(...) (-EOPNOTSUPP)

@@ -173,5 +173,16 @@ int main(void){
  for(int fail=1;fail<=4;fail++){copy_fail=fail;CHECK(map_update_elem(&ua)<0);CHECK(!m->writecnt);}
  copy_fail=1;CHECK(map_delete_elem(&ua)==-EFAULT);CHECK(!m->writecnt);copy_fail=0;CHECK(map_delete_elem(&ua)==-EINVAL);CHECK(!m->writecnt);
  CHECK(!freeze());int calls=call_count;CHECK(map_update_elem(&ua)==-EPERM);CHECK(map_delete_elem(&ua)==-EPERM);CHECK(call_count==calls);CHECK(!m->writecnt);CHECK(!bpf_prog_active);array_map_free(m);
- puts("PASS allocation, offsets, permissions, VMA ownership, freeze, write accounting, poll, failures");return 0;
+ /* Type24 shares syscall write guards, but freeze is ARRAY-only. The
+  * socket-fd backend is modeled here; its production ownership has its own suite. */
+ m=make(0,1,128);m->map_type=BPF_MAP_TYPE_SK_STORAGE;
+ unsigned char skval[128]={0};ua.value=(uintptr_t)skval;
+ CHECK(freeze()==-EOPNOTSUPP);CHECK(!m->frozen);
+ calls=call_count;CHECK(!map_update_elem(&ua));CHECK(call_count==calls+1);CHECK(!m->writecnt);
+ for(int fail=1;fail<=4;fail++){copy_fail=fail;CHECK(map_update_elem(&ua)<0);CHECK(!m->writecnt);}
+ copy_fail=1;CHECK(map_delete_elem(&ua)==-EFAULT);CHECK(!m->writecnt);
+ copy_fail=0;calls=call_count;CHECK(map_delete_elem(&ua)==-EINVAL);CHECK(call_count==calls+1);CHECK(!m->writecnt);
+ file.f_mode=FMODE_READ;calls=call_count;CHECK(map_update_elem(&ua)==-EPERM);CHECK(map_delete_elem(&ua)==-EPERM);CHECK(call_count==calls);CHECK(!m->writecnt);
+ CHECK(!bpf_prog_active);array_map_free(m);
+ puts("PASS allocation, offsets, permissions, VMA ownership, freeze, write accounting, poll, failures, storage syscall guards");return 0;
 }

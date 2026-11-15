@@ -119,9 +119,12 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_DEVMAP,
 	BPF_MAP_TYPE_SOCKMAP,
 	/* Preserve upstream numbering; intervening types are not implemented. */
+	BPF_MAP_TYPE_SK_STORAGE = 24,
 	BPF_MAP_TYPE_DEVMAP_HASH = 25,
 	BPF_MAP_TYPE_RINGBUF = 27,
 };
+
+#define BPF_SK_STORAGE_GET_F_CREATE (1ULL << 0)
 
 enum bpf_prog_type {
 	BPF_PROG_TYPE_UNSPEC,

@@ -127,6 +127,7 @@
 #include <net/net_namespace.h>
 #include <net/request_sock.h>
 #include <net/sock.h>
+#include <net/bpf_sk_storage.h>
 #include <linux/net_tstamp.h>
 #include <net/xfrm.h>
 #include <linux/ipsec.h>
@@ -1669,6 +1670,7 @@ static void __sk_destruct(struct rcu_head *head)
 		RCU_INIT_POINTER(sk->sk_filter, NULL);
 	}
 
+	bpf_sk_storage_free(sk);
 	sock_disable_timestamp(sk, SK_FLAGS_TIMESTAMP);
 
 	if (atomic_read(&sk->sk_omem_alloc))
@@ -1761,6 +1763,10 @@ struct sock *sk_clone_lock(const struct sock *sk, const gfp_t priority)
 		struct sk_filter *filter;
 
 		sock_copy(newsk, sk);
+#ifdef CONFIG_BPF_SYSCALL
+		/* Never inherit the parent's ownership, even on an early error. */
+		RCU_INIT_POINTER(newsk->sk_bpf_storage, NULL);
+#endif
 
 		newsk->sk_prot_creator = sk->sk_prot;
 

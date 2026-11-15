@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Storage, security, charging and workqueue doubles. BTF and map paths are real. */
 typedef struct { int count; } atomic_t;
+typedef struct { long long count; } atomic64_t;
+struct mutex { bool initialized; };
+static void mutex_init(struct mutex *m) {m->initialized=true;}
+static void atomic64_set(atomic64_t *p,long long n) {p->count=n;}
 static void *memchr_inv(const void *data,int value,size_t length)
 {
 	const u8 *p=data;
@@ -15,6 +19,8 @@ struct user_struct { int unused; };
 #define INIT_WORK(p,f) ((p)->fn=(f))
 static void schedule_work(struct work_struct *w) { w->fn(w); }
 struct bpf_map;
+struct vm_area_struct;
+struct poll_table_struct;
 #include "map_structures.h"
 
 static int storage_error, alloc_security_error, charge_error, map_id_error, open_security_error;

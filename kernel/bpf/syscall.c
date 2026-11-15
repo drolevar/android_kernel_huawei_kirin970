@@ -518,7 +518,8 @@ static int map_check_btf(const struct bpf_map *map, const struct btf *btf,
 	 * existing special map family into the new contract.
 	 */
 	if (map->map_type != BPF_MAP_TYPE_ARRAY &&
-	    map->map_type != BPF_MAP_TYPE_HASH)
+	    map->map_type != BPF_MAP_TYPE_HASH &&
+	    map->map_type != BPF_MAP_TYPE_SK_STORAGE)
 		return -EOPNOTSUPP;
 	if (!key_type_id || !value_type_id)
 		return -EINVAL;
@@ -774,10 +775,15 @@ static int map_lookup_elem(union bpf_attr *attr)
 			ptr = map->ops->map_lookup_elem_sys_only(map, key);
 		else
 			ptr = map->ops->map_lookup_elem(map, key);
-		if (ptr)
+		if (IS_ERR(ptr))
+			err = PTR_ERR(ptr);
+		else if (!ptr)
+			err = -ENOENT;
+		else {
 			memcpy(value, ptr, value_size);
+			err = 0;
+		}
 		rcu_read_unlock();
-		err = ptr ? 0 : -ENOENT;
 	}
 
 	if (err)
