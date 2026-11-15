@@ -4693,3 +4693,7 @@ out:
 	release_sock(sk);
 	return ret;
 }
+
+#ifdef CONFIG_CGROUP_BPF
+#include "filter_sockopt.inc"
+#endif

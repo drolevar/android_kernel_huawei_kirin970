@@ -1142,6 +1142,7 @@ static bool may_access_direct_pkt_data(struct bpf_verifier_env *env,
 	case BPF_PROG_TYPE_XDP:
 	case BPF_PROG_TYPE_LWT_XMIT:
 	case BPF_PROG_TYPE_SK_SKB:
+	case BPF_PROG_TYPE_CGROUP_SOCKOPT:
 		if (meta)
 			return meta->pkt_access;
 
@@ -1200,6 +1201,7 @@ static int check_ctx_access(struct bpf_verifier_env *env, int insn_idx, int off,
 {
 	struct bpf_insn_access_aux info = {
 		.reg_type = *reg_type,
+		.expected_attach_type = env->prog->expected_attach_type,
 	};
 
 	/* for analyzer ctx accesses are already validated and converted */
@@ -1460,7 +1462,7 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 			 * PTR_TO_PACKET[_END].  In the latter case, we know
 			 * the offset is zero.
 			 */
-			if (type_is_nullable_socket(reg_type))
+			if (type_is_borrowed_socket(reg_type))
 				return set_borrowed_socket(env, &regs[value_regno], reg_type);
 			if (reg_type == SCALAR_VALUE)
 				mark_reg_unknown(regs, value_regno);
@@ -1469,6 +1471,7 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 			regs[value_regno].id = 0;
 			regs[value_regno].off = 0;
 			regs[value_regno].range = 0;
+			regs[value_regno].ref_obj_id = 0;
 			regs[value_regno].type = reg_type;
 		}
 
@@ -4443,6 +4446,18 @@ static int ext_analyzer_insn_hook(struct bpf_verifier_env *env,
 	return env->analyzer_ops->insn_hook(env, insn_idx, prev_insn_idx);
 }
 
+/* Sockopt runners consume a Boolean decision, never an arbitrary scalar. */
+static int check_sockopt_return(struct bpf_verifier_env *env)
+{
+	const struct bpf_reg_state *reg = &env->cur_state->regs[BPF_REG_0];
+
+	if (env->prog->type != BPF_PROG_TYPE_CGROUP_SOCKOPT)
+		return 0;
+	if (reg->type != SCALAR_VALUE || reg->umin_value > 1 || reg->umax_value > 1)
+		return -EINVAL;
+	return 0;
+}
+
 static int do_check(struct bpf_verifier_env *env)
 {
 	struct bpf_verifier_state *state;
@@ -4689,6 +4704,10 @@ static int do_check(struct bpf_verifier_env *env)
 					verbose("R0 leaks addr as return value\n");
 					return -EACCES;
 				}
+
+				err = check_sockopt_return(env);
+				if (err)
+					return err;
 
 process_bpf_exit:
 				err = pop_stack(env, &env->prev_insn_idx, &env->insn_idx);
@@ -5359,6 +5378,11 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	/* 'struct bpf_verifier_env' can be global, but since it's not small,
 	 * allocate/free it every time bpf_check() is called
 	 */
+	if ((*prog)->type == BPF_PROG_TYPE_CGROUP_SOCKOPT &&
+	    (*prog)->expected_attach_type != BPF_CGROUP_GETSOCKOPT &&
+	    (*prog)->expected_attach_type != BPF_CGROUP_SETSOCKOPT)
+		return -EINVAL;
+
 	env = kzalloc(sizeof(struct bpf_verifier_env), GFP_KERNEL);
 	if (!env)
 		return -ENOMEM;

@@ -8,16 +8,16 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:07:36 2025 +0300
 
     UPSTREAM: bpf: implement getsockopt and setsockopt hooks
-    
+
     Implement new BPF_PROG_TYPE_CGROUP_SOCKOPT program type and
     BPF_CGROUP_{G,S}ETSOCKOPT cgroup hooks.
-    
+
     BPF_CGROUP_SETSOCKOPT can modify user setsockopt arguments before
     passing them down to the kernel or bypass kernel completely.
     BPF_CGROUP_GETSOCKOPT can can inspect/modify getsockopt arguments that
     kernel returns.
     Both hooks reuse existing PTR_TO_PACKET{,_END} infrastructure.
-    
+
     The buffer memory is pre-allocated (because I don't think there is
     a precedent for working with __user memory from bpf). This might be
     slow to do for each {s,g}etsockopt call, that's why I've added
@@ -27,40 +27,40 @@ CommitDate: Fri Oct 10 05:07:36 2025 +0300
     program layout might have changed; this should not be a problem
     because in general there is a race between multiple calls to
     {s,g}etsocktop and user adding/removing bpf progs from a cgroup.
-    
+
     The return code of the BPF program is handled as follows:
     * 0: EPERM
     * 1: success, continue with next BPF program in the cgroup chain
-    
+
     v9:
     * allow overwriting setsockopt arguments (Alexei Starovoitov):
       * use set_fs (same as kernel_setsockopt)
       * buffer is always kzalloc'd (no small on-stack buffer)
-    
+
     v8:
     * use s32 for optlen (Andrii Nakryiko)
-    
+
     v7:
     * return only 0 or 1 (Alexei Starovoitov)
     * always run all progs (Alexei Starovoitov)
     * use optval=0 as kernel bypass in setsockopt (Alexei Starovoitov)
       (decided to use optval=-1 instead, optval=0 might be a valid input)
     * call getsockopt hook after kernel handlers (Alexei Starovoitov)
-    
+
     v6:
     * rework cgroup chaining; stop as soon as bpf program returns
       0 or 2; see patch with the documentation for the details
     * drop Andrii's and Martin's Acked-by (not sure they are comfortable
       with the new state of things)
-    
+
     v5:
     * skip copy_to_user() and put_user() when ret == 0 (Martin Lau)
-    
+
     v4:
     * don't export bpf_sk_fullsock helper (Martin Lau)
     * size != sizeof(__u64) for uapi pointers (Martin Lau)
     * offsetof instead of bpf_ctx_range when checking ctx access (Martin Lau)
-    
+
     v3:
     * typos in BPF_PROG_CGROUP_SOCKOPT_RUN_ARRAY comments (Andrii Nakryiko)
     * reverse christmas tree in BPF_PROG_CGROUP_SOCKOPT_RUN_ARRAY (Andrii
@@ -68,7 +68,7 @@ CommitDate: Fri Oct 10 05:07:36 2025 +0300
     * use __bpf_md_ptr instead of __u32 for optval{,_end} (Martin Lau)
     * use BPF_FIELD_SIZEOF() for consistency (Martin Lau)
     * new CG_SOCKOPT_ACCESS macro to wrap repeated parts
-    
+
     v2:
     * moved bpf_sockopt_kern fields around to remove a hole (Martin Lau)
     * aligned bpf_sockopt_kern->buf to 8 bytes (Martin Lau)
@@ -78,7 +78,7 @@ CommitDate: Fri Oct 10 05:07:36 2025 +0300
     * use PTR_TO_SOCKET for bpf_sockopt->sk (Martin Lau)
     * dropped bpf_target_off from ctx rewrites (Martin Lau)
     * use return code for kernel bypass (Martin Lau & Andrii Nakryiko)
-    
+
     Cc: Andrii Nakryiko <andriin@fb.com>
     Cc: Martin Lau <kafai@fb.com>
     Change-Id: I2eb79aea6a353ca33381dcf7859f382affadf205
@@ -92,10 +92,10 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:07:37 2025 +0300
 
     UPSTREAM: bpf: cgroup: Fix build error without CONFIG_NET
-    
+
     If CONFIG_NET is not set and CONFIG_CGROUP_BPF=y,
     gcc building fails:
-    
+
     kernel/bpf/cgroup.o: In function `cg_sockopt_func_proto':
     cgroup.c:(.text+0x237e): undefined reference to `bpf_sk_storage_get_proto'
     cgroup.c:(.text+0x2394): undefined reference to `bpf_sk_storage_delete_proto'
@@ -105,7 +105,7 @@ CommitDate: Fri Oct 10 05:07:37 2025 +0300
     kernel/bpf/cgroup.o: In function `__cgroup_bpf_run_filter_setsockopt':
     (.text+0x3006): undefined reference to `lock_sock_nested'
     (.text+0x32bb): undefined reference to `release_sock'
-    
+
     Reported-by: Hulk Robot <hulkci@huawei.com>
     Suggested-by: Stanislav Fomichev <sdf@fomichev.me>
     Fixes: 0d01da6afc54 ("bpf: implement getsockopt and setsockopt hooks")
@@ -121,15 +121,15 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:07:40 2025 +0300
 
     UPSTREAM: bpf: always allocate at least 16 bytes for setsockopt hook
-    
+
     Since we always allocate memory, allocate just a little bit more
     for the BPF program in case it need to override user input with
     bigger value. The canonical example is TCP_CONGESTION where
     input string might be too small to override (nv -> bbr or cubic).
-    
+
     16 bytes are chosen to match the size of TCP_CA_NAME_MAX and can
     be extended in the future if needed.
-    
+
     Change-Id: Ib700728cac279a57b4ad9e1c0af83b042ba8cb2e
     Signed-off-by: Stanislav Fomichev <sdf@google.com>
     Signed-off-by: Alexei Starovoitov <ast@kernel.org>
@@ -141,35 +141,35 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:09:45 2025 +0300
 
     UPSTREAM: bpf: Don't return EINVAL from {get,set}sockopt when optlen > PAGE_SIZE
-    
+
     [ Upstream commit d8fe449a9c51a37d844ab607e14e2f5c657d3cf2 ]
-    
+
     Attaching to these hooks can break iptables because its optval is
     usually quite big, or at least bigger than the current PAGE_SIZE limit.
     David also mentioned some SCTP options can be big (around 256k).
-    
+
     For such optvals we expose only the first PAGE_SIZE bytes to
     the BPF program. BPF program has two options:
     1. Set ctx->optlen to 0 to indicate that the BPF's optval
        should be ignored and the kernel should use original userspace
        value.
     2. Set ctx->optlen to something that's smaller than the PAGE_SIZE.
-    
+
     v5:
     * use ctx->optlen == 0 with trimmed buffer (Alexei Starovoitov)
     * update the docs accordingly
-    
+
     v4:
     * use temporary buffer to avoid optval == optval_end == NULL;
       this removes the corner case in the verifier that might assume
       non-zero PTR_TO_PACKET/PTR_TO_PACKET_END.
-    
+
     v3:
     * don't increase the limit, bypass the argument
-    
+
     v2:
     * proper comments formatting (Jakub Kicinski)
-    
+
     Fixes: 0d01da6afc54 ("bpf: implement getsockopt and setsockopt hooks")
     Change-Id: I5cc4abaea99d89a7133727589a736222f9ef2478
     Signed-off-by: Stanislav Fomichev <sdf@google.com>
@@ -185,13 +185,13 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:09:46 2025 +0300
 
     UPSTREAM: bpf: Don't leak memory in bpf getsockopt when optlen == 0
-    
+
     commit 4be34f3d0731b38a1b24566b37fbb39500aaf3a2 upstream.
-    
+
     optlen == 0 indicates that the kernel should ignore BPF buffer
     and use the original one from the user. We, however, forget
     to free the temporary buffer that we've allocated for BPF.
-    
+
     Fixes: d8fe449a9c51 ("bpf: Don't return EINVAL from {get,set}sockopt when optlen > PAGE_SIZE")
     Reported-by: Martin KaFai Lau <kafai@fb.com>
     Change-Id: Ibfbbdb6704b7db7d61da298365c2b61e5133d9a0
@@ -208,17 +208,17 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:09:47 2025 +0300
 
     UPSTREAM: bpf, cgroup: Fix optlen WARN_ON_ONCE toctou
-    
+
     [ Upstream commit bb8b81e396f7afbe7c50d789e2107512274d2a35 ]
-    
+
     A toctou issue in `__cgroup_bpf_run_filter_getsockopt` can trigger a
     WARN_ON_ONCE in a check of `copy_from_user`.
-    
+
     `*optlen` is checked to be non-negative in the individual getsockopt
     functions beforehand. Changing `*optlen` in a race to a negative value
     will result in a `copy_from_user(ctx.optval, optval, ctx.optlen)` with
     `ctx.optlen` being a negative integer.
-    
+
     Fixes: 0d01da6afc54 ("bpf: implement getsockopt and setsockopt hooks")
     Change-Id: I3f4acf42bcd20f31e1891fab787acc64550946c0
     Signed-off-by: Loris Reiff <loris.reiff@liblor.ch>
@@ -234,13 +234,13 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:09:47 2025 +0300
 
     UPSTREAM: bpf, cgroup: Fix problematic bounds check
-    
+
     [ Upstream commit f4a2da755a7e1f5d845c52aee71336cee289935a ]
-    
+
     Since ctx.optlen is signed, a larger value than max_value could be
     passed, as it is later on used as unsigned, which causes a WARN_ON_ONCE
     in the copy_to_user.
-    
+
     Fixes: 0d01da6afc54 ("bpf: implement getsockopt and setsockopt hooks")
     Change-Id: I8dc191e6bd0f5310f32cf9e16c45e7c0acf1210c
     Signed-off-by: Loris Reiff <loris.reiff@liblor.ch>
@@ -256,14 +256,14 @@ Commit:     Michael Bestas <mkbestas@lineageos.org>
 CommitDate: Fri Oct 10 05:09:50 2025 +0300
 
     UPSTREAM: bpf: Don't EFAULT for getsockopt with optval=NULL
-    
+
     [ Upstream commit 00e74ae0863827d944e36e56a4ce1e77e50edb91 ]
-    
+
     Some socket options do getsockopt with optval=NULL to estimate the size
     of the final buffer (which is returned via optlen). This breaks BPF
     getsockopt assumptions about permitted optval buffer size. Let's enforce
     these assumptions only when non-NULL optval is provided.
-    
+
     Fixes: 0d01da6afc54 ("bpf: implement getsockopt and setsockopt hooks")
     Reported-by: Martin KaFai Lau <martin.lau@kernel.org>
     Change-Id: I8011633cb75a070da1ef3fc388a4e7c0ced63dff

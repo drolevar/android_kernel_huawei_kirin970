@@ -191,6 +191,7 @@ enum bpf_reg_type {
  * back to the verifier.
  */
 struct bpf_insn_access_aux {
+	enum bpf_attach_type expected_attach_type;
 	enum bpf_reg_type reg_type;
 	int ctx_field_size;
 };

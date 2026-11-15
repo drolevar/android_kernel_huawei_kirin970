@@ -1336,7 +1336,9 @@ struct bpf_prog *bpf_prog_get_type(u32 ufd, enum bpf_prog_type type)
 EXPORT_SYMBOL_GPL(bpf_prog_get_type);
 
 /* last field in 'union bpf_attr' used by this command */
-#define	BPF_PROG_LOAD_LAST_FIELD prog_name
+#define	BPF_PROG_LOAD_LAST_FIELD expected_attach_type
+
+#include "syscall_sockopt.inc"
 
 static int bpf_prog_load(union bpf_attr *attr)
 {
@@ -1348,6 +1350,11 @@ static int bpf_prog_load(union bpf_attr *attr)
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
 		return -EINVAL;
+
+	bpf_prog_load_fixup_attach_type(attr);
+	err = bpf_prog_load_check_attach(type, attr->expected_attach_type, attr->prog_ifindex);
+	if (err)
+		return err;
 
 	if (attr->prog_flags & ~BPF_F_STRICT_ALIGNMENT)
 		return -EINVAL;
@@ -1387,6 +1394,7 @@ static int bpf_prog_load(union bpf_attr *attr)
 		goto free_prog_sec;
 
 	prog->len = attr->insn_cnt;
+	prog->expected_attach_type = attr->expected_attach_type;
 
 	err = -EFAULT;
 	if (copy_from_user(prog->insns, u64_to_user_ptr(attr->insns),
@@ -1538,6 +1546,10 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	case BPF_CGROUP_INET_EGRESS:
 		ptype = BPF_PROG_TYPE_CGROUP_SKB;
 		break;
+	case BPF_CGROUP_GETSOCKOPT:
+	case BPF_CGROUP_SETSOCKOPT:
+		ptype = BPF_PROG_TYPE_CGROUP_SOCKOPT;
+		break;
 	case BPF_CGROUP_INET_SOCK_CREATE:
 		ptype = BPF_PROG_TYPE_CGROUP_SOCK;
 		break;
@@ -1554,6 +1566,12 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	prog = bpf_prog_get_type(attr->attach_bpf_fd, ptype);
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
+
+	ret = bpf_prog_check_attach(prog, attr->attach_type);
+	if (ret) {
+		bpf_prog_put(prog);
+		return ret;
+	}
 
 	cgrp = cgroup_get_from_fd(attr->target_fd);
 	if (IS_ERR(cgrp)) {
@@ -1590,6 +1608,10 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 	case BPF_CGROUP_INET_EGRESS:
 		ptype = BPF_PROG_TYPE_CGROUP_SKB;
 		break;
+	case BPF_CGROUP_GETSOCKOPT:
+	case BPF_CGROUP_SETSOCKOPT:
+		ptype = BPF_PROG_TYPE_CGROUP_SOCKOPT;
+		break;
 	case BPF_CGROUP_INET_SOCK_CREATE:
 		ptype = BPF_PROG_TYPE_CGROUP_SOCK;
 		break;
@@ -1610,6 +1632,12 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 	prog = bpf_prog_get_type(attr->attach_bpf_fd, ptype);
 	if (IS_ERR(prog))
 		prog = NULL;
+
+	if (prog && bpf_prog_check_attach(prog, attr->attach_type)) {
+		bpf_prog_put(prog);
+		cgroup_put(cgrp);
+		return -EINVAL;
+	}
 
 	ret = cgroup_bpf_detach(cgrp, prog, attr->attach_type, 0);
 	if (prog)
@@ -1637,6 +1665,8 @@ static int bpf_prog_query(const union bpf_attr *attr,
 	case BPF_CGROUP_INET_INGRESS:
 	case BPF_CGROUP_INET_EGRESS:
 	case BPF_CGROUP_INET_SOCK_CREATE:
+	case BPF_CGROUP_GETSOCKOPT:
+	case BPF_CGROUP_SETSOCKOPT:
 	case BPF_CGROUP_SOCK_OPS:
 		break;
 	default:
