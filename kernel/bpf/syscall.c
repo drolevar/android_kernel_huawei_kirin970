@@ -16,6 +16,8 @@
 #include <linux/slab.h>
 #include <linux/sched/signal.h>
 #include <linux/vmalloc.h>
+#include <linux/mm.h>
+#include <linux/poll.h>
 #include <linux/mmzone.h>
 #include <linux/anon_inodes.h>
 #include <linux/file.h>
@@ -113,6 +115,37 @@ static struct bpf_map *find_and_alloc_map(union bpf_attr *attr)
 	return map;
 }
 
+static void bpf_map_write_active_inc(struct bpf_map *map)
+{
+	atomic64_inc(&map->writecnt);
+}
+
+static void bpf_map_write_active_dec(struct bpf_map *map)
+{
+	atomic64_dec(&map->writecnt);
+}
+
+static bool bpf_map_write_active(const struct bpf_map *map)
+{
+	return atomic64_read(&map->writecnt) != 0;
+}
+
+/* Serialize permission check plus registration against freeze. Do not hold
+ * freeze_mutex across user copies, callbacks, mmap or RCU critical sections.
+ */
+static int map_write_begin(struct bpf_map *map, struct fd f)
+{
+	int err = 0;
+
+	mutex_lock(&map->freeze_mutex);
+	if (!(f.file->f_mode & FMODE_CAN_WRITE) || map->frozen)
+		err = -EPERM;
+	else
+		bpf_map_write_active_inc(map);
+	mutex_unlock(&map->freeze_mutex);
+	return err;
+}
+
 void *bpf_map_area_alloc(size_t size, int numa_node)
 {
 	/* We definitely need __GFP_NORETRY, so OOM killer doesn't
@@ -130,6 +163,22 @@ void *bpf_map_area_alloc(size_t size, int numa_node)
 
 	return __vmalloc_node_flags_caller(size, numa_node, GFP_KERNEL | flags,
 					   __builtin_return_address(0));
+}
+
+/* Zeroed, page-aligned, user-mappable allocation. Keep the NUMA request and
+ * bounded allocation policy; Huawei 4.14 has no vmalloc_user_node_flags().
+ */
+void *bpf_map_area_mmapable_alloc(size_t size, int numa_node)
+{
+#ifdef CONFIG_MMU
+	if (!size || !PAGE_ALIGNED(size))
+		return NULL;
+	return __vmalloc_node_range(size, SHMLBA, VMALLOC_START, VMALLOC_END,
+		GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN | __GFP_NORETRY,
+		PAGE_KERNEL, VM_USERMAP, numa_node, __builtin_return_address(0));
+#else
+	return NULL;
+#endif
 }
 
 void bpf_map_area_free(void *area)
@@ -320,6 +369,80 @@ static ssize_t bpf_dummy_write(struct file *filp, const char __user *buf,
 	return -EINVAL;
 }
 
+/* VMA's file reference owns the map, including after the original fd closes.
+ * open is called only for additional VMAs; close for every successful VMA.
+ * MAYWRITE tracks mappings even after mprotect temporarily removes WRITE.
+ */
+static void bpf_map_mmap_open(struct vm_area_struct *vma)
+{
+	struct bpf_map *map = vma->vm_file->private_data;
+
+	if (vma->vm_flags & VM_MAYWRITE)
+		bpf_map_write_active_inc(map);
+}
+
+static void bpf_map_mmap_close(struct vm_area_struct *vma)
+{
+	struct bpf_map *map = vma->vm_file->private_data;
+
+	if (vma->vm_flags & VM_MAYWRITE)
+		bpf_map_write_active_dec(map);
+}
+
+static const struct vm_operations_struct bpf_map_default_vmops = {
+	.open = bpf_map_mmap_open,
+	.close = bpf_map_mmap_close,
+};
+
+static int bpf_map_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct bpf_map *map = filp->private_data;
+	int err = 0;
+
+	if (!map->ops->map_mmap)
+		return -ENOTSUPP;
+	if (!(vma->vm_flags & VM_SHARED))
+		return -EINVAL;
+	if ((vma->vm_flags & VM_EXEC) || !(filp->f_mode & FMODE_READ))
+		return -EACCES;
+	mutex_lock(&map->freeze_mutex);
+	if (vma->vm_flags & VM_WRITE) {
+		if (map->frozen)
+			err = -EPERM;
+		else if ((map->map_flags & BPF_F_RDONLY_PROG) ||
+			 !(filp->f_mode & FMODE_WRITE))
+			err = -EACCES;
+		else
+			bpf_map_write_active_inc(map);
+	}
+	mutex_unlock(&map->freeze_mutex);
+	if (err)
+		return err;
+
+	vma->vm_ops = &bpf_map_default_vmops;
+	vma->vm_private_data = map;
+	vma->vm_flags &= ~VM_MAYEXEC;
+	if (!(vma->vm_flags & VM_WRITE))
+		vma->vm_flags &= ~VM_MAYWRITE;
+	err = map->ops->map_mmap(map, vma);
+	if (err) {
+		if (vma->vm_flags & VM_WRITE)
+			bpf_map_write_active_dec(map);
+		vma->vm_ops = NULL;
+		vma->vm_private_data = NULL;
+	}
+	return err;
+}
+
+static unsigned int bpf_map_poll(struct file *filp, struct poll_table_struct *pts)
+{
+	struct bpf_map *map = filp->private_data;
+
+	if (map->ops->map_poll)
+		return map->ops->map_poll(map, filp, pts);
+	return POLLERR;
+}
+
 const struct file_operations bpf_map_fops = {
 #ifdef CONFIG_PROC_FS
 	.show_fdinfo	= bpf_map_show_fdinfo,
@@ -327,6 +450,8 @@ const struct file_operations bpf_map_fops = {
 	.release	= bpf_map_release,
 	.read		= bpf_dummy_read,
 	.write		= bpf_dummy_write,
+	.mmap		= bpf_map_mmap,
+	.poll		= bpf_map_poll,
 };
 
 int bpf_map_new_fd(struct bpf_map *map, int flags)
@@ -468,6 +593,8 @@ static int map_create(union bpf_attr *attr)
 
 	atomic_set(&map->refcnt, 1);
 	atomic_set(&map->usercnt, 1);
+	mutex_init(&map->freeze_mutex);
+	atomic64_set(&map->writecnt, 0);
 
 	err = security_bpf_map_alloc(map);
 	if (err)
@@ -704,9 +831,10 @@ static int map_update_elem(union bpf_attr *attr)
 	if (IS_ERR(map))
 		return PTR_ERR(map);
 
-	if (!(f.file->f_mode & FMODE_CAN_WRITE)) {
-		err = -EPERM;
-		goto err_put;
+	err = map_write_begin(map, f);
+	if (err) {
+		fdput(f);
+		return err;
 	}
 
 	key = memdup_user(ukey, map->key_size);
@@ -770,6 +898,7 @@ free_value:
 free_key:
 	kfree(key);
 err_put:
+	bpf_map_write_active_dec(map);
 	fdput(f);
 	return err;
 }
@@ -793,9 +922,10 @@ static int map_delete_elem(union bpf_attr *attr)
 	if (IS_ERR(map))
 		return PTR_ERR(map);
 
-	if (!(f.file->f_mode & FMODE_CAN_WRITE)) {
-		err = -EPERM;
-		goto err_put;
+	err = map_write_begin(map, f);
+	if (err) {
+		fdput(f);
+		return err;
 	}
 
 	key = memdup_user(ukey, map->key_size);
@@ -817,6 +947,43 @@ static int map_delete_elem(union bpf_attr *attr)
 		trace_bpf_map_delete_elem(map, ufd, key);
 	kfree(key);
 err_put:
+	bpf_map_write_active_dec(map);
+	fdput(f);
+	return err;
+}
+
+#define BPF_MAP_FREEZE_LAST_FIELD map_fd
+
+static int map_freeze(const union bpf_attr *attr)
+{
+	struct bpf_map *map;
+	struct fd f;
+	int err = 0;
+
+	if (CHECK_ATTR(BPF_MAP_FREEZE))
+		return -EINVAL;
+	f = fdget(attr->map_fd);
+	map = __bpf_map_get(f);
+	if (IS_ERR(map))
+		return PTR_ERR(map);
+	/* Close this foundation's dependency surface. No other map type's
+	 * non-syscall mutation/lifetime contract is claimed by this candidate.
+	 */
+	if (map->map_type != BPF_MAP_TYPE_ARRAY) {
+		err = -EOPNOTSUPP;
+		goto out;
+	}
+	if (!capable(CAP_SYS_ADMIN)) {
+		err = -EPERM;
+		goto out;
+	}
+	mutex_lock(&map->freeze_mutex);
+	if (map->frozen || bpf_map_write_active(map))
+		err = -EBUSY;
+	else
+		WRITE_ONCE(map->frozen, true);
+	mutex_unlock(&map->freeze_mutex);
+out:
 	fdput(f);
 	return err;
 }
@@ -1801,6 +1968,9 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 		break;
 	case BPF_MAP_DELETE_ELEM:
 		err = map_delete_elem(&attr);
+		break;
+	case BPF_MAP_FREEZE:
+		err = map_freeze(&attr);
 		break;
 	case BPF_MAP_GET_NEXT_KEY:
 		err = map_get_next_key(&attr);

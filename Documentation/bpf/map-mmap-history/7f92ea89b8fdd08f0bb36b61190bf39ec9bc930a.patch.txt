@@ -1,0 +1,56 @@
+From 7f92ea89b8fdd08f0bb36b61190bf39ec9bc930a Mon Sep 17 00:00:00 2001
+From: Andrii Nakryiko <andriin@fb.com>
+Date: Mon, 18 May 2020 22:38:24 -0700
+Subject: [PATCH] UPSTREAM: bpf: Prevent mmap()'ing read-only maps as writable
+
+As discussed in [0], it's dangerous to allow mapping BPF map, that's meant to
+be frozen and is read-only on BPF program side, because that allows user-space
+to actually store a writable view to the page even after it is frozen. This is
+exacerbated by BPF verifier making a strong assumption that contents of such
+frozen map will remain unchanged. To prevent this, disallow mapping
+BPF_F_RDONLY_PROG mmap()'able BPF maps as writable, ever.
+
+  [0] https://lore.kernel.org/bpf/CAEf4BzYGWYhXdp6BJ7_=9OQPJxQpgug080MMjdSB72i9R+5c6g@mail.gmail.com/
+
+Fixes: fc9702273e2e ("bpf: Add mmap() support for BPF_MAP_TYPE_ARRAY")
+Suggested-by: Jann Horn <jannh@google.com>
+Change-Id: I96a4df7751d1f6f1580d3c7a4deb7a7fb6b40086
+Signed-off-by: Andrii Nakryiko <andriin@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Reviewed-by: Jann Horn <jannh@google.com>
+Link: https://lore.kernel.org/bpf/20200519053824.1089415-1-andriin@fb.com
+---
+ kernel/bpf/syscall.c | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index fbd3794397fc..062fc7d83967 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -628,9 +628,20 @@ static int bpf_map_mmap(struct file *filp, struct vm_area_struct *vma)
+ 
+ 	mutex_lock(&map->freeze_mutex);
+ 
+-	if ((vma->vm_flags & VM_WRITE) && map->frozen) {
+-		err = -EPERM;
+-		goto out;
++	if (vma->vm_flags & VM_WRITE) {
++		if (map->frozen) {
++			err = -EPERM;
++			goto out;
++		}
++		/* map is meant to be read-only, so do not allow mapping as
++		 * writable, because it's possible to leak a writable page
++		 * reference and allows user-space to still modify it after
++		 * freezing, while verifier will assume contents do not change
++		 */
++		if (map->map_flags & BPF_F_RDONLY_PROG) {
++			err = -EACCES;
++			goto out;
++		}
+ 	}
+ 
+ 	/* set default open/close callbacks */
+-- 
+2.56.0
+

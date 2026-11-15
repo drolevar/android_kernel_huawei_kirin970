@@ -97,6 +97,8 @@ enum bpf_cmd {
 	BPF_RAW_TRACEPOINT_OPEN,
 	BPF_BTF_LOAD,
 	BPF_BTF_GET_FD_BY_ID,
+	/* Canonical command; intervening commands remain unsupported. */
+	BPF_MAP_FREEZE = 22,
 };
 
 enum bpf_map_type {
@@ -217,6 +219,8 @@ enum bpf_attach_type {
  */
 #define BPF_F_NO_COMMON_LRU	(1U << 1)
 /* Program-side read-only metadata; not a userspace access restriction. */
+#define BPF_F_MMAPABLE (1U << 10)
+
 #define BPF_F_RDONLY_PROG (1U << 7)
 
 /* Specify numa node during map creation */

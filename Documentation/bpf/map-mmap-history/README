@@ -1,0 +1,43 @@
+Huawei 4.14 map mmap candidate
+=============================
+
+Reference: LineageOS/android_kernel_google_msm-4.14
+Pinned donor: bb17b7de4b570f2c0c32ddba0543cac03c58dd84
+
+The exact donor patches in this directory preserve original author/trailer
+history. They are reference imports, not applied whole-tree cherry-picks.
+The following Huawei integration commit ports their ARRAY allocation and
+map-fd/VMA behavior to the existing socket/verifier architecture, with these
+explicit adaptations:
+
+* Canonical BPF_F_MMAPABLE=0x400; ordinary ARRAY only. PERCPU and fd arrays
+  reject it. Existing typed ARRAY BTF checking remains in force. Program
+  readonly/writeonly flags remain rejected on ARRAY because their verifier
+  contract is outside this candidate. Mmap nevertheless defensively rejects
+  writable views of any future BPF_F_RDONLY_PROG map.
+* User-mappable vmalloc uses existing __vmalloc_node_range with VM_USERMAP,
+  zeroing, NUMA and no-retry allocation. No replacement of Huawei mm code.
+* Value pages are separate from metadata, include zeroed padding, and have
+  subtraction/page-based offset bounds (no overflowing vm_pgoff multiply).
+* Map fd mmap dispatch is ops-based. Ringbuf may later use it without an ARRAY
+  flag. SHARED required; executable views/upgrades rejected. The callback must
+  preserve vm_file, VM_WRITE and VM_MAYWRITE accounting, and default vm_ops.
+* File references owned by the VM keep map alive. No duplicate map references.
+  Extra VMA open/close callbacks track MAYWRITE even after write->read mprotect.
+* Freeze is deliberately ARRAY-only and syscall-side. It does NOT stop BPF
+  program writes. Other map freeze types return EOPNOTSUPP. No readonly scalar
+  tracking/verifier changes or new helper semantics are imported.
+* Permission check and write-active registration share freeze_mutex. The mutex
+  is released before copies, map callbacks or mmap. Failed mmap rolls back the
+  registration and clears callbacks; failed syscall writes decrement once.
+  This closes the old update/freeze TOCTOU without importing a newer verifier.
+* Generic map_poll returns unsigned int (4.14 ABI), calls map_poll if present,
+  otherwise POLLERR, following donor ringbuf introduction 7b594c703b26.
+
+Host tests execute extracted production allocation/free/mapping, fd mmap/poll,
+write begin/accounting, freeze and full update/delete syscall bodies. The host
+substitutes structure declarations, allocation, fd, locks, atomic, RCU, usercopy,
+VMA and remap services. Split/fork/fd-close and update/freeze interleavings are
+sequential models. These tests are NOT real VM, page protection, SMP, RCU or
+syscall tests; actual kernel mapping/lifetime behavior remains a runtime gate.
+Production whole-file cross-compilation validates the real kernel declarations.
