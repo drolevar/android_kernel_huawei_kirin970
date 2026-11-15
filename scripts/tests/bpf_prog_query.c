@@ -156,6 +156,9 @@ static int security_bpf(int cmd, const union bpf_attr *attr, unsigned int size)
 #define bpf_prog_get_fd_by_id(...) (-EOPNOTSUPP)
 #define bpf_map_get_fd_by_id(...) (-EOPNOTSUPP)
 #define bpf_obj_get_info_by_fd(...) (-EOPNOTSUPP)
+/* BTF has its own actual-source fixture; query tests do not invoke it. */
+#define bpf_btf_load(...) (-EOPNOTSUPP)
+#define bpf_btf_get_fd_by_id(...) (-EOPNOTSUPP)
 #include "subject.h"
 
 _Static_assert(BPF_PROG_QUERY == 16, "command ABI");
