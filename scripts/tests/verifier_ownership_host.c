@@ -27,6 +27,7 @@ struct idpair {u32 old,cur;};
 #define BPF_MAX_VAR_OFF (1<<29)
 #define BPF_MAXINSNS 4096
 #define GFP_KERNEL 0
+#define round_up(v,a) (((v)+(a)-1)&~((a)-1))
 #define S64_MIN INT64_MIN
 #define S64_MAX INT64_MAX
 #define U64_MAX UINT64_MAX
@@ -47,7 +48,7 @@ struct bpf_map { struct bpf_map *inner_map_meta; int map_type,key_size,value_siz
 struct bpf_verifier_ops {const struct bpf_func_proto *(*get_func_proto)(int);};
 struct bpf_prog_aux {struct bpf_verifier_ops *ops;int stack_depth;};
 struct bpf_prog {struct bpf_prog_aux *aux;bool gpl_compatible;};
-struct bpf_insn_aux_data {struct bpf_map *map_ptr;};
+struct bpf_insn_aux_data {struct bpf_map *map_ptr;int sanitize_stack_off;};
 struct bpf_verifier_env { struct bpf_verifier_state *cur_state; u32 id_gen; bool allow_ptr_leaks;struct bpf_prog *prog;struct bpf_insn_aux_data *insn_aux_data; };
 static int fail_alloc=-1, allocations;
 static void *kmalloc_array(size_t n,size_t s,int g) {
@@ -66,8 +67,6 @@ static struct tnum tnum_cast(struct tnum t,u8 sz){u64 m=(1ULL<<(sz*8))-1;t.value
 #define check_ctx_reg(...) (-EACCES)
 #define check_ctx_access(...) (-EACCES)
 #define check_stack_access(...) (-EACCES)
-#define check_stack_write(...) (-EACCES)
-#define check_stack_read(...) (-EACCES)
 #define check_packet_access(...) (-EACCES)
 #define check_stack_boundary(...) (-EACCES)
 #define may_access_direct_pkt_data(...) false
@@ -101,8 +100,7 @@ static struct bpf_reg_state *reserve(u32 bytes) {
 }
 static void nonnull(void) {mark_map_regs(&state,0,false);}
 static void spill(int slot,int reg) {
- assert(realloc_verifier_state(&state,(slot+1)*8,true)==0);
- state.stack[slot].spilled_ptr=state.regs[reg];memset(state.stack[slot].slot_type,STACK_SPILL,8);
+ assert(check_stack_write(&env,&state,-(slot+1)*8,8,reg,0)==0);
 }
 int main(int argc,char**argv){assert(argc==2);const char*c=argv[1];struct bpf_reg_state*r;struct bpf_verifier_state other={0};
  if(!strcmp(c,"leak")){reserve(32);assert(check_reference_leak(&env)==-EINVAL);state.regs[0].type=SCALAR_VALUE;assert(check_reference_leak(&env)==-EINVAL);}
@@ -139,5 +137,7 @@ int main(int argc,char**argv){assert(argc==2);const char*c=argv[1];struct bpf_re
  else if(!strcmp(c,"unknown_helper")){assert(check_call(&env,BPF_FUNC_get_prandom_u32,0)==-EINVAL);}
  else if(!strcmp(c,"default_proto")){struct bpf_func_proto fn={0};assert(check_reference_proto(&fn)==0);assert(fn.ret_type==RET_INTEGER);}
  else if(!strcmp(c,"branch_eq")||!strcmp(c,"branch_ne")){r=reserve(12);state.regs[6]=*r;spill(0,0);struct bpf_insn i={.code=BPF_JMP|(!strcmp(c,"branch_eq")?BPF_JEQ:BPF_JNE)|BPF_K,.dst_reg=0,.off=2};int pc=0;assert(!check_cond_jmp_op(&env,&i,&pc));struct bpf_verifier_state *live=state.acquired_refs?&state:&pushed,*null=state.acquired_refs?&pushed:&state;assert(live->acquired_refs==1&&live->regs[0].type==PTR_TO_MEM);assert(!null->acquired_refs&&null->regs[6].type==SCALAR_VALUE&&null->stack[0].spilled_ptr.type==SCALAR_VALUE);env.cur_state=live;assert(!release_reference_reg(&env,&live->regs[6]));env.cur_state=&state;free_verifier_state(&pushed,false);}
+ else if(!strcmp(c,"spill_fill")){r=reserve(12);nonnull();spill(0,0);assert(!check_stack_read(&state,-8,8,6));assert(state.regs[6].ref_obj_id==r->ref_obj_id);__mark_reg_not_init(r);assert(check_reference_leak(&env)==-EINVAL);assert(!release_reference_reg(&env,&state.regs[6]));assert(!check_stack_read(&state,-8,8,7));assert(check_reg_arg(&env,7,SRC_OP)==-EACCES);}
+ else if(!strcmp(c,"spill_partial")){reserve(12);nonnull();spill(0,0);assert(check_stack_write(&env,&state,-8,4,-1,0)==-EACCES);assert(check_stack_read(&state,-8,4,6)==-EACCES);}
  else abort();
  free_verifier_state(&state,false);assert(!allocations);puts("PASS");return 0;}
