@@ -214,6 +214,21 @@ int main(int argc, char **argv)
             CHECK(cached_access(&inode, true) == 0);
             CHECK(cached_access(&inode, false) == (kind == CE ? 0 : -EACCES));
         }
+    } else if (!strcmp(c, "master-generation")) {
+        struct candidate a = {0}; struct model_inode inode = {0};
+        struct fscrypt_context ctx = make_context(&e); u8 raw[64];
+        memcpy(raw, e.fs.raw, 64);
+        CHECK(!unwrap_begin(&e,&ctx,&a) && !inode_publish(&a,&inode));
+        CHECK(!cached_master_wrap_allowed(&inode));
+        CHECK(fs_remove(&e.fs)==1);
+        CHECK(!cached_access(&inode,true));
+        CHECK(cached_master_wrap_allowed(&inode)==-ENOKEY);
+        CHECK(!fs_readd(&e.fs,raw));
+        CHECK(cached_master_wrap_allowed(&inode)==-ENOKEY);
+        inode_detach(&inode);
+        CHECK(!unwrap_begin(&e,&ctx,&a) && !inode_publish(&a,&inode));
+        CHECK(!cached_master_wrap_allowed(&inode));
+        inode_detach(&inode);
     } else CHECK(false);
     balanced(&e); return 0;
 }

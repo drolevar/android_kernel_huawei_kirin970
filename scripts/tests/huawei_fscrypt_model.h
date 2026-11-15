@@ -38,6 +38,7 @@ struct model_inode {
     enum inode_kind kind;
     struct model_key *owner;
     bool linked, cached, dirty, busy, quarantine;
+    unsigned int master_generation;
 };
 struct durable_sdp { bool context, flags, ce_erased, metadata_partial, ce_partial; u8 wrapped[80]; };
 
@@ -83,7 +84,7 @@ static struct secret_view lease_view(struct lease *t)
         .source = key->source, .format = key->format, .vendor = key->vendor };
     if (key->format == LEGACY_PAYLOAD && key->source == LOGON) {
         /* Only this legacy ABI assigns raw[63] hardware-slot semantics. */
-        v.vendor.slot_valid = key->raw_size == 64;
+        v.vendor.slot_valid = true; /* legacy payload only; not hardware validation */
         v.vendor.slot = v.vendor.slot_valid ? key->raw[63] : 0;
     }
     return v;
@@ -145,6 +146,7 @@ static int inode_publish(struct candidate *c, struct model_inode *inode)
     if (err) CHECK(lease_put(t) == 0);
     else {
         inode->owner = t->key; inode->linked = inode->cached = true;
+        inode->master_generation = t->generation;
         t->key->readers--; t->key->enrolled++; t->key->transferred++;
         t->live = false; t->key = NULL;
     }
@@ -224,4 +226,14 @@ out:
     memzero_explicit(ce.fek, sizeof(ce.fek));
     memzero_explicit(wrapped, sizeof(wrapped));
     return err;
+}
+
+/* Separate retained file FEK access from permission to wrap a new child key. */
+static int cached_master_wrap_allowed(struct model_inode *inode)
+{
+    if (inode->quarantine) return -EIO;
+    if (!inode->cached || !inode->owner || !inode->owner->present ||
+        inode->master_generation != inode->owner->generation)
+        return -ENOKEY;
+    return 0;
 }

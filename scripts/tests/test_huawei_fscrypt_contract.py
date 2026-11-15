@@ -38,7 +38,8 @@ def main():
     here = kernel / "scripts/tests"
     out = args.keep_output.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    inputs = {p: (kernel / p).read_text() for p in (
+    inputs = {p: subprocess.check_output(["git", "-C", str(kernel), "show",
+                "166e096498542993e9d71d6cda9d0b8d025b8e11:" + p], text=True) for p in (
         "fs/crypto/policy.c", "fs/crypto/keyinfo.c", "fs/f2fs/keyinfo.c",
         "fs/crypto/fscrypt_private.h", "include/linux/fscrypt_common.h",
         "include/uapi/linux/fs.h", "fs/f2fs/sdp_internal.h", "crypto/gcm.c")}
@@ -117,7 +118,7 @@ def main():
             "actual": ("gcm-vector", "payload-writes", "policy-null", "unwrap-revoked",
                        "double-unlock", "errors", "f2fs"),
             "model": ("formats", "immutable", "consumers", "errors", "fallback",
-                      "remove", "publication", "sdp", "sdp-preflight", "owners", "cached"),
+                      "remove", "publication", "sdp", "sdp-preflight", "owners", "cached", "master-generation"),
         }[suite]
         for case in cases:
             result = subprocess.run([str(binary), case], text=True, capture_output=True, timeout=10)
@@ -145,7 +146,8 @@ def main():
         results.append({"case": "const-negative", "passed": ok})
         print("model/const-negative:", "PASS" if ok else "FAIL", flush=True)
     receipt = {"compiler": compiler, "host": platform.platform(),
-               "execution": "host synthetic fixture; no build container or kernel execution",
+               "execution": "host synthetic fixture; historical production at 166e096; no kernel execution",
+               "production_source_commit": "166e096498542993e9d71d6cda9d0b8d025b8e11",
                "source_commit": subprocess.check_output(["git", "-C", str(kernel), "rev-parse", "HEAD"], text=True).strip(),
                "fixture_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                   for p in here.glob("*huawei_fscrypt*") if p.is_file()},
