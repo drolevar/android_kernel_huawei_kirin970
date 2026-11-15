@@ -114,6 +114,8 @@ enum bpf_arg_type {
 
 	ARG_PTR_TO_CTX,		/* pointer to context */
 	ARG_ANYTHING,		/* any (initialized) argument is ok */
+	ARG_CONST_ALLOC_SIZE_OR_ZERO, /* constant allocation size, no buffer */
+	ARG_PTR_TO_ALLOC_MEM, /* nonnullable owned allocation base */
 };
 
 /* type of values returned from helper functions */
@@ -121,6 +123,7 @@ enum bpf_return_type {
 	RET_INTEGER,			/* function returns integer */
 	RET_VOID,			/* function doesn't return anything */
 	RET_PTR_TO_MAP_VALUE_OR_NULL,	/* returns a pointer to map elem value or NULL */
+	RET_PTR_TO_ALLOC_MEM_OR_NULL,
 };
 
 /* eBPF function prototype used by verifier to allow BPF_CALLs from eBPF programs
@@ -137,6 +140,7 @@ struct bpf_func_proto {
 	enum bpf_arg_type arg3_type;
 	enum bpf_arg_type arg4_type;
 	enum bpf_arg_type arg5_type;
+	bool releases_reference; /* consumes one ARG_PTR_TO_ALLOC_MEM */
 };
 
 /* bpf_context is intentionally undefined structure. Pointer to bpf_context is
@@ -170,6 +174,8 @@ enum bpf_reg_type {
 	PTR_TO_STACK,		 /* reg == frame_pointer + offset */
 	PTR_TO_PACKET,		 /* reg points to skb->data */
 	PTR_TO_PACKET_END,	 /* skb->data + headlen */
+	PTR_TO_MEM,
+	PTR_TO_MEM_OR_NULL,
 };
 
 /* The information passed from prog-specific *_is_valid_access

@@ -72,6 +72,7 @@ struct bpf_reg_state {
 	union {
 		/* valid when type == PTR_TO_PACKET */
 		u16 range;
+		u32 mem_size; /* PTR_TO_MEM[_OR_NULL] allocation bound */
 
 		/* valid when type == CONST_PTR_TO_MAP | PTR_TO_MAP_VALUE |
 		 *   PTR_TO_MAP_VALUE_OR_NULL
@@ -89,6 +90,8 @@ struct bpf_reg_state {
 	 * came from, when one is tested for != NULL.
 	 */
 	u32 id;
+	/* Resource ownership is independent of nullable-pointer identity. */
+	u32 ref_obj_id;
 	/* Ordering of fields matters.  See states_equal() */
 	/* For scalar types (SCALAR_VALUE), this represents our knowledge of
 	 * the actual value.
@@ -123,12 +126,20 @@ struct bpf_stack_state {
 	u8 slot_type[BPF_REG_SIZE];
 };
 
+struct bpf_reference_state {
+	u32 id;
+	int insn_idx;
+};
+
 /* state of the program:
  * type of all registers and stack info
  */
 struct bpf_verifier_state {
 	struct bpf_reg_state regs[MAX_BPF_REG];
 	struct bpf_verifier_state *parent;
+	/* Owned arrays follow the prefix copied by copy_verifier_state(). */
+	int acquired_refs;
+	struct bpf_reference_state *refs;
 	int allocated_stack;
 	struct bpf_stack_state *stack;
 	bool speculative;
