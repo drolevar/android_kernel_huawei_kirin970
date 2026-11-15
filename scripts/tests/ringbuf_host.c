@@ -18,6 +18,8 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr,"%d: %s\n",__LINE__,#x); exit(1); } } while(0)
 typedef uint32_t u32; typedef uint64_t u64; typedef unsigned gfp_t;
 #define CONFIG_64BIT 1
+#define CONFIG_BPF_SYSCALL 1
+#define capable(x) true
 #define __aligned(x) __attribute__((aligned(x)))
 #define __maybe_unused __attribute__((unused))
 #define ____cacheline_aligned_in_smp __aligned(64)
@@ -38,6 +40,12 @@ typedef uint32_t u32; typedef uint64_t u64; typedef unsigned gfp_t;
 #define ENOTSUPP 524
 #define VM_WRITE 1
 #define VM_MAYWRITE 2
+#define VM_SHARED 4
+#define VM_EXEC 8
+#define VM_MAYEXEC 16
+#define FMODE_READ 1
+#define FMODE_WRITE 2
+#define POLLERR 8
 #define POLLIN 1
 #define POLLRDNORM 64
 #define round_up(x,y) (((x)+(y)-1)&~((__typeof__(x))(y)-1))
@@ -86,18 +94,32 @@ static struct irq_work *queued;static int wakeups,syncs,pollwaits;
 static void wake_up_all(wait_queue_head_t *q) { wakeups++; }
 static void irq_work_queue(struct irq_work *w) { CHECK(!queued||queued==w);queued=w;w->pending=true; }
 static void irq_work_sync(struct irq_work *w) { syncs++;if(w->pending){w->pending=false;w->cb(w);queued=NULL;} }
-struct vm_area_struct { unsigned long vm_flags,vm_pgoff,vm_start,vm_end; };
-struct file {int unused;};struct poll_table_struct {int unused;};
+struct vm_area_struct;
+struct vm_operations_struct {void (*open)(struct vm_area_struct *);void (*close)(struct vm_area_struct *);};
+struct file {struct bpf_map *private_data;unsigned f_mode,refs;};
+struct vm_area_struct { unsigned long vm_flags,vm_pgoff,vm_start,vm_end;struct file *vm_file;const struct vm_operations_struct *vm_ops;void *vm_private_data; };
+struct mutex {int locked;};
+static void mutex_lock(struct mutex *m){CHECK(!m->locked);m->locked=1;}
+static void mutex_unlock(struct mutex *m){CHECK(m->locked);m->locked=0;}
+typedef long atomic64_t;
+static void atomic64_inc(atomic64_t *p){++*p;}
+static void atomic64_dec(atomic64_t *p){CHECK(*p>0);--*p;}
+struct poll_table_struct {int unused;};
 static int remap_error;static unsigned long mapped_offset;static size_t remapped_length;
 static int remap_vmalloc_range(struct vm_area_struct *v,void *addr,unsigned long off) { if(remap_error)return remap_error;CHECK(addr==mapped);if(off>=mapped_len/PAGE_SIZE || v->vm_end<v->vm_start || v->vm_end-v->vm_start>mapped_len-off*PAGE_SIZE)return -EINVAL;mapped_offset=off;remapped_length=v->vm_end-v->vm_start;return 0; }
 #define poll_wait(f,q,p) ((void)(q),pollwaits++)
-struct bpf_map {u32 map_type,key_size,value_size,max_entries,map_flags,pages;int numa_node;};
+struct bpf_map {const struct bpf_map_ops *ops;bool frozen;struct mutex freeze_mutex;atomic64_t writecnt;u32 map_type,key_size,value_size,max_entries,map_flags,pages;int numa_node;};
 struct bpf_map_ops {struct bpf_map *(*map_alloc)(union bpf_attr *);void(*map_free)(struct bpf_map *);int(*map_mmap)(struct bpf_map *,struct vm_area_struct *);unsigned(*map_poll)(struct bpf_map *,struct file *,struct poll_table_struct *);void *(*map_lookup_elem)(struct bpf_map *,void *);int(*map_update_elem)(struct bpf_map *,void *,void *,u64);int(*map_delete_elem)(struct bpf_map *,void *);int(*map_get_next_key)(struct bpf_map *,void *,void *);};
 static int bpf_map_attr_numa_node(union bpf_attr *a) { return (a->map_flags&BPF_F_NUMA_NODE)?a->numa_node:NUMA_NO_NODE; }
+enum bpf_arg_type { ARG_CONST_MAP_PTR,ARG_CONST_ALLOC_SIZE_OR_ZERO,ARG_ANYTHING,ARG_PTR_TO_ALLOC_MEM };
+enum bpf_return_type { RET_PTR_TO_ALLOC_MEM_OR_NULL,RET_VOID };
+struct bpf_func_proto {void *func;enum bpf_return_type ret_type;enum bpf_arg_type arg1_type,arg2_type,arg3_type;bool releases_reference;};
+#define BPF_CALL_3(n,t1,a1,t2,a2,t3,a3) u64 n(t1 a1,t2 a2,t3 a3)
+#define BPF_CALL_2(n,t1,a1,t2,a2) u64 n(t1 a1,t2 a2)
 #define verbose(...) ((void)0)
 #include "subject.h"
 static union bpf_attr attr(unsigned n) {union bpf_attr a={0};a.map_type=BPF_MAP_TYPE_RINGBUF;a.max_entries=n;return a;}
-static struct bpf_ringbuf_map *make(unsigned n) {union bpf_attr a=attr(n);struct bpf_map *m=ringbuf_map_alloc(&a);CHECK(!IS_ERR(m));return container_of(m,struct bpf_ringbuf_map,map);}
+static struct bpf_ringbuf_map *make(unsigned n) {union bpf_attr a=attr(n);struct bpf_map *m=ringbuf_map_alloc(&a);CHECK(!IS_ERR(m));m->ops=&ringbuf_map_ops;return container_of(m,struct bpf_ringbuf_map,map);}
 static void finish(struct bpf_ringbuf_map *m) {ringbuf_map_free(&m->map);CHECK(!page_live&&!alloc_live&&!vmap_live&&!queued);}
 static struct bpf_ringbuf_hdr *hdr(void *p) {return (void *)((char *)p-8);}
 static unsigned length(void *p) {return hdr(p)->len;}
@@ -105,13 +127,14 @@ static void consume(struct bpf_ringbuf *rb) {while(rb->consumer_pos!=rb->produce
 int main(int argc,char **argv) {
  CHECK(argc==2);memfd=memfd_create("ringbuf-test",0);CHECK(memfd>=0);const char *c=argv[1];
  if(!strcmp(c,"attributes")) {
-  CHECK(BPF_MAP_TYPE_RINGBUF==27);unsigned sizes[]={4096,8192,32768,65536};for(unsigned i=0;i<4;i++){struct bpf_ringbuf_map *m=make(sizes[i]);CHECK(m->map.key_size==0&&m->map.value_size==0&&m->map.map_flags==0&&m->map.max_entries==sizes[i]);CHECK(m->map.pages>sizes[i]/PAGE_SIZE);finish(m);}
+  CHECK(BPF_MAP_TYPE_RINGBUF==27);unsigned sizes[]={4096,8192,32768,65536,1048576};for(unsigned i=0;i<5;i++){struct bpf_ringbuf_map *m=make(sizes[i]);CHECK(m->map.key_size==0&&m->map.value_size==0&&m->map.map_flags==0&&m->map.max_entries==sizes[i]);CHECK(m->map.pages>sizes[i]/PAGE_SIZE);finish(m);}
   unsigned bad[]={0,1,4095,6144,12288};for(unsigned i=0;i<5;i++){union bpf_attr a=attr(bad[i]);CHECK(PTR_ERR(ringbuf_map_alloc(&a))==-EINVAL);}
   for(int field=0;field<4;field++){union bpf_attr a=attr(4096);if(field==0)a.key_size=4;if(field==1)a.value_size=4;if(field==2)a.map_flags=1;if(field==3)a.map_flags=BPF_F_RDONLY_PROG;CHECK(PTR_ERR(ringbuf_map_alloc(&a))==-EINVAL);}
   union bpf_attr a=attr(4096);a.map_flags=BPF_F_NUMA_NODE;a.numa_node=2;struct bpf_map *mp=ringbuf_map_alloc(&a);CHECK(!IS_ERR(mp)&&mp->numa_node==2);ringbuf_map_free(mp);
  } else if(!strcmp(c,"faults")) {
   union bpf_attr a=attr(32768);charge_error=-EPERM;CHECK(PTR_ERR(ringbuf_map_alloc(&a))==-EPERM);CHECK(!alloc_live);charge_error=0;allocations=0;
   struct bpf_ringbuf_map *m=make(32768);int count=allocations;finish(m);for(int i=1;i<=count;i++){allocations=0;fail_alloc=i;struct bpf_map *mp=ringbuf_map_alloc(&a);CHECK(IS_ERR(mp));CHECK(!page_live&&!alloc_live&&!vmap_live);}fail_alloc=0;
+  a=attr(1048576);for(int i=0;i<2;i++){allocations=0;fail_alloc=i?262:2;CHECK(IS_ERR(ringbuf_map_alloc(&a)));CHECK(!page_live&&!alloc_live&&!vmap_live);}fail_alloc=0;
  } else if(!strcmp(c,"records")) {
   struct bpf_ringbuf_map *m=make(32768);unsigned sizes[]={32,8,12,0};for(int i=0;i<4;i++){void *p=__bpf_ringbuf_reserve(m->rb,sizes[i]);CHECK(p);memset(p,0x51,sizes[i]);CHECK(length(p)==(sizes[i]|BPF_RINGBUF_BUSY_BIT));bpf_ringbuf_commit(p,0,i==2);CHECK(length(p)==(sizes[i]|(i==2?BPF_RINGBUF_DISCARD_BIT:0)));}consume(m->rb);finish(m);
  } else if(!strcmp(c,"full")) {
@@ -137,11 +160,50 @@ int main(int argc,char **argv) {
  } else if(!strcmp(c,"destroy")) {
   struct bpf_ringbuf_map *m=make(4096);void *p=__bpf_ringbuf_reserve(m->rb,32);bpf_ringbuf_commit(p,BPF_RB_FORCE_WAKEUP,false);CHECK(queued);finish(m);CHECK(syncs&&rcu_syncs);
  } else if(!strcmp(c,"unsupported")) {
-  struct bpf_ringbuf_map *m=make(4096);for(int id=0;id<200;id++)CHECK(check_map_func_compatibility(&m->map,id)==-EINVAL);
+  struct bpf_ringbuf_map *m=make(4096);for(int id=0;id<200;id++) {
+#ifdef RINGBUF_PRODUCERS_REGISTERED
+   CHECK(check_map_func_compatibility(&m->map,id)==(id==BPF_FUNC_ringbuf_reserve?0:-EINVAL));
+#else
+   CHECK(check_map_func_compatibility(&m->map,id)==-EINVAL);
+#endif
+  }
   CHECK(PTR_ERR(ringbuf_map_lookup_elem(&m->map,NULL))==-ENOTSUPP);
   CHECK(ringbuf_map_update_elem(&m->map,NULL,NULL,0)==-ENOTSUPP);
   CHECK(ringbuf_map_delete_elem(&m->map,NULL)==-ENOTSUPP);
   CHECK(ringbuf_map_get_next_key(&m->map,NULL,NULL)==-ENOTSUPP);finish(m);
+ } else if(!strcmp(c,"helpers")) {
+#ifndef RINGBUF_PRODUCERS_REGISTERED
+  CHECK(!"Producer helper integration missing");
+#else
+  CHECK(BPF_FUNC_ringbuf_reserve==131&&BPF_FUNC_ringbuf_submit==132&&BPF_FUNC_ringbuf_discard==133);
+  CHECK(sk_filter_func_proto(131)==&bpf_ringbuf_reserve_proto&&sk_filter_func_proto(132)==&bpf_ringbuf_submit_proto&&sk_filter_func_proto(133)==&bpf_ringbuf_discard_proto);
+  CHECK(!sk_filter_func_proto(130)&&!sk_filter_func_proto(134));
+  CHECK(bpf_ringbuf_reserve_proto.ret_type==RET_PTR_TO_ALLOC_MEM_OR_NULL);
+  CHECK(bpf_ringbuf_reserve_proto.arg2_type==ARG_CONST_ALLOC_SIZE_OR_ZERO);
+  CHECK(bpf_ringbuf_submit_proto.releases_reference&&bpf_ringbuf_discard_proto.releases_reference);
+  CHECK(bpf_ringbuf_submit_proto.arg1_type==ARG_PTR_TO_ALLOC_MEM&&bpf_ringbuf_discard_proto.arg1_type==ARG_PTR_TO_ALLOC_MEM);
+  struct bpf_ringbuf_map *m=make(32768);CHECK(!bpf_ringbuf_reserve(&m->map,8,1));
+  unsigned sizes[]={32,8,12};for(int i=0;i<3;i++){void *p=(void *)(uintptr_t)bpf_ringbuf_reserve(&m->map,sizes[i],0);CHECK(p);memset(p,0x31,sizes[i]);CHECK(!(i==2?bpf_ringbuf_discard(p,0):bpf_ringbuf_submit(p,0)));CHECK(length(p)==(sizes[i]|(i==2?BPF_RINGBUF_DISCARD_BIT:0)));}consume(m->rb);
+  struct bpf_map other={.map_type=BPF_MAP_TYPE_ARRAY};CHECK(check_map_func_compatibility(&other,BPF_FUNC_ringbuf_reserve)==-EINVAL);other.map_type=BPF_MAP_TYPE_HASH;CHECK(check_map_func_compatibility(&other,BPF_FUNC_ringbuf_reserve)==-EINVAL);
+  finish(m);
+#endif
+ } else if(!strcmp(c,"fd-lifetime")) {
+#ifndef RINGBUF_PRODUCERS_REGISTERED
+  CHECK(!"Mmap integration missing");
+#else
+  struct bpf_ringbuf_map *m=make(4096);struct file f={.private_data=&m->map,.f_mode=FMODE_READ|FMODE_WRITE,.refs=1};
+  struct vm_area_struct v={.vm_flags=VM_SHARED|VM_WRITE|VM_MAYWRITE|VM_MAYEXEC,.vm_start=0x10000,.vm_end=0x11000,.vm_file=&f};
+  CHECK(!bpf_map_mmap(&f,&v));f.refs++;CHECK(m->map.writecnt==1&&v.vm_private_data==&m->map&&v.vm_file==&f&&v.vm_ops);CHECK(!(v.vm_flags&VM_MAYEXEC));
+  f.refs--;CHECK(f.refs==1); /* modeled close(fd), VMA keeps file alive */
+  struct vm_area_struct clone=v;v.vm_ops->open(&clone);f.refs++;CHECK(m->map.writecnt==2);
+  clone.vm_ops->close(&clone);f.refs--;CHECK(m->map.writecnt==1&&f.refs==1);
+  v.vm_flags&=~VM_WRITE;v.vm_ops->close(&v);f.refs--;CHECK(!m->map.writecnt&&!f.refs);
+  v=(struct vm_area_struct){.vm_flags=VM_SHARED|VM_WRITE|VM_MAYWRITE,.vm_start=0x10000,.vm_end=0x11000,.vm_pgoff=1,.vm_file=&f};
+  CHECK(bpf_map_mmap(&f,&v)==-EPERM);CHECK(!m->map.writecnt&&!v.vm_ops&&!v.vm_private_data&&v.vm_file==&f&&(v.vm_flags&VM_WRITE));
+  v.vm_pgoff=0;remap_error=-ENOMEM;CHECK(bpf_map_mmap(&f,&v)==-ENOMEM);CHECK(!m->map.writecnt&&!v.vm_ops&&!v.vm_private_data);remap_error=0;
+  v.vm_flags=VM_SHARED|VM_MAYWRITE;CHECK(!bpf_map_mmap(&f,&v));CHECK(!(v.vm_flags&VM_MAYWRITE));v.vm_ops->close(&v);CHECK(!m->map.writecnt);
+  CHECK(!bpf_map_poll(&f,NULL));finish(m);
+#endif
  } else CHECK(0);
  CHECK(!page_live&&!alloc_live&&!vmap_live&&!queued);close(memfd);puts("PASS");return 0;
 }

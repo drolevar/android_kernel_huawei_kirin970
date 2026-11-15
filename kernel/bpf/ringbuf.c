@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Huawei 4.14 producer core; helper registration awaits verifier ownership. */
+/* Huawei 4.14 producer core with bounded-memory/reference verifier integration. */
 #include <linux/bpf.h>
 #include <linux/btf.h>
 #include <linux/err.h>
@@ -344,7 +344,7 @@ bpf_ringbuf_restore_from_rec(struct bpf_ringbuf_hdr *hdr)
 	return (void*)((addr & PAGE_MASK) - off);
 }
 
-static void *__maybe_unused __bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
+static void *__bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
 {
 	unsigned long cons_pos, prod_pos, new_prod_pos, pend_pos, flags;
 	struct bpf_ringbuf_hdr *hdr;
@@ -407,7 +407,7 @@ static void *__maybe_unused __bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 si
 	return (void *)hdr + BPF_RINGBUF_HDR_SZ;
 }
 
-static void __maybe_unused bpf_ringbuf_commit(void *sample, u64 flags, bool discard)
+static void bpf_ringbuf_commit(void *sample, u64 flags, bool discard)
 {
 	unsigned long rec_pos, cons_pos;
 	struct bpf_ringbuf_hdr *hdr;
@@ -434,3 +434,50 @@ static void __maybe_unused bpf_ringbuf_commit(void *sample, u64 flags, bool disc
 	else if (cons_pos == rec_pos && !(flags & BPF_RB_NO_WAKEUP))
 		irq_work_queue(&rb->work);
 }
+
+BPF_CALL_3(bpf_ringbuf_reserve, struct bpf_map *, map, u64, size, u64, flags)
+{
+	struct bpf_ringbuf_map *rb_map;
+
+	if (unlikely(flags))
+		return 0;
+
+	rb_map = container_of(map, struct bpf_ringbuf_map, map);
+	return (unsigned long)__bpf_ringbuf_reserve(rb_map->rb, size);
+}
+
+const struct bpf_func_proto bpf_ringbuf_reserve_proto = {
+	.func		= bpf_ringbuf_reserve,
+	.ret_type	= RET_PTR_TO_ALLOC_MEM_OR_NULL,
+	.arg1_type	= ARG_CONST_MAP_PTR,
+	.arg2_type	= ARG_CONST_ALLOC_SIZE_OR_ZERO,
+	.arg3_type	= ARG_ANYTHING,
+};
+
+BPF_CALL_2(bpf_ringbuf_submit, void *, sample, u64, flags)
+{
+	bpf_ringbuf_commit(sample, flags, false /* discard */);
+	return 0;
+}
+
+const struct bpf_func_proto bpf_ringbuf_submit_proto = {
+	.func		= bpf_ringbuf_submit,
+	.ret_type	= RET_VOID,
+	.releases_reference = true,
+	.arg1_type	= ARG_PTR_TO_ALLOC_MEM,
+	.arg2_type	= ARG_ANYTHING,
+};
+
+BPF_CALL_2(bpf_ringbuf_discard, void *, sample, u64, flags)
+{
+	bpf_ringbuf_commit(sample, flags, true /* discard */);
+	return 0;
+}
+
+const struct bpf_func_proto bpf_ringbuf_discard_proto = {
+	.func		= bpf_ringbuf_discard,
+	.ret_type	= RET_VOID,
+	.releases_reference = true,
+	.arg1_type	= ARG_PTR_TO_ALLOC_MEM,
+	.arg2_type	= ARG_ANYTHING,
+};

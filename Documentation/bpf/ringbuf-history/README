@@ -44,6 +44,28 @@ Standalone boundary (before separately recorded integration):
   callback path. Update/delete/iteration callbacks return ENOTSUPP.
 - No vmlinux BTF, function calls/JIT changes, socket routes or override added.
 
+Integrated candidate:
+- Shared mmap foundation e34bc301ab1ace1af2c1800a7c9067320edc5e69 and verifier
+  ownership3f671f344a655633ea48de120724d505414ac266 are merged, preserving their
+  history. Test-only cf84f4a44/5799f4c85 improve header and stack-spill coverage.
+- Helpers131 reserve,132 submit,133 discard are registered in the actual
+  net/core/filter.c bpf_base_func_proto path reached by CGROUP_SKB via
+  sk_filter_func_proto. Registration is compiled only with BPF_SYSCALL, avoiding
+  disabled-config symbol references. Other networking callers of this shared
+  route also see these general producer helpers. Tracing routes are unchanged.
+- Reserve requires a ringbuf map and constant allocation bound, returns nullable
+  owned memory. Submit/discard require exact-base, nonnull live owned memory and
+  release aliases before caller clobber. Map/helper compatibility is checked in
+  both directions; submit/discard accept a reservation pointer, not a map.
+- Helper130 output and134 query remain unsupported. Their ABI names and the
+  preceding126-129 placeholders preserve numbering, not implementation.
+- Only constant pointer arithmetic is supported by the ownership foundation;
+  no unmeasured variable-offset or socket-pointer support is implied.
+- Generic fd mmap/poll dispatch now invokes the ringbuf callback. Callback
+  preserves file/VM-ops/private ownership and WRITE/MAYWRITE accounting on both
+  success and failure. Only RO mappings clear MAYWRITE (the dispatcher does so
+  first as well). File-held VMA refs remain a simulated host service in tests.
+
 Validation: scripts/tests/test_ringbuf.py compiles the entire production core
 and real verifier map/helper compatibility under ASan/UBSan. Allocation, page
 ownership, VM service calls, RCU/IRQ and locks are explicit deterministic models.
@@ -54,3 +76,11 @@ invariants. Producer record cases use the measured32/8/12-byte payloads.
 FD lifetime, VMA split/fork and helper-reference tests belong to shared foundation
 suites and must be rerun after their integration. Full image and actual kernel
 syscall/verifier/Android consumption remain separate gates.
+
+Integration test scripts/tests/test_ringbuf_verifier.py runs actual network
+prototype dispatch and extracted verifier call/NULL-branch/memory/stack logic.
+Only helper backend functions are stubs that abort if executed. This is not
+real BPF verifier program-load acceptance. Separate producer tests execute the
+real helper bodies against modeled kernel services. Late compatibility failure
+may already allocate verifier state; the error test discards it and checks
+balanced cleanup rather than assuming failed check_call leaves state unchanged.
