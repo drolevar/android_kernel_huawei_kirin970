@@ -44,8 +44,8 @@ helper-argument/call and NULL-branch handlers with ASan/UBSan. Allocation and
 helper discovery are host doubles; unrelated map/context/packet/stack services
 fail closed. Branch push uses production state-copy logic. This is not the full
 `do_check()` instruction walker, a BPF syscall, actual helper execution, JIT,
-RCU, memory mapping or phone validation. Direct stack spill setup is modeled;
-production invalidation and branch propagation act on those spills.
+RCU, memory mapping or phone validation. Stack alignment admission remains a host boundary; production spill/fill,
+invalidation and branch propagation are executed.
 
 The host-only provider table assigns existing helper slots to reserve/release
 prototypes to exercise `check_call()`. That table is never compiled into the
