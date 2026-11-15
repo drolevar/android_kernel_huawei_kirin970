@@ -3016,6 +3016,10 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 	u8 opcode = BPF_OP(insn->code);
 	int err;
 
+	/* Raw instruction register fields are untrusted four-bit values. */
+	if (insn->dst_reg >= MAX_BPF_REG || insn->src_reg >= MAX_BPF_REG)
+		return -EINVAL;
+
 	/* No arithmetic or partial copies of borrowed sockets, including the
 	 * privileged scalarization paths. A 64-bit MOV retains the typed alias.
 	 */
