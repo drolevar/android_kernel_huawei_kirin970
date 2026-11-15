@@ -21,8 +21,12 @@ typedef uint32_t u32;typedef uint64_t u64;
 #define round_down(n,a) ((n)&~((a)-1))
 #define NUMA_NO_NODE -1
 #define CAP_SYS_ADMIN 1
+#ifndef TEST_NOMMU
 #define CONFIG_MMU 1
 #define IS_ENABLED(x) (x)
+#else
+#define IS_ENABLED(x) 0
+#endif
 #define KMALLOC_MAX_SIZE (1UL<<22)
 #define U32_MAX UINT32_MAX
 #define ERR_PTR(e) ((void*)(intptr_t)(e))
@@ -62,7 +66,21 @@ static unsigned fls_long(unsigned long x){return x?sizeof(x)*8-__builtin_clzl(x)
 static int num_possible_cpus(void){return 2;}
 static int bpf_map_precharge_memlock(u32 pages){return charge_fail?-EPERM:0;}
 static void *bpf_map_area_alloc(size_t size,int node){if(alloc_fail)return NULL;allocation=calloc(1,size);allocation_size=size;allocation_mmap=0;return allocation;}
-static void *bpf_map_area_mmapable_alloc(size_t size,int node){if(alloc_fail)return NULL;CHECK(!(size&(PAGE_SIZE-1)));allocation=aligned_alloc(PAGE_SIZE,size);CHECK(allocation);memset(allocation,0,size);allocation_size=size;allocation_mmap=1;return allocation;}
+#define SHMLBA PAGE_SIZE
+#define VMALLOC_START 0x100000UL
+#define VMALLOC_END 0x10000000UL
+#define GFP_KERNEL 1
+#define __GFP_ZERO 2
+#define __GFP_NOWARN 4
+#define __GFP_NORETRY 8
+#define PAGE_KERNEL 0
+#define VM_USERMAP 8
+static int requested_node;
+static void *__vmalloc_node_range(size_t size,unsigned long align,unsigned long start,unsigned long end,unsigned flags,int prot,unsigned vm_flags,int node,const void *caller){
+ CHECK(align==SHMLBA && start==VMALLOC_START && end==VMALLOC_END);
+ CHECK(flags==(GFP_KERNEL|__GFP_ZERO|__GFP_NOWARN|__GFP_NORETRY));CHECK(vm_flags==VM_USERMAP);CHECK(prot==PAGE_KERNEL);requested_node=node;
+ if(alloc_fail)return NULL;CHECK(!(size&(PAGE_SIZE-1)));allocation=aligned_alloc(PAGE_SIZE,size);CHECK(allocation);memset(allocation,0,size);allocation_size=size;allocation_mmap=1;return allocation;
+}
 static void bpf_map_area_free(void *p){CHECK(p==allocation);free(p);allocation=NULL;}
 static int bpf_array_alloc_percpu(struct bpf_array *a){return 0;}
 static void bpf_array_free_percpu(struct bpf_array *a){}
@@ -87,7 +105,7 @@ static int remap_vmalloc_range(struct vm_area_struct *vma,void *base,unsigned lo
 #define __user
 #define u64_to_user_ptr(x) ((void *)(uintptr_t)(x))
 #define GFP_USER 0
-#define __GFP_NOWARN 0
+
 #define __this_cpu_inc(x) ((x)++)
 #define __this_cpu_dec(x) ((x)--)
 static int bpf_prog_active,copy_fail,copy_freeze,call_count;
@@ -126,6 +144,16 @@ static void close_vma(struct vm_area_struct *v){v->vm_ops->close(v);CHECK(file.r
 static unsigned poll_backend(struct bpf_map*m,struct file*f,struct poll_table_struct*p){CHECK(f->private_data==m);return 123;}
 int main(void){
  ops.map_mmap=array_map_mmap;
+#ifdef TEST_NOMMU
+ CHECK(!bpf_map_area_mmapable_alloc(PAGE_SIZE,NUMA_NO_NODE));
+ CHECK(PTR_ERR(make(BPF_F_MMAPABLE,1024,8))==-EINVAL);
+ struct bpf_map *plain=make(0,1024,8);CHECK(!IS_ERR(plain));
+ struct vm_area_struct disabled=vma(VM_SHARED,0,PAGE_SIZE);
+ CHECK(bpf_map_mmap(&file,&disabled)==-EOPNOTSUPP);array_map_free(plain);
+ puts("PASS CONFIG_MMU-disabled extracted allocation/callback branches");return 0;
+#else
+ CHECK(!bpf_map_area_mmapable_alloc(0,NUMA_NO_NODE));
+ CHECK(!bpf_map_area_mmapable_alloc(PAGE_SIZE-1,NUMA_NO_NODE));
  struct bpf_map *m=make(BPF_F_MMAPABLE,1024,8);CHECK(!IS_ERR(m));CHECK(m->map_flags==0x400);CHECK(allocation_mmap);
  struct bpf_array *a=container_of(m,struct bpf_array,map);CHECK(!((uintptr_t)a->value&(PAGE_SIZE-1)));CHECK(allocation_size==PAGE_ALIGN(sizeof(*a))+8192);
  for(size_t i=0;i<8192;i++)CHECK(a->value[i]==0);
@@ -173,5 +201,8 @@ int main(void){
  for(int fail=1;fail<=4;fail++){copy_fail=fail;CHECK(map_update_elem(&ua)<0);CHECK(!m->writecnt);}
  copy_fail=1;CHECK(map_delete_elem(&ua)==-EFAULT);CHECK(!m->writecnt);copy_fail=0;CHECK(map_delete_elem(&ua)==-EINVAL);CHECK(!m->writecnt);
  CHECK(!freeze());int calls=call_count;CHECK(map_update_elem(&ua)==-EPERM);CHECK(map_delete_elem(&ua)==-EPERM);CHECK(call_count==calls);CHECK(!m->writecnt);CHECK(!bpf_prog_active);array_map_free(m);
+ union bpf_attr numa={.map_type=BPF_MAP_TYPE_ARRAY,.key_size=4,.value_size=8,.max_entries=1024,.map_flags=BPF_F_MMAPABLE|BPF_F_NUMA_NODE,.numa_node=3};
+ m=array_map_alloc(&numa);CHECK(!IS_ERR(m));CHECK(requested_node==3);CHECK(m->numa_node==3);array_map_free(m);
  puts("PASS allocation, offsets, permissions, VMA ownership, freeze, write accounting, poll, failures");return 0;
+#endif
 }
