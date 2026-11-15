@@ -38,8 +38,8 @@ typedef uint32_t u32; typedef uint64_t u64; typedef unsigned gfp_t;
 #define ENOTSUPP 524
 #define VM_WRITE 1
 #define VM_MAYWRITE 2
-#define EPOLLIN 1
-#define EPOLLRDNORM 64
+#define POLLIN 1
+#define POLLRDNORM 64
 #define round_up(x,y) (((x)+(y)-1)&~((__typeof__(x))(y)-1))
 #define DIV_ROUND_UP(n,d) (((n)+(d)-1)/(d))
 #define is_power_of_2(x) ((x)&&!((x)&((x)-1)))
@@ -133,7 +133,7 @@ int main(int argc,char **argv) {
  } else if(!strcmp(c,"mmap")) {
   struct bpf_ringbuf_map *m=make(4096);struct vm_area_struct v={.vm_flags=VM_WRITE|VM_MAYWRITE,.vm_start=0x10000,.vm_end=0x11000};CHECK(!ringbuf_map_mmap(&m->map,&v));CHECK(mapped_offset==RINGBUF_PGOFF&&remapped_length==PAGE_SIZE);v.vm_pgoff=1;CHECK(ringbuf_map_mmap(&m->map,&v)==-EPERM);v.vm_pgoff=0;v.vm_end+=PAGE_SIZE;CHECK(ringbuf_map_mmap(&m->map,&v)==-EPERM);v.vm_flags=VM_MAYWRITE;v.vm_pgoff=1;v.vm_end=v.vm_start+3*PAGE_SIZE;CHECK(!ringbuf_map_mmap(&m->map,&v));CHECK(!(v.vm_flags&VM_MAYWRITE));v.vm_pgoff=ULONG_MAX;CHECK(ringbuf_map_mmap(&m->map,&v)<0);v.vm_pgoff=4;CHECK(ringbuf_map_mmap(&m->map,&v)<0);v.vm_pgoff=0;remap_error=-ENOMEM;CHECK(ringbuf_map_mmap(&m->map,&v)==-ENOMEM);remap_error=0;finish(m);
  } else if(!strcmp(c,"poll")) {
-  struct bpf_ringbuf_map *m=make(4096);CHECK(!ringbuf_map_poll(&m->map,NULL,NULL));void *p=__bpf_ringbuf_reserve(m->rb,8);CHECK(ringbuf_map_poll(&m->map,NULL,NULL)==(EPOLLIN|EPOLLRDNORM));CHECK(pollwaits==2);bpf_ringbuf_commit(p,0,true);consume(m->rb);CHECK(!ringbuf_map_poll(&m->map,NULL,NULL));finish(m);
+  struct bpf_ringbuf_map *m=make(4096);CHECK(!ringbuf_map_poll(&m->map,NULL,NULL));void *p=__bpf_ringbuf_reserve(m->rb,8);CHECK(ringbuf_map_poll(&m->map,NULL,NULL)==(POLLIN|POLLRDNORM));CHECK(pollwaits==2);bpf_ringbuf_commit(p,0,true);consume(m->rb);CHECK(!ringbuf_map_poll(&m->map,NULL,NULL));finish(m);
  } else if(!strcmp(c,"destroy")) {
   struct bpf_ringbuf_map *m=make(4096);void *p=__bpf_ringbuf_reserve(m->rb,32);bpf_ringbuf_commit(p,BPF_RB_FORCE_WAKEUP,false);CHECK(queued);finish(m);CHECK(syncs&&rcu_syncs);
  } else if(!strcmp(c,"unsupported")) {

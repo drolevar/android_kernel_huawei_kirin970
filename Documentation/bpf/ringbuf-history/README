@@ -22,6 +22,13 @@ Supported core contract:
   just because poll is readable: user must observe BUSY and reservation order.
 - Pending scan uses != instead of < because monotonic unsigned counters can
   wrap. Host counterwrap regression fails on the exact donor comparison.
+  The bounded scan assumes internal pending/producer counters delimit records
+  created by reserve: validated aligned lengths, immutable headers except atomic
+  BUSY/DISCARD transition, BUSY stops at the first uncommitted record. Userspace
+  can write consumer_pos but cannot write pending/producer or record pages.
+  Producer verification must exclude writes before/after each allocated record.
+- Use old-tree POLLIN/POLLRDNORM (unsigned poll mask); newer donor EPOLL names
+  are not supplied by this kernel's poll header.
 - Old-tree map destruction waits synchronize_rcu, then irq_work_sync, before
   unmapping/freeing. Last fd alone does not mean last program/VMA reference.
 - mmap callback permits writes only to offset0, one consumer page. All other
