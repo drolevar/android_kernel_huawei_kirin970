@@ -1,0 +1,49 @@
+Huawei ring-buffer producer candidate
+====================================
+Parent: b6631cccfe0dd438aec88068bead52ffeff6d785
+Reference: Pixel msm-4.14 bb17b7de4b570f2c0c32ddba0543cac03c58dd84
+
+The original-author commits preceding the Huawei integration import ringbuf.c
+in chronological history order, initially unwired. Their original messages and
+trailers are retained. *.patch.txt records each exact donor file patch. Shared
+verifier and mmap dependencies are separate candidates, not silently imported.
+
+Supported core contract:
+- Canonical map27, key/value0/0; power-of-two page-aligned capacity. Measured
+  32768,4096,8192 capacities are supported. Generic capacities up to what the
+  u32 API, record offset and size_t double-mapping bounds permit. Flags0 and
+  optional NUMA_NODE; all other flags rejected. No map BTF association.
+- Physical pages mapped twice for wraparound; old map.pages/precharge model
+  charges unique pages, wrapper and page vector. Shared syscall layer performs
+  actual charging/uncharge. Allocation/precharge failures free the wrapper.
+- Reserve, commit/submit and discard core retain donor pending-position bound,
+  BUSY/DISCARD ABI, serialized reservations, release publication, atomic commit,
+  NMI trylock failure, wakeups and poll availability. A record is not consumable
+  just because poll is readable: user must observe BUSY and reservation order.
+- Pending scan uses != instead of < because monotonic unsigned counters can
+  wrap. Host counterwrap regression fails on the exact donor comparison.
+- Old-tree map destruction waits synchronize_rcu, then irq_work_sync, before
+  unmapping/freeing. Last fd alone does not mean last program/VMA reference.
+- mmap callback permits writes only to offset0, one consumer page. All other
+  mappings clear MAYWRITE; offset addition is checked before remapping.
+
+Standalone boundary (before separately recorded integration):
+- map_mmap/map_poll callbacks and struct slots exist, but generic file operations
+  are owned by the separate mmap candidate. No claim of usable map-fd mmap yet.
+- Every BPF helper access to map27 is rejected by the real verifier compatibility
+  function. Reserve/commit core is unregistered; there is no unsafe producer
+  helper exposure before acquired-reference and bounded-memory verification.
+- Generic map lookup syscall rejects ringbuf before the older ERR_PTR-unsafe
+  callback path. Update/delete/iteration callbacks return ENOTSUPP.
+- No vmlinux BTF, function calls/JIT changes, socket routes or override added.
+
+Validation: scripts/tests/test_ringbuf.py compiles the entire production core
+and real verifier map/helper compatibility under ASan/UBSan. Allocation, page
+ownership, VM service calls, RCU/IRQ and locks are explicit deterministic models.
+POSIX memfd aliases supply real double-mapped byte storage for wraparound tests;
+this does not execute kernel VMAs, page faults, SMP, IRQ or RCU. Failure injection
+covers every allocation position and precharge; mutation controls test selected
+invariants. Producer record cases use the measured32/8/12-byte payloads.
+FD lifetime, VMA split/fork and helper-reference tests belong to shared foundation
+suites and must be rerun after their integration. Full image and actual kernel
+syscall/verifier/Android consumption remain separate gates.

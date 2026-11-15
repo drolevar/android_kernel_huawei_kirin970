@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Huawei 4.14 producer core; helper registration awaits verifier ownership. */
 #include <linux/bpf.h>
 #include <linux/btf.h>
 #include <linux/err.h>
@@ -52,7 +54,6 @@ struct bpf_ringbuf {
 
 struct bpf_ringbuf_map {
 	struct bpf_map map;
-	struct bpf_map_memory memory;
 	struct bpf_ringbuf *rb;
 };
 
@@ -167,6 +168,10 @@ static struct bpf_map *ringbuf_map_alloc(union bpf_attr *attr)
 	    !PAGE_ALIGNED(attr->max_entries))
 		return ERR_PTR(-EINVAL);
 
+	/* The double data mapping plus metadata must fit virtual size_t. */
+	if (2 * (u64)attr->max_entries + sizeof(struct bpf_ringbuf) > ULONG_MAX)
+		return ERR_PTR(-E2BIG);
+
 #ifdef CONFIG_64BIT
 	/* on 32-bit arch, it's impossible to overflow record's hdr->pgoff */
 	if (attr->max_entries > RINGBUF_MAX_DATA_SZ)
@@ -177,25 +182,38 @@ static struct bpf_map *ringbuf_map_alloc(union bpf_attr *attr)
 	if (!rb_map)
 		return ERR_PTR(-ENOMEM);
 
-	bpf_map_init_from_attr(&rb_map->map, attr);
-
-	cost = sizeof(struct bpf_ringbuf_map) +
-	       sizeof(struct bpf_ringbuf) +
-	       attr->max_entries;
-	err = bpf_map_charge_init(&rb_map->map.memory, cost);
+	/* Precheck the same pages charged by map_create after allocation. The
+	 * duplicate data aliases consume VM, not additional physical pages.
+	 * Include the wrapper and page-pointer vector in the old memlock model.
+	 */
+	cost = sizeof(*rb_map) + sizeof(struct bpf_ringbuf) +
+	       (u64)attr->max_entries +
+	       (RINGBUF_PGOFF + RINGBUF_POS_PAGES +
+	        2 * ((u64)attr->max_entries >> PAGE_SHIFT)) * sizeof(struct page *);
+	cost = DIV_ROUND_UP(cost, PAGE_SIZE);
+	if (cost > U32_MAX) {
+		err = -E2BIG;
+		goto err_free_map;
+	}
+	err = bpf_map_precharge_memlock(cost);
 	if (err)
 		goto err_free_map;
+	rb_map->map.map_type = attr->map_type;
+	rb_map->map.key_size = attr->key_size;
+	rb_map->map.value_size = attr->value_size;
+	rb_map->map.max_entries = attr->max_entries;
+	rb_map->map.map_flags = attr->map_flags;
+	rb_map->map.numa_node = bpf_map_attr_numa_node(attr);
+	rb_map->map.pages = cost;
 
 	rb_map->rb = bpf_ringbuf_alloc(attr->max_entries, rb_map->map.numa_node);
 	if (IS_ERR(rb_map->rb)) {
 		err = PTR_ERR(rb_map->rb);
-		goto err_uncharge;
+		goto err_free_map;
 	}
 
 	return &rb_map->map;
 
-err_uncharge:
-	bpf_map_charge_finish(&rb_map->map.memory);
 err_free_map:
 	kfree(rb_map);
 	return ERR_PTR(err);
@@ -220,6 +238,9 @@ static void ringbuf_map_free(struct bpf_map *map)
 	struct bpf_ringbuf_map *rb_map;
 
 	rb_map = container_of(map, struct bpf_ringbuf_map, map);
+	/* Old map teardown does not supply the newer shared grace period. */
+	synchronize_rcu();
+	irq_work_sync(&rb_map->rb->work);
 	bpf_ringbuf_free(rb_map->rb);
 	kfree(rb_map);
 }
@@ -259,6 +280,8 @@ static int ringbuf_map_mmap(struct bpf_map *map, struct vm_area_struct *vma)
 	} else {
 		vma->vm_flags &= ~VM_MAYWRITE;
 	}
+	if (vma->vm_pgoff > ULONG_MAX - RINGBUF_PGOFF)
+		return -EINVAL;
 	/* remap_vmalloc_range() checks size and offset constraints */
 	return remap_vmalloc_range(vma, rb_map->rb,
 				   vma->vm_pgoff + RINGBUF_PGOFF);
@@ -273,7 +296,7 @@ static unsigned long ringbuf_avail_data_sz(struct bpf_ringbuf *rb)
 	return prod_pos - cons_pos;
 }
 
-static __poll_t ringbuf_map_poll(struct bpf_map *map, struct file *filp,
+static unsigned int ringbuf_map_poll(struct bpf_map *map, struct file *filp,
 				 struct poll_table_struct *pts)
 {
 	struct bpf_ringbuf_map *rb_map;
@@ -286,9 +309,7 @@ static __poll_t ringbuf_map_poll(struct bpf_map *map, struct file *filp,
 	return 0;
 }
 
-static int ringbuf_map_btf_id;
 const struct bpf_map_ops ringbuf_map_ops = {
-	.map_meta_equal = bpf_map_meta_equal,
 	.map_alloc = ringbuf_map_alloc,
 	.map_free = ringbuf_map_free,
 	.map_mmap = ringbuf_map_mmap,
@@ -297,8 +318,6 @@ const struct bpf_map_ops ringbuf_map_ops = {
 	.map_update_elem = ringbuf_map_update_elem,
 	.map_delete_elem = ringbuf_map_delete_elem,
 	.map_get_next_key = ringbuf_map_get_next_key,
-	.map_btf_name = "bpf_ringbuf_map",
-	.map_btf_id = &ringbuf_map_btf_id,
 };
 
 /* Given pointer to ring buffer record metadata and struct bpf_ringbuf itself,
@@ -325,7 +344,7 @@ bpf_ringbuf_restore_from_rec(struct bpf_ringbuf_hdr *hdr)
 	return (void*)((addr & PAGE_MASK) - off);
 }
 
-static void *__bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
+static void *__maybe_unused __bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
 {
 	unsigned long cons_pos, prod_pos, new_prod_pos, pend_pos, flags;
 	struct bpf_ringbuf_hdr *hdr;
@@ -351,7 +370,8 @@ static void *__bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
 	prod_pos = rb->producer_pos;
 	new_prod_pos = prod_pos + len;
 
-	while (pend_pos < prod_pos) {
+	/* Both monotonically advancing unsigned counters may wrap. */
+	while (pend_pos != prod_pos) {
 		hdr = (void *)rb->data + (pend_pos & rb->mask);
 		hdr_len = READ_ONCE(hdr->len);
 		if (hdr_len & BPF_RINGBUF_BUSY_BIT)
@@ -387,26 +407,7 @@ static void *__bpf_ringbuf_reserve(struct bpf_ringbuf *rb, u64 size)
 	return (void *)hdr + BPF_RINGBUF_HDR_SZ;
 }
 
-BPF_CALL_3(bpf_ringbuf_reserve, struct bpf_map *, map, u64, size, u64, flags)
-{
-	struct bpf_ringbuf_map *rb_map;
-
-	if (unlikely(flags))
-		return 0;
-
-	rb_map = container_of(map, struct bpf_ringbuf_map, map);
-	return (unsigned long)__bpf_ringbuf_reserve(rb_map->rb, size);
-}
-
-const struct bpf_func_proto bpf_ringbuf_reserve_proto = {
-	.func		= bpf_ringbuf_reserve,
-	.ret_type	= RET_PTR_TO_ALLOC_MEM_OR_NULL,
-	.arg1_type	= ARG_CONST_MAP_PTR,
-	.arg2_type	= ARG_CONST_ALLOC_SIZE_OR_ZERO,
-	.arg3_type	= ARG_ANYTHING,
-};
-
-static void bpf_ringbuf_commit(void *sample, u64 flags, bool discard)
+static void __maybe_unused bpf_ringbuf_commit(void *sample, u64 flags, bool discard)
 {
 	unsigned long rec_pos, cons_pos;
 	struct bpf_ringbuf_hdr *hdr;
@@ -433,84 +434,3 @@ static void bpf_ringbuf_commit(void *sample, u64 flags, bool discard)
 	else if (cons_pos == rec_pos && !(flags & BPF_RB_NO_WAKEUP))
 		irq_work_queue(&rb->work);
 }
-
-BPF_CALL_2(bpf_ringbuf_submit, void *, sample, u64, flags)
-{
-	bpf_ringbuf_commit(sample, flags, false /* discard */);
-	return 0;
-}
-
-const struct bpf_func_proto bpf_ringbuf_submit_proto = {
-	.func		= bpf_ringbuf_submit,
-	.ret_type	= RET_VOID,
-	.arg1_type	= ARG_PTR_TO_ALLOC_MEM,
-	.arg2_type	= ARG_ANYTHING,
-};
-
-BPF_CALL_2(bpf_ringbuf_discard, void *, sample, u64, flags)
-{
-	bpf_ringbuf_commit(sample, flags, true /* discard */);
-	return 0;
-}
-
-const struct bpf_func_proto bpf_ringbuf_discard_proto = {
-	.func		= bpf_ringbuf_discard,
-	.ret_type	= RET_VOID,
-	.arg1_type	= ARG_PTR_TO_ALLOC_MEM,
-	.arg2_type	= ARG_ANYTHING,
-};
-
-BPF_CALL_4(bpf_ringbuf_output, struct bpf_map *, map, void *, data, u64, size,
-	   u64, flags)
-{
-	struct bpf_ringbuf_map *rb_map;
-	void *rec;
-
-	if (unlikely(flags & ~(BPF_RB_NO_WAKEUP | BPF_RB_FORCE_WAKEUP)))
-		return -EINVAL;
-
-	rb_map = container_of(map, struct bpf_ringbuf_map, map);
-	rec = __bpf_ringbuf_reserve(rb_map->rb, size);
-	if (!rec)
-		return -EAGAIN;
-
-	memcpy(rec, data, size);
-	bpf_ringbuf_commit(rec, flags, false /* discard */);
-	return 0;
-}
-
-const struct bpf_func_proto bpf_ringbuf_output_proto = {
-	.func		= bpf_ringbuf_output,
-	.ret_type	= RET_INTEGER,
-	.arg1_type	= ARG_CONST_MAP_PTR,
-	.arg2_type	= ARG_PTR_TO_MEM,
-	.arg3_type	= ARG_CONST_SIZE_OR_ZERO,
-	.arg4_type	= ARG_ANYTHING,
-};
-
-BPF_CALL_2(bpf_ringbuf_query, struct bpf_map *, map, u64, flags)
-{
-	struct bpf_ringbuf *rb;
-
-	rb = container_of(map, struct bpf_ringbuf_map, map)->rb;
-
-	switch (flags) {
-	case BPF_RB_AVAIL_DATA:
-		return ringbuf_avail_data_sz(rb);
-	case BPF_RB_RING_SIZE:
-		return rb->mask + 1;
-	case BPF_RB_CONS_POS:
-		return smp_load_acquire(&rb->consumer_pos);
-	case BPF_RB_PROD_POS:
-		return smp_load_acquire(&rb->producer_pos);
-	default:
-		return 0;
-	}
-}
-
-const struct bpf_func_proto bpf_ringbuf_query_proto = {
-	.func		= bpf_ringbuf_query,
-	.ret_type	= RET_INTEGER,
-	.arg1_type	= ARG_CONST_MAP_PTR,
-	.arg2_type	= ARG_ANYTHING,
-};

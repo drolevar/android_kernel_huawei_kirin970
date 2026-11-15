@@ -118,6 +118,7 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_SOCKMAP,
 	/* Preserve upstream numbering; intervening types are not implemented. */
 	BPF_MAP_TYPE_DEVMAP_HASH = 25,
+	BPF_MAP_TYPE_RINGBUF = 27,
 };
 
 enum bpf_prog_type {
@@ -887,6 +888,11 @@ enum bpf_func_id {
 #define BPF_F_CURRENT_CPU		BPF_F_INDEX_MASK
 /* BPF_FUNC_perf_event_output for sk_buff input context. */
 #define BPF_F_CTXLEN_MASK		(0xfffffULL << 32)
+
+/* Ring buffer producer flags and record ABI. */
+enum { BPF_RB_NO_WAKEUP = (1ULL << 0), BPF_RB_FORCE_WAKEUP = (1ULL << 1) };
+enum { BPF_RINGBUF_BUSY_BIT = (1U << 31),
+       BPF_RINGBUF_DISCARD_BIT = (1U << 30), BPF_RINGBUF_HDR_SZ = 8 };
 
 /* Mode for BPF_FUNC_skb_adjust_room helper. */
 enum bpf_adj_room_mode {

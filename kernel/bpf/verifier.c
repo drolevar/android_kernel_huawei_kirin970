@@ -1710,6 +1710,9 @@ static int check_map_func_compatibility(struct bpf_map *map, int func_id)
 
 	/* We need a two way check, first is from map perspective ... */
 	switch (map->map_type) {
+	case BPF_MAP_TYPE_RINGBUF:
+		/* No producer dispatch before the reference/memory verifier lands. */
+		goto error;
 	case BPF_MAP_TYPE_DEVMAP_HASH:
 		/* Control-plane-only candidate: no helper may consume this map.
 		 * In particular, sparse keys must never enter DEVMAP bitmaps.

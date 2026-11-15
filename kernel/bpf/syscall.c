@@ -605,6 +605,11 @@ static int map_lookup_elem(union bpf_attr *attr)
 		goto err_put;
 	}
 
+	if (map->map_type == BPF_MAP_TYPE_RINGBUF) {
+		err = -ENOTSUPP;
+		goto err_put;
+	}
+
 	key = memdup_user(ukey, map->key_size);
 	if (IS_ERR(key)) {
 		err = PTR_ERR(key);
