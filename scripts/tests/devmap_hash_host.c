@@ -2,6 +2,7 @@
 /* Host scheduler/RCU, allocation, netdev and usercopy boundaries. */
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -111,7 +112,7 @@ struct notifier_block { int (*notifier_call)(struct notifier_block *,ulong,void 
 #define register_netdevice_notifier(p) ((void)(p))
 #define subsys_initcall(f)
 struct bpf_map_ops;
-struct bpf_map { unsigned map_type,key_size,value_size,max_entries,map_flags,pages,id; int numa_node; char name[16]; void *btf; unsigned btf_key_type_id,btf_value_type_id; };
+struct bpf_map { unsigned map_type,key_size,value_size,max_entries,map_flags,pages,id; int numa_node; char name[16]; void *btf; unsigned btf_key_type_id,btf_value_type_id; const struct bpf_map_ops *ops; struct bpf_map *inner_map_meta; bool unpriv_array; };
 struct bpf_map_ops { struct bpf_map *(*map_alloc)(union bpf_attr *); void (*map_free)(struct bpf_map *); int (*map_get_next_key)(struct bpf_map *,void *,void *); void *(*map_lookup_elem)(struct bpf_map *,void *); int (*map_update_elem)(struct bpf_map *,void *,void *,u64); int (*map_delete_elem)(struct bpf_map *,void *); };
 #define bpf_map_attr_numa_node(a) (-1)
 #define bpf_map_precharge_memlock(p) (charge_error)
@@ -124,6 +125,27 @@ struct bpf_map_ops { struct bpf_map *(*map_alloc)(union bpf_attr *); void (*map_
 static int check_uarg_tail_zero(void *p,size_t n,size_t sz) { return sz>n?-E2BIG:0; }
 static int copy_to_user(void *d,const void *s,size_t n) { memcpy(d,s,n);return 0; }
 #define put_user(v,p) (*(p)=(v),0)
+/* Verifier register and fd boundaries: type propagation itself is real code. */
+#define ENOTSUPP 524
+struct bpf_array { struct bpf_map map; u32 index_mask; };
+static const struct bpf_map_ops array_map_ops={0};
+struct fd { struct bpf_map *map; };
+static struct bpf_map *fd_map;
+static int fd_refs;
+static struct fd fdget(int fd) { CHECK(fd==7);fd_refs++;return (struct fd){fd_map}; }
+static void fdput(struct fd fd) { CHECK(fd.map==fd_map);fd_refs--; }
+static struct bpf_map *__bpf_map_get(struct fd fd) { return fd.map; }
+enum { SCALAR_VALUE, CONST_PTR_TO_MAP, PTR_TO_MAP_VALUE_OR_NULL, PTR_TO_MAP_VALUE };
+struct bpf_reg_state { int type; struct bpf_map *map_ptr; u32 id; long smin_value,smax_value,var_off,off; };
+struct bpf_verifier_env { struct bpf_reg_state regs[11]; };
+#define cur_regs(e) ((e)->regs)
+#define DST_OP 1
+#define BUG_ON(c) CHECK(!(c))
+#define WARN_ON_ONCE(c) (c)
+#define tnum_equals_const(a,b) ((a)==(b))
+static int check_reg_arg(struct bpf_verifier_env *e,u32 r,int op) { return r<11?0:-EINVAL; }
+static void __mark_reg_known(struct bpf_reg_state *r,u64 v) { r->smin_value=r->smax_value=r->var_off=v; }
+static void __mark_reg_known_zero(struct bpf_reg_state *r) { __mark_reg_known(r,0); }
 #include "subject.h"
 #include "registry.h"
 static const struct bpf_map_ops *ops;
@@ -134,6 +156,7 @@ static int lookup(struct bpf_map *m,u32 k) {rcu_read_lock();int *p=ops->map_look
 static int next(struct bpf_map *m,void *k,u32 *v) {rcu_read_lock();int r=ops->map_get_next_key(m,k,v);rcu_read_unlock();return r;}
 static void unreg(int i) { devices[i].registered=0;dev_map_notification(NULL,NETDEV_UNREGISTER,&devices[i]); }
 static struct bpf_map *inter_map;
+static void unregister_before_lock(void) { unreg(0); }
 static void replace_before_lock(void) { CHECK(update(inter_map,0xffffffff,8,0)==0); }
 int main(int argc,char **argv) {
  CHECK(argc==2); const char *c=argv[1];
@@ -141,7 +164,7 @@ int main(int argc,char **argv) {
  struct bpf_map *m=newmap(!strcmp(c,"array")?BPF_MAP_TYPE_DEVMAP:25);
  if(!strcmp(c,"attributes")) {
   struct bpf_map_info info={0};union bpf_attr a={.info={.info=(uintptr_t)&info,.info_len=sizeof(info)}};
-  CHECK(bpf_map_get_info_by_fd(m,&a,&a)==0);CHECK(info.type==25 && info.key_size==4 && info.value_size==4 && info.max_entries==64 && info.map_flags==128);
+  CHECK(bpf_map_get_info_by_fd(m,&a,&a)==0);CHECK(bpf_get_file_flag(0)==O_RDWR && bpf_get_file_flag(info.map_flags)==O_RDWR);CHECK(info.type==25 && info.key_size==4 && info.value_size==4 && info.max_entries==64 && info.map_flags==128);
   union bpf_attr attr={.map_type=25,.key_size=4,.value_size=4,.max_entries=64};
   for(int i=0;i<6;i++) { union bpf_attr bad=attr; if(i==0)bad.key_size=8;if(i==1)bad.value_size=8;if(i==2)bad.max_entries=0;if(i==3)bad.max_entries=65;if(i==4)bad.map_flags=BPF_F_RDONLY;if(i==5)bad.map_flags=128;CHECK(PTR_ERR(ops->map_alloc(&bad))==-EINVAL); }
   admin=0;CHECK(PTR_ERR(ops->map_alloc(&attr))==-EPERM);admin=1;
@@ -170,12 +193,34 @@ int main(int argc,char **argv) {
   for(count=0;next(m,NULL,&n)==0;count++)CHECK(del(m,n)==0);CHECK(count==64);
  } else if(!strcmp(c,"unregister")) {
   for(u32 i=0;i<64;i++)CHECK(update(m,i*64,7,0)==0);unreg(0);u32 n;CHECK(next(m,NULL,&n)==-ENOENT);CHECK(devices[0].refs==64);drain();CHECK(devices[0].refs==0);CHECK(update(m,UINT32_MAX,8,0)==0);
+ } else if(!strcmp(c,"mixed_unregister")) {
+  for(u32 i=0;i<64;i++)CHECK(update(m,i*64,i%2?8:7,0)==0);
+  unreg(0);CHECK(devices[0].refs==32 && devices[1].refs==32);
+  u32 n,k;unsigned count=0;bool seen[64]={0};int r=next(m,NULL,&n);
+  while(!r) {CHECK(n%64==0 && n/64<64 && n/64%2 && !seen[n/64]);CHECK(lookup(m,n)==8);seen[n/64]=true;count++;k=n;r=next(m,&k,&n);}CHECK(r==-ENOENT && count==32);
+  drain();CHECK(devices[0].refs==0 && devices[1].refs==32);
+  for(u32 i=0;i<32;i++)CHECK(update(m,4096+i*64,8,0)==0);
+  CHECK(update(m,UINT32_MAX,8,0)==-E2BIG);for(u32 i=1;i<64;i+=2)CHECK(lookup(m,i*64)==8);
  } else if(!strcmp(c,"replace_unregister")) {
   CHECK(update(m,UINT32_MAX,7,0)==0);CHECK(update(m,UINT32_MAX,8,0)==0);unreg(0);CHECK(lookup(m,UINT32_MAX)==8);drain();CHECK(devices[0].refs==0 && devices[1].refs==1);
  } else if(!strcmp(c,"deferred")) {
   CHECK(update(m,UINT32_MAX,7,0)==0);u32 k=UINT32_MAX;rcu_read_lock();int *old=ops->map_lookup_elem(m,&k);CHECK(update(m,k,8,0)==0);CHECK(*old==7);CHECK(del(m,k)==0);CHECK(*old==7);rcu_read_unlock();CHECK(devices[0].refs==1 && devices[1].refs==1);
  } else if(!strcmp(c,"interleave")) {
   CHECK(update(m,UINT32_MAX,7,0)==0);inter_map=m;before_lock=replace_before_lock;CHECK(del(m,UINT32_MAX)==0);CHECK(lookup(m,UINT32_MAX)==-1);drain();CHECK(!devices[0].refs && !devices[1].refs);
+ } else if(!strcmp(c,"update_interleave")) {
+  CHECK(update(m,UINT32_MAX,7,0)==0);inter_map=m;before_lock=replace_before_lock;CHECK(update(m,UINT32_MAX,7,0)==0);CHECK(lookup(m,UINT32_MAX)==7);drain();CHECK(devices[0].refs==1 && devices[1].refs==0);
+ } else if(!strcmp(c,"unregister_interleave")) {
+  CHECK(update(m,UINT32_MAX,7,0)==0);before_lock=unregister_before_lock;CHECK(update(m,UINT32_MAX,7,0)==-EINVAL);CHECK(lookup(m,UINT32_MAX)==-1);drain();CHECK(!devices[0].refs);
+ } else if(!strcmp(c,"map_pointers")) {
+  fd_map=m;struct bpf_map *meta=bpf_map_meta_alloc(7);CHECK(!IS_ERR(meta) && !fd_refs && meta->map_type==25);
+  struct bpf_map outer={.map_type=BPF_MAP_TYPE_HASH_OF_MAPS,.inner_map_meta=meta};
+  struct bpf_reg_state regs[11]={0};regs[0].type=PTR_TO_MAP_VALUE_OR_NULL;regs[0].id=3;regs[0].map_ptr=&outer;
+  CHECK(check_map_func_compatibility(&outer,BPF_FUNC_map_lookup_elem)==0);
+  mark_map_reg(regs,0,3,false);CHECK(regs[0].type==CONST_PTR_TO_MAP && regs[0].map_ptr==meta);
+  for(int f=0;f<256;f++)CHECK(check_map_func_compatibility(regs[0].map_ptr,f)==-EINVAL);
+  struct bpf_insn insn[2]={{.code=0x18,.src_reg=BPF_PSEUDO_MAP_FD,.dst_reg=1,.imm=(u32)(uintptr_t)m},{.imm=(u32)((u64)(uintptr_t)m>>32)}};
+  struct bpf_verifier_env env={0};CHECK(check_ld_imm(&env,insn)==0);CHECK(env.regs[1].type==CONST_PTR_TO_MAP && env.regs[1].map_ptr==m);
+  for(int f=0;f<256;f++)CHECK(check_map_func_compatibility(env.regs[1].map_ptr,f)==-EINVAL);kfree(meta);
  } else if(!strcmp(c,"array")) {
   CHECK(update(m,63,7,0)==0);CHECK(update(m,64,7,0)==-E2BIG);CHECK(update(m,0,7,BPF_NOEXIST)==-EEXIST);CHECK(lookup(m,63)==7);__dev_map_insert_ctx(m,63);CHECK(del(m,63)==0);drain();CHECK(flushes==1);CHECK(update(m,2,8,0)==0);unreg(1);drain();CHECK(lookup(m,2)==-1);u32 n;CHECK(next(m,NULL,&n)==0 && n==0);
  } else CHECK(0);
