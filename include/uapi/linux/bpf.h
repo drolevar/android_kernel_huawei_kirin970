@@ -116,6 +116,8 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_HASH_OF_MAPS,
 	BPF_MAP_TYPE_DEVMAP,
 	BPF_MAP_TYPE_SOCKMAP,
+	/* Preserve upstream numbering; intervening types are not implemented. */
+	BPF_MAP_TYPE_DEVMAP_HASH = 25,
 };
 
 enum bpf_prog_type {
@@ -213,6 +215,9 @@ enum bpf_attach_type {
  * across different LRU lists.
  */
 #define BPF_F_NO_COMMON_LRU	(1U << 1)
+/* Program-side read-only metadata; not a userspace access restriction. */
+#define BPF_F_RDONLY_PROG (1U << 7)
+
 /* Specify numa node during map creation */
 #define BPF_F_NUMA_NODE		(1U << 2)
 

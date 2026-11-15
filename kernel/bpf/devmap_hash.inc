@@ -23,14 +23,16 @@ static inline struct hlist_head *dev_map_index_hash(struct bpf_dtab *dtab,
 	return &dtab->dev_index_head[idx & (dtab->n_buckets - 1)];
 }
 
-struct bpf_dtab_netdev *__dev_map_hash_lookup_elem(struct bpf_map *map, u32 key)
+static struct bpf_dtab_netdev *__dev_map_hash_lookup_elem(struct bpf_map *map, u32 key)
 {
 	struct bpf_dtab *dtab = container_of(map, struct bpf_dtab, map);
 	struct hlist_head *head = dev_map_index_hash(dtab, key);
 	struct bpf_dtab_netdev *dev;
 
-	hlist_for_each_entry_rcu(dev, head, index_hlist,
-				 lockdep_is_held(&dtab->index_lock))
+	/* This tree's RCU list macro has no lockdep-expression argument.
+	 * Syscall callers and the unregister notifier hold rcu_read_lock().
+	 */
+	hlist_for_each_entry_rcu(dev, head, index_hlist)
 		if (dev->idx == key)
 			return dev;
 
@@ -105,7 +107,7 @@ static int dev_map_hash_delete_elem(struct bpf_map *map, void *key)
 	if (old_dev) {
 		dtab->items--;
 		hlist_del_init_rcu(&old_dev->index_hlist);
-		call_rcu(&old_dev->rcu, __dev_map_entry_free);
+		call_rcu(&old_dev->rcu, __dev_map_hash_entry_free);
 		ret = 0;
 	}
 	spin_unlock_irqrestore(&dtab->index_lock, flags);
@@ -114,8 +116,6 @@ static int dev_map_hash_delete_elem(struct bpf_map *map, void *key)
 }
 
 static int __dev_map_hash_update_elem(struct net *net, struct bpf_map *map,
-	spin_lock_irqsave(&dtab->index_lock, flags);
-
 				     void *key, void *value, u64 map_flags)
 {
 	struct bpf_dtab *dtab = container_of(map, struct bpf_dtab, map);
@@ -128,9 +128,16 @@ static int __dev_map_hash_update_elem(struct net *net, struct bpf_map *map,
 	if (unlikely(map_flags > BPF_EXIST || !ifindex))
 		return -EINVAL;
 
+	spin_lock_irqsave(&dtab->index_lock, flags);
+
 	old_dev = __dev_map_hash_lookup_elem(map, idx);
 	if (old_dev && (map_flags & BPF_NOEXIST))
 		goto out_err;
+
+	if (!old_dev && map_flags == BPF_EXIST) {
+		err = -ENOENT;
+		goto out_err;
+	}
 
 	dev = __dev_map_alloc_node(net, dtab, ifindex, idx);
 	if (IS_ERR(dev)) {
@@ -143,7 +150,7 @@ static int __dev_map_hash_update_elem(struct net *net, struct bpf_map *map,
 	} else {
 		if (dtab->items >= dtab->map.max_entries) {
 			spin_unlock_irqrestore(&dtab->index_lock, flags);
-			call_rcu(&dev->rcu, __dev_map_entry_free);
+			call_rcu(&dev->rcu, __dev_map_hash_entry_free);
 			return -E2BIG;
 		}
 		dtab->items++;
@@ -154,7 +161,7 @@ static int __dev_map_hash_update_elem(struct net *net, struct bpf_map *map,
 	spin_unlock_irqrestore(&dtab->index_lock, flags);
 
 	if (old_dev)
-		call_rcu(&old_dev->rcu, __dev_map_entry_free);
+		call_rcu(&old_dev->rcu, __dev_map_hash_entry_free);
 
 	return 0;
 
@@ -190,7 +197,7 @@ static void dev_map_hash_remove_netdev(struct bpf_dtab *dtab,
 
 			dtab->items--;
 			hlist_del_rcu(&dev->index_hlist);
-			call_rcu(&dev->rcu, __dev_map_entry_free);
+			call_rcu(&dev->rcu, __dev_map_hash_entry_free);
 		}
 	}
 	spin_unlock_irqrestore(&dtab->index_lock, flags);

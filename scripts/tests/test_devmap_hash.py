@@ -15,6 +15,7 @@ def fun(path, name):
     assert m, name
     return m[0]
 s = (k/'kernel/bpf/devmap.c').read_text()
+s = s.replace('#include \"devmap_hash.inc\"', (k/'kernel/bpf/devmap_hash.inc').read_text())
 s = re.sub(r'^#include.*$', '', s, flags=re.M)
 s += '\n'+fun('kernel/bpf/verifier.c','check_map_func_compatibility')
 s += '\n'+fun('kernel/bpf/syscall.c','bpf_map_get_info_by_fd')

@@ -1,0 +1,56 @@
+Restricted Huawei DEVMAP_HASH candidate
+=====================================
+
+Base: 4ae5c61bd3260ee9b317489755fa144b306589ec
+Reference: Pixel msm-4.14 bb17b7de4b570f2c0c32ddba0543cac03c58dd84
+
+The preceding original-author commits import only hash control-plane functions
+into an initially unwired devmap_hash.inc. Their original messages and trailers
+are retained; *.patch.txt records the exact devmap.c source patches, including
+structural hunks requiring separate integration. These intermediate commits are
+provenance milestones, not standalone kernel candidates. The mechanical lock
+insertion in the unwired fragment was caught by the host compile and corrected
+in the Huawei integration. No new XDP frame/bulk queue implementation is imported.
+
+Reference dispositions:
+5ce6efdab: hash lookup, iteration, CRUD and allocation algorithms.
+0cf25d6f: take writer lock before lookup/allocation/publication.
+f51dc9cf: use u64 costs; integrated with fixed capacity below.
+ab1efd14: unregister walks every bucket and removes every matching reference.
+fb9bb964: separate hash destruction/storage; no array allocation for HASH.
+d5cecfb2: this older RCU macro lacks the lockdep argument; callers already hold
+          RCU (syscall and notifier). Writer paths additionally hold index_lock.
+d9452bb6: bucket allocation/free via bpf_map_area_alloc/free.
+ebeb7a6b: cast bucket allocation multiplication to u64.
+fc81b674: capacity is exactly64; no power-of-two rounding/overflow is possible.
+eaaabe4e: hash delete uses u32 keys. Existing array implementation is unchanged.
+
+Huawei adaptation:
+- Native map25, exactly key/value4 and capacity64; create flags must be0.
+  Stored/info flags are BPF_F_RDONLY_PROG (0x80), not BPF_F_RDONLY. Userspace
+  update/delete are allowed. No BTF association is enabled for this map type.
+- Hash keys are unrestricted u32, including0 and0xffffffff. BPF_EXIST on a
+  missing key returns ENOENT. Replacement does not consume another capacity slot.
+- Writers serialize through index_lock, including device acquisition in the
+  updating task's netns. Unregister runs under RCU and the same writer lock.
+  Device pointer identity, not an ifindex in the reader's netns, governs removal.
+- Every published entry owns one dev_get_by_index reference. Deletion,
+  replacement, unregister, and full-insert failure queue a hash-only callback.
+  That callback puts the reference and frees the entry, never touching bitmaps.
+  Map destruction unlinks from the notifier list, waits for RCU readers, retains
+  rcu_barrier(), and frees remaining live bucket entries directly.
+- Existing array bitmap paths, entry callback and rcu_barrier are preserved.
+  HASH allocates neither netdev_map nor flush_needed.
+- check_map_func_compatibility rejects every helper for HASH in its first
+  map-type switch. A map pointer may still be loaded, but cannot be passed to
+  lookup/update/delete/redirect or other helpers. No new program-load ban.
+  The verifier's pseudo-map LD_IMM records the map type; map-in-map propagation
+  retains inner_map_meta's type. No BPF callback helper mechanism exists here.
+
+Validation: scripts/tests/test_devmap_hash.py builds the entire devmap source
+(including this fragment), the real map-info function, real helper compatibility
+function and real registration dispatch under ASan/UBSan. Host boundaries model
+netdevs/netns, allocation, locking, deferred RCU, usercopy and list primitives.
+These are deterministic contract tests, not live kernel race/scheduler tests.
+Main owns full kernel build, selected-loader reproduction and consumer ELF audit.
+No active source pins or device state are changed by this candidate.

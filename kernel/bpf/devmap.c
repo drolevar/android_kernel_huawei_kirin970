@@ -55,6 +55,8 @@
 
 struct bpf_dtab_netdev {
 	struct net_device *dev;
+	struct hlist_node index_hlist;
+	u32 idx;
 	struct bpf_dtab *dtab;
 	unsigned int bit;
 	struct rcu_head rcu;
@@ -65,10 +67,46 @@ struct bpf_dtab {
 	struct bpf_dtab_netdev **netdev_map;
 	unsigned long __percpu *flush_needed;
 	struct list_head list;
+	struct hlist_head *dev_index_head;
+	spinlock_t index_lock;
+	u32 items, n_buckets;
 };
 
 static DEFINE_SPINLOCK(dev_map_lock);
 static LIST_HEAD(dev_map_list);
+
+/* HASH has no datapath/flush state. Its references survive until RCU readers
+ * finish, but must never enter the array's bit-indexed flush callback.
+ */
+static void __dev_map_hash_entry_free(struct rcu_head *rcu)
+{
+	struct bpf_dtab_netdev *dev;
+
+	dev = container_of(rcu, struct bpf_dtab_netdev, rcu);
+	dev_put(dev->dev);
+	kfree(dev);
+}
+
+static struct bpf_dtab_netdev *__dev_map_alloc_node(struct net *net,
+		struct bpf_dtab *dtab, u32 ifindex, u32 idx)
+{
+	struct bpf_dtab_netdev *dev;
+
+	dev = kmalloc_node(sizeof(*dev), GFP_ATOMIC | __GFP_NOWARN,
+			   dtab->map.numa_node);
+	if (!dev)
+		return ERR_PTR(-ENOMEM);
+	dev->dev = dev_get_by_index(net, ifindex);
+	if (!dev->dev) {
+		kfree(dev);
+		return ERR_PTR(-EINVAL);
+	}
+	dev->idx = idx;
+	dev->dtab = dtab;
+	return dev;
+}
+
+#include "devmap_hash.inc"
 
 static u64 dev_map_bitmap_size(const union bpf_attr *attr)
 {
@@ -89,6 +127,11 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 	    attr->value_size != 4 || attr->map_flags & ~DEV_CREATE_FLAG_MASK)
 		return ERR_PTR(-EINVAL);
 
+	/* Only the measured userspace control-plane ABI is supported. */
+	if (attr->map_type == BPF_MAP_TYPE_DEVMAP_HASH &&
+	    (attr->max_entries != 64 || attr->map_flags))
+		return ERR_PTR(-EINVAL);
+
 	dtab = kzalloc(sizeof(*dtab), GFP_USER);
 	if (!dtab)
 		return ERR_PTR(-ENOMEM);
@@ -99,11 +142,21 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 	dtab->map.value_size = attr->value_size;
 	dtab->map.max_entries = attr->max_entries;
 	dtab->map.map_flags = attr->map_flags;
+	if (attr->map_type == BPF_MAP_TYPE_DEVMAP_HASH)
+		dtab->map.map_flags |= BPF_F_RDONLY_PROG;
 	dtab->map.numa_node = bpf_map_attr_numa_node(attr);
 
 	/* make sure page count doesn't overflow */
 	cost = (u64) dtab->map.max_entries * sizeof(struct bpf_dtab_netdev *);
 	cost += dev_map_bitmap_size(attr) * num_possible_cpus();
+	if (attr->map_type == BPF_MAP_TYPE_DEVMAP_HASH) {
+		/* Fixed capacity avoids power-of-two overflow on 32-bit builds.
+		 * Charge buckets and live entry storage, not array/bitmap storage.
+		 */
+		dtab->n_buckets = 64;
+		cost = sizeof(*dtab) + (u64) dtab->n_buckets *
+			(sizeof(struct hlist_head) + sizeof(struct bpf_dtab_netdev));
+	}
 	if (cost >= U32_MAX - PAGE_SIZE)
 		goto free_dtab;
 
@@ -115,6 +168,15 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 		goto free_dtab;
 
 	err = -ENOMEM;
+
+	if (attr->map_type == BPF_MAP_TYPE_DEVMAP_HASH) {
+		dtab->dev_index_head = dev_map_create_hash(dtab->n_buckets,
+							 dtab->map.numa_node);
+		if (!dtab->dev_index_head)
+			goto free_dtab;
+		spin_lock_init(&dtab->index_lock);
+		goto add_list;
+	}
 
 	/* A per cpu bitfield with a bit per possible net device */
 	dtab->flush_needed = __alloc_percpu_gfp(dev_map_bitmap_size(attr),
@@ -129,6 +191,7 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 	if (!dtab->netdev_map)
 		goto free_dtab;
 
+add_list:
 	spin_lock(&dev_map_lock);
 	list_add_tail_rcu(&dtab->list, &dev_map_list);
 	spin_unlock(&dev_map_lock);
@@ -161,6 +224,23 @@ static void dev_map_free(struct bpf_map *map)
 
 	/* Make sure prior __dev_map_entry_free() have completed. */
 	rcu_barrier();
+
+	if (map->map_type == BPF_MAP_TYPE_DEVMAP_HASH) {
+		for (i = 0; i < dtab->n_buckets; i++) {
+			struct bpf_dtab_netdev *dev;
+			struct hlist_node *next;
+
+			hlist_for_each_entry_safe(dev, next,
+					 &dtab->dev_index_head[i], index_hlist) {
+				hlist_del_rcu(&dev->index_hlist);
+				dev_put(dev->dev);
+				kfree(dev);
+			}
+		}
+		bpf_map_area_free(dtab->dev_index_head);
+		kfree(dtab);
+		return;
+	}
 
 	/* To ensure all pending flush operations have completed wait for flush
 	 * bitmap to indicate all flush_needed bits to be zero on _all_ cpus.
@@ -371,6 +451,15 @@ const struct bpf_map_ops dev_map_ops = {
 	.map_delete_elem = dev_map_delete_elem,
 };
 
+const struct bpf_map_ops dev_map_hash_ops = {
+	.map_alloc = dev_map_alloc,
+	.map_free = dev_map_free,
+	.map_get_next_key = dev_map_hash_get_next_key,
+	.map_lookup_elem = dev_map_hash_lookup_elem,
+	.map_update_elem = dev_map_hash_update_elem,
+	.map_delete_elem = dev_map_hash_delete_elem,
+};
+
 static int dev_map_notification(struct notifier_block *notifier,
 				ulong event, void *ptr)
 {
@@ -387,6 +476,10 @@ static int dev_map_notification(struct notifier_block *notifier,
 		 */
 		rcu_read_lock();
 		list_for_each_entry_rcu(dtab, &dev_map_list, list) {
+			if (dtab->map.map_type == BPF_MAP_TYPE_DEVMAP_HASH) {
+				dev_map_hash_remove_netdev(dtab, netdev);
+				continue;
+			}
 			for (i = 0; i < dtab->map.max_entries; i++) {
 				struct bpf_dtab_netdev *dev, *odev;
 
