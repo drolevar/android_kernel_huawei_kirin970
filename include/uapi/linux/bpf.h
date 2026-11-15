@@ -94,6 +94,9 @@ enum bpf_cmd {
 	BPF_MAP_GET_FD_BY_ID,
 	BPF_OBJ_GET_INFO_BY_FD,
 	BPF_PROG_QUERY,
+	BPF_RAW_TRACEPOINT_OPEN,
+	BPF_BTF_LOAD,
+	BPF_BTF_GET_FD_BY_ID,
 };
 
 enum bpf_map_type {
@@ -236,6 +239,10 @@ union bpf_attr {
 					 * BPF_F_NUMA_NODE is set).
 					 */
 		char	map_name[BPF_OBJ_NAME_LEN];
+		__u32	map_ifindex;
+		__u32	btf_fd;
+		__u32	btf_key_type_id;
+		__u32	btf_value_type_id;
 	};
 
 	struct { /* anonymous struct used by BPF_MAP_*_ELEM commands */
@@ -290,6 +297,7 @@ union bpf_attr {
 			__u32		start_id;
 			__u32		prog_id;
 			__u32		map_id;
+			__u32		btf_id;
 		};
 		__u32		next_id;
 		__u32		open_flags;
@@ -309,6 +317,14 @@ union bpf_attr {
 		__aligned_u64	prog_ids;
 		__u32		prog_cnt;
 	} query;
+
+	struct { /* anonymous struct used by BPF_BTF_LOAD */
+		__aligned_u64	btf;
+		__aligned_u64	btf_log_buf;
+		__u32		btf_size;
+		__u32		btf_log_size;
+		__u32		btf_log_level;
+	};
 } __attribute__((aligned(8)));
 
 /* BPF helper function descriptions:
@@ -1001,6 +1017,19 @@ struct bpf_map_info {
 	__u32 max_entries;
 	__u32 map_flags;
 	char  name[BPF_OBJ_NAME_LEN];
+	__u32 ifindex;
+	__u32 btf_vmlinux_value_type_id;
+	__u64 netns_dev;
+	__u64 netns_ino;
+	__u32 btf_id;
+	__u32 btf_key_type_id;
+	__u32 btf_value_type_id;
+} __attribute__((aligned(8)));
+
+struct bpf_btf_info {
+	__aligned_u64 btf;
+	__u32 btf_size;
+	__u32 id;
 } __attribute__((aligned(8)));
 
 /* User bpf_sock_ops struct to access socket values and specify request ops

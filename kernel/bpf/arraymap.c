@@ -11,6 +11,7 @@
  * General Public License for more details.
  */
 #include <linux/bpf.h>
+#include <uapi/linux/btf.h>
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
@@ -333,6 +334,20 @@ static void array_map_free(struct bpf_map *map)
 	bpf_map_area_free(array);
 }
 
+static int array_map_check_btf(const struct bpf_map *map, const struct btf *btf,
+			       const struct btf_type *key_type,
+			       const struct btf_type *value_type)
+{
+	u32 int_data;
+
+	if (BTF_INFO_KIND(key_type->info) != BTF_KIND_INT || key_type->size != 4)
+		return -EINVAL;
+	int_data = *(const u32 *)(key_type + 1);
+	if (BTF_INT_BITS(int_data) != 32 || BTF_INT_OFFSET(int_data))
+		return -EINVAL;
+	return 0;
+}
+
 const struct bpf_map_ops array_map_ops = {
 	.map_alloc = array_map_alloc,
 	.map_free = array_map_free,
@@ -341,6 +356,7 @@ const struct bpf_map_ops array_map_ops = {
 	.map_update_elem = array_map_update_elem,
 	.map_delete_elem = array_map_delete_elem,
 	.map_gen_lookup = array_map_gen_lookup,
+	.map_check_btf = array_map_check_btf,
 };
 
 const struct bpf_map_ops percpu_array_map_ops = {

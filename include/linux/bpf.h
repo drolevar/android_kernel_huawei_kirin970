@@ -19,6 +19,8 @@
 struct perf_event;
 struct bpf_prog;
 struct bpf_map;
+struct btf;
+struct btf_type;
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
 struct bpf_map_ops {
@@ -41,10 +43,13 @@ struct bpf_map_ops {
 	void (*map_fd_put_ptr)(void *ptr);
 	u32 (*map_gen_lookup)(struct bpf_map *map, struct bpf_insn *insn_buf);
 	u32 (*map_fd_sys_lookup_elem)(void *ptr);
+	int (*map_check_btf)(const struct bpf_map *map, const struct btf *btf,
+			     const struct btf_type *key_type,
+			     const struct btf_type *value_type);
 };
 
 struct bpf_map {
-	/* 1st cacheline with read-mostly members of which some
+	/* Read-mostly members of which some
 	 * are also accessed in fast-path (e.g. ops, max_entries).
 	 */
 	const struct bpf_map_ops *ops ____cacheline_aligned;
@@ -60,10 +65,12 @@ struct bpf_map {
 	u32 pages;
 	u32 id;
 	int numa_node;
+	struct btf *btf;
+	u32 btf_key_type_id;
+	u32 btf_value_type_id;
 	bool unpriv_array;
-	/* 7 bytes hole */
 
-	/* 2nd cacheline with misc members to avoid false sharing
+	/* Separately aligned misc members to avoid false sharing
 	 * particularly with refcounting.
 	 */
 	struct user_struct *user ____cacheline_aligned;
