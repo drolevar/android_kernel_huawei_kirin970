@@ -539,6 +539,20 @@ extern const struct bpf_func_proto bpf_skb_vlan_pop_proto;
 extern const struct bpf_func_proto bpf_get_stackid_proto;
 extern const struct bpf_func_proto bpf_sock_map_update_proto;
 
+#ifdef CONFIG_NET
+bool bpf_sock_is_valid_access(int off, int size, enum bpf_access_type type,
+			     enum bpf_reg_type reg_type);
+u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
+	const struct bpf_insn *si, struct bpf_insn *insn_buf,
+	struct bpf_prog *prog, u32 *target_size);
+#else
+static inline bool bpf_sock_is_valid_access(int off, int size,
+	enum bpf_access_type type, enum bpf_reg_type reg_type) { return false; }
+static inline u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
+	const struct bpf_insn *si, struct bpf_insn *insn_buf,
+	struct bpf_prog *prog, u32 *target_size) { return 0; }
+#endif
+
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
 u64 bpf_user_rnd_u32(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);

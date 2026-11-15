@@ -189,8 +189,8 @@ int main(int argc,char **argv) {
   CHECK(!"Producer helper integration missing");
 #else
   CHECK(BPF_FUNC_ringbuf_reserve==131&&BPF_FUNC_ringbuf_submit==132&&BPF_FUNC_ringbuf_discard==133);
-  CHECK(sk_filter_func_proto(131)==&bpf_ringbuf_reserve_proto&&sk_filter_func_proto(132)==&bpf_ringbuf_submit_proto&&sk_filter_func_proto(133)==&bpf_ringbuf_discard_proto);
-  CHECK(!sk_filter_func_proto(130)&&!sk_filter_func_proto(134));
+  CHECK(cg_skb_func_proto(131)==&bpf_ringbuf_reserve_proto&&cg_skb_func_proto(132)==&bpf_ringbuf_submit_proto&&cg_skb_func_proto(133)==&bpf_ringbuf_discard_proto);
+  CHECK(!cg_skb_func_proto(130)&&!cg_skb_func_proto(134));
   CHECK(bpf_ringbuf_reserve_proto.ret_type==RET_PTR_TO_ALLOC_MEM_OR_NULL);
   CHECK(bpf_ringbuf_reserve_proto.arg2_type==ARG_CONST_ALLOC_SIZE_OR_ZERO);
   CHECK(bpf_ringbuf_submit_proto.releases_reference&&bpf_ringbuf_discard_proto.releases_reference);

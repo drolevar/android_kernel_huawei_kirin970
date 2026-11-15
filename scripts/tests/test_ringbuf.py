@@ -20,8 +20,8 @@ if integrated:s='#define RINGBUF_PRODUCERS_REGISTERED 1\n'+s
 s+='\n'+re.search(r'^static int check_map_func_compatibility\(.*?^\}',(root/'kernel/bpf/verifier.c').read_text(),re.M|re.S)[0]
 if integrated:
  f=(root/'net/core/filter.c').read_text()
- dispatch='\n'.join(re.search(r'^static const struct bpf_func_proto \*\n'+name+r'\(.*?^\}',f,re.M|re.S)[0] for name in ['bpf_base_func_proto','sk_filter_func_proto'])
- assert re.search(r'cg_skb_prog_ops = \{\s*\.get_func_proto\s*= sk_filter_func_proto,',f)
+ dispatch='\n'.join(re.search(r'^static const struct bpf_func_proto \*\n'+name+r'\(.*?^\}',f,re.M|re.S)[0] for name in ['bpf_base_func_proto','sk_filter_func_proto','cg_skb_func_proto'])
+ assert re.search(r'cg_skb_prog_ops = \{\s*\.get_func_proto\s*= cg_skb_func_proto,',f)
  others=sorted(set(re.findall(r'return &(\w+);',dispatch))-{'bpf_ringbuf_reserve_proto','bpf_ringbuf_submit_proto','bpf_ringbuf_discard_proto'})
  s+='\n'+''.join('static const struct bpf_func_proto '+n+'={0};\n' for n in others)
  s+='static const struct bpf_func_proto *bpf_get_trace_printk_proto(void) {return NULL;}\n'+dispatch

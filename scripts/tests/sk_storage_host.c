@@ -154,7 +154,7 @@ static void *freelist[1024];static int nfrees;
 #define kfree_rcu(p,m) do {CHECK(nfrees<1024);freelist[nfrees++]=(p);}while(0)
 static void drain_frees(void) {CHECK(!rcu_depth);while(nfrees)kfree(freelist[--nfrees]);}
 #define BPF_CALL_4(n,t1,a1,t2,a2,t3,a3,t4,a4) static unsigned long n(t1 a1,t2 a2,t3 a3,t4 a4)
-enum { RET_PTR_TO_MAP_VALUE_OR_NULL, ARG_CONST_MAP_PTR, ARG_PTR_TO_CTX, ARG_PTR_TO_MAP_VALUE_OR_NULL, ARG_ANYTHING };
+enum { RET_PTR_TO_MAP_VALUE_OR_NULL, ARG_CONST_MAP_PTR, ARG_PTR_TO_CTX, ARG_PTR_TO_SOCK_COMMON_OR_NULL, ARG_PTR_TO_MAP_VALUE_OR_NULL, ARG_ANYTHING };
 struct bpf_func_proto {void *func;bool gpl_only;int ret_type,arg1_type,arg2_type,arg3_type,arg4_type;};
 static const struct btf_type *types[2048];
 static bool corpus_mode;

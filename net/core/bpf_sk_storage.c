@@ -840,3 +840,16 @@ const struct bpf_func_proto bpf_sk_storage_get_cg_sock_proto = {
 	.arg3_type	= ARG_PTR_TO_MAP_VALUE_OR_NULL,
 	.arg4_type	= ARG_ANYTHING,
 };
+
+/* Borrowed skb->sk may be NULL, a request socket or a timewait socket.
+ * bpf_sk_storage_get() checks NULL/fullsock before touching storage.
+ */
+const struct bpf_func_proto bpf_sk_storage_get_borrowed_proto = {
+	.func = bpf_sk_storage_get,
+	.gpl_only = false,
+	.ret_type = RET_PTR_TO_MAP_VALUE_OR_NULL,
+	.arg1_type = ARG_CONST_MAP_PTR,
+	.arg2_type = ARG_PTR_TO_SOCK_COMMON_OR_NULL,
+	.arg3_type = ARG_PTR_TO_MAP_VALUE_OR_NULL,
+	.arg4_type = ARG_ANYTHING,
+};

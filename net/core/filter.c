@@ -3599,6 +3599,21 @@ static const struct bpf_func_proto bpf_sk_fullsock_proto = {
 	.arg1_type = ARG_PTR_TO_SOCK_COMMON,
 };
 
+static const struct bpf_func_proto *
+cg_skb_func_proto(enum bpf_func_id func_id)
+{
+	switch (func_id) {
+	case BPF_FUNC_sk_fullsock:
+		return &bpf_sk_fullsock_proto;
+#ifdef CONFIG_BPF_SYSCALL
+	case BPF_FUNC_sk_storage_get:
+		return &bpf_sk_storage_get_borrowed_proto;
+#endif
+	default:
+		return sk_filter_func_proto(func_id);
+	}
+}
+
 static bool bpf_skb_is_valid_access(int off, int size, enum bpf_access_type type,
 				    struct bpf_insn_access_aux *info)
 {
@@ -3701,9 +3716,26 @@ static bool cg_skb_is_valid_access(int off, int size,
 				  enum bpf_access_type type,
 				  struct bpf_insn_access_aux *info)
 {
+	if (off == offsetof(struct __sk_buff, sk)) {
+		if (type != BPF_READ || size != 8)
+			return false;
+		info->reg_type = PTR_TO_SOCK_COMMON_OR_NULL;
+		return true;
+	}
 	if (off == offsetof(struct __sk_buff, gso_segs))
 		return type == BPF_READ && size == 4;
 	return sk_filter_is_valid_access(off, size, type, info);
+}
+
+bool bpf_sock_is_valid_access(int off, int size, enum bpf_access_type type,
+			     enum bpf_reg_type reg_type)
+{
+	if (type != BPF_READ || size != 4 || off < 0 || off % 4)
+		return false;
+	if (reg_type == PTR_TO_SOCK_COMMON)
+		return off == offsetof(struct bpf_sock, bound_dev_if) ||
+		       off == offsetof(struct bpf_sock, family);
+	return reg_type == PTR_TO_SOCKET && off < sizeof(struct bpf_sock);
 }
 
 static bool sock_filter_is_valid_access(int off, int size,
@@ -4270,6 +4302,16 @@ static u32 sock_filter_convert_ctx_access(enum bpf_access_type type,
 	return insn - insn_buf;
 }
 
+u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
+	const struct bpf_insn *si, struct bpf_insn *insn_buf,
+	struct bpf_prog *prog, u32 *target_size)
+{
+	if (type != BPF_READ)
+		return 0;
+	/* Reuse Huawei's __sk_flags_offset mask/shift for type and protocol. */
+	return sock_filter_convert_ctx_access(type, si, insn_buf, prog, target_size);
+}
+
 static u32 cg_skb_convert_ctx_access(enum bpf_access_type type,
 	const struct bpf_insn *si, struct bpf_insn *insn_buf,
 	struct bpf_prog *prog, u32 *target_size)
@@ -4277,6 +4319,10 @@ static u32 cg_skb_convert_ctx_access(enum bpf_access_type type,
 	struct bpf_insn *insn = insn_buf;
 
 	switch (si->off) {
+	case offsetof(struct __sk_buff, sk):
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, sk),
+			si->dst_reg, si->src_reg, offsetof(struct sk_buff, sk));
+		break;
 	case offsetof(struct __sk_buff, gso_segs):
 #ifdef NET_SKBUFF_DATA_USES_OFFSET
 		/* Read end before clobbering src when dst == src. */
@@ -4525,7 +4571,7 @@ const struct bpf_verifier_ops xdp_prog_ops = {
 };
 
 const struct bpf_verifier_ops cg_skb_prog_ops = {
-	.get_func_proto		= sk_filter_func_proto,
+	.get_func_proto		= cg_skb_func_proto,
 	.is_valid_access	= cg_skb_is_valid_access,
 	.convert_ctx_access	= cg_skb_convert_ctx_access,
 	.test_run		= bpf_prog_test_run_skb,

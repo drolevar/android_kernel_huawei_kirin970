@@ -12,7 +12,7 @@ cmd=[a.cc,'-std=gnu11','-O1','-g','-Wall','-Werror','-Wno-unused-variable','-Wno
 r=subprocess.run(cmd,capture_output=True,text=True);rec={'command':cmd,'compile_exit':r.returncode,'compile_output':r.stdout+r.stderr,'subject_sha256':hashlib.sha256(body.encode()).hexdigest()};print(r.stdout+r.stderr)
 if not r.returncode:
  r=subprocess.run([str(a.output/'test')],capture_output=True,text=True);rec['run_exit']=r.returncode;rec['output']=r.stdout+r.stderr;print(rec['output'])
-# Dispatch source invariant: only the CGROUP_SOCK dispatcher exposes helper107.
+# Dispatch source invariant: CGROUP_SOCK and the separately tested CGROUP_SKB route expose helper107.
 rec['storage_dispatch_count']=len(re.findall(r'case BPF_FUNC_sk_storage_get:',s))
 rec['cg_sock_binding']=bool(re.search(r'cg_sock_prog_ops = \{\s*\.get_func_proto\s*= sock_filter_func_proto',s))
-(a.output/'receipt.json').write_text(json.dumps(rec,indent=2)+'\n');raise SystemExit(bool(rec['compile_exit'] or rec.get('run_exit',1) or rec['storage_dispatch_count']!=1 or not rec['cg_sock_binding']))
+(a.output/'receipt.json').write_text(json.dumps(rec,indent=2)+'\n');raise SystemExit(bool(rec['compile_exit'] or rec.get('run_exit',1) or rec['storage_dispatch_count']!=2 or not rec['cg_sock_binding']))

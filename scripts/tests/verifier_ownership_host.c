@@ -66,6 +66,7 @@ static struct tnum tnum_cast(struct tnum t,u8 sz){u64 m=(1ULL<<(sz*8))-1;t.value
 #define check_map_access(...) (-EACCES)
 #define check_ctx_reg(...) (-EACCES)
 #define check_ctx_access(...) (-EACCES)
+#define bpf_sock_is_valid_access(...) false
 #define check_stack_access(...) (-EACCES)
 #define check_packet_access(...) (-EACCES)
 #define check_stack_boundary(...) (-EACCES)

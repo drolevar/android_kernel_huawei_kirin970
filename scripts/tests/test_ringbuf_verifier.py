@@ -12,13 +12,13 @@ cmd=['python3',str(root/'scripts/tests/test_verifier_ownership.py'),'--cc',a.cc,
 with (a.output/'foundation.log').open('w') as f:subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT,check=True)
 s=(a.output/'foundation/production.c').read_text();core=(root/'kernel/bpf/ringbuf.c').read_text();net=(root/'net/core/filter.c').read_text()
 protos='\n'.join(re.search(r'^const struct bpf_func_proto bpf_ringbuf_'+n+r'_proto = \{.*?^\};',core,re.M|re.S)[0] for n in ['reserve','submit','discard'])
-dispatch='\n'.join(re.search(r'^static const struct bpf_func_proto \*\n'+n+r'\(.*?^\}',net,re.M|re.S)[0] for n in ['bpf_base_func_proto','sk_filter_func_proto'])
-assert re.search(r'cg_skb_prog_ops = \{\s*\.get_func_proto\s*= sk_filter_func_proto,',net)
+dispatch='\n'.join(re.search(r'^static const struct bpf_func_proto \*\n'+n+r'\(.*?^\}',net,re.M|re.S)[0] for n in ['bpf_base_func_proto','sk_filter_func_proto','cg_skb_func_proto'])
+assert re.search(r'cg_skb_prog_ops = \{\s*\.get_func_proto\s*= cg_skb_func_proto,',net)
 others=sorted(set(re.findall(r'return &(\w+);',dispatch))-{'bpf_ringbuf_reserve_proto','bpf_ringbuf_submit_proto','bpf_ringbuf_discard_proto'})
 stubs='#define CONFIG_BPF_SYSCALL 1\n#define capable(x) true\n'+''.join('static u64 bpf_ringbuf_'+n+'(u64 a,u64 b,u64 c,u64 d,u64 e){abort();}\n' for n in ['reserve','submit','discard'])
 stubs+=''.join('static const struct bpf_func_proto '+n+'={0};\n' for n in others)+'static const struct bpf_func_proto *bpf_get_trace_printk_proto(void){abort();}\n'
 x=s.index('static const struct bpf_func_proto reserve_proto=');y=s.index('static struct bpf_prog_aux aux=',x)
-s=s[:x]+stubs+protos+'\n'+dispatch+'\nstatic const struct bpf_func_proto *route(int id){return sk_filter_func_proto(id);}\nstatic struct bpf_verifier_ops ops={route};\n'+s[y:]
+s=s[:x]+stubs+protos+'\n'+dispatch+'\nstatic const struct bpf_func_proto *route(int id){return cg_skb_func_proto(id);}\nstatic struct bpf_verifier_ops ops={route};\n'+s[y:]
 s=s[:s.index('int main(int argc,')]+r'''
 static void scalar(int r,u64 x){__mark_reg_known(&state.regs[r],x);state.regs[r].type=SCALAR_VALUE;}
 int main(int argc,char **argv){assert(argc==2);const char *c=argv[1];struct bpf_map map={.map_type=BPF_MAP_TYPE_RINGBUF};

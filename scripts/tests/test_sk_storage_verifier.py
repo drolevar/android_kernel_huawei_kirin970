@@ -10,7 +10,7 @@ s=(k/'include/linux/bpf.h').read_text();prefix=''
 for name in ['bpf_arg_type','bpf_reg_type']:
  m=re.search(r'enum '+name+r' \{.*?\n\};',s,re.S);prefix+=m[0]+'\n'
 (a.output/'enums.h').write_text(prefix)
-names=['register_is_null','check_ctx_reg','check_func_arg','check_map_func_compatibility'];subject='\n'.join(fun('kernel/bpf/verifier.c',n) for n in names)
+names=['type_is_borrowed_socket','type_is_nullable_socket','register_is_null','check_ctx_reg','check_func_arg','check_map_func_compatibility'];subject='\n'.join(fun('kernel/bpf/verifier.c',n) for n in names)
 (a.output/'subject.h').write_text(subject)
 cmd=[a.cc,'-std=gnu11','-O1','-g','-Wall','-Werror','-Wno-unused-function','-Wno-unused-variable','-fsanitize=address,undefined','-fno-sanitize-recover=all','-I'+str(a.output),'-DBPF_UAPI_HEADER="'+str(k/'include/uapi/linux/bpf.h')+'"',str(k/'scripts/tests/sk_storage_verifier_host.c'),'-o',str(a.output/'test')]
 r=subprocess.run(cmd,capture_output=True,text=True);rec={'command':cmd,'compile_exit':r.returncode,'compile_output':r.stdout+r.stderr,'subject_sha256':hashlib.sha256(subject.encode()).hexdigest()};print(r.stdout+r.stderr)

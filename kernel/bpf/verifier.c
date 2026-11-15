@@ -185,6 +185,10 @@ static const char * const reg_type_str[] = {
 	[NOT_INIT]		= "?",
 	[SCALAR_VALUE]		= "inv",
 	[PTR_TO_CTX]		= "ctx",
+	[PTR_TO_SOCK_COMMON] = "sock_common",
+	[PTR_TO_SOCK_COMMON_OR_NULL] = "sock_common_or_null",
+	[PTR_TO_SOCKET] = "sock",
+	[PTR_TO_SOCKET_OR_NULL] = "sock_or_null",
 	[CONST_PTR_TO_MAP]	= "map_ptr",
 	[PTR_TO_MAP_VALUE]	= "map_value",
 	[PTR_TO_MAP_VALUE_OR_NULL] = "map_value_or_null",
@@ -808,8 +812,73 @@ static int check_reg_arg(struct bpf_verifier_env *env, u32 regno,
 	return 0;
 }
 
+/* Borrowed socket identities are never resource ownership IDs. */
+static bool type_is_borrowed_socket(enum bpf_reg_type type)
+{
+	return type == PTR_TO_SOCK_COMMON || type == PTR_TO_SOCK_COMMON_OR_NULL ||
+	       type == PTR_TO_SOCKET || type == PTR_TO_SOCKET_OR_NULL;
+}
+
+static bool type_is_nullable_socket(enum bpf_reg_type type)
+{
+	return type == PTR_TO_SOCK_COMMON_OR_NULL || type == PTR_TO_SOCKET_OR_NULL;
+}
+
+static int set_borrowed_socket(struct bpf_verifier_env *env,
+		struct bpf_reg_state *reg, enum bpf_reg_type type)
+{
+	enum bpf_reg_liveness live = reg->live;
+
+	if (env->id_gen >= INT_MAX)
+		return -E2BIG;
+	/* Overwriting a register does not release any outstanding ring reference. */
+	memset(reg, 0, sizeof(*reg));
+	reg->live = live;
+	__mark_reg_known_zero(reg);
+	reg->type = type;
+	reg->id = ++env->id_gen;
+	return 0;
+}
+
+static void mark_socket_reg(struct bpf_reg_state *reg, u32 id, bool is_null)
+{
+	if (!type_is_nullable_socket(reg->type) || reg->id != id)
+		return;
+	if (is_null) {
+		reg->type = SCALAR_VALUE;
+		__mark_reg_known_zero(reg);
+	} else {
+		reg->type = reg->type == PTR_TO_SOCKET_OR_NULL ?
+			    PTR_TO_SOCKET : PTR_TO_SOCK_COMMON;
+		reg->id = 0;
+	}
+}
+
+static void mark_socket_regs(struct bpf_verifier_state *state, u32 regno,
+			     bool is_null)
+{
+	u32 id = state->regs[regno].id;
+	int i;
+
+	for (i = 0; i < MAX_BPF_REG; i++)
+		mark_socket_reg(&state->regs[i], id, is_null);
+	for (i = 0; i < state->allocated_stack / BPF_REG_SIZE; i++)
+		if (state->stack[i].slot_type[0] == STACK_SPILL)
+			mark_socket_reg(&state->stack[i].spilled_ptr, id, is_null);
+}
+
+static bool incompatible_mem_types(enum bpf_reg_type old,
+				   enum bpf_reg_type new)
+{
+	return old != NOT_INIT && old != new &&
+	       (old == PTR_TO_CTX || new == PTR_TO_CTX ||
+		type_is_borrowed_socket(old) || type_is_borrowed_socket(new));
+}
+
 static bool is_spillable_regtype(enum bpf_reg_type type)
 {
+	if (type_is_borrowed_socket(type))
+		return true;
 	switch (type) {
 	case PTR_TO_MEM:
 	case PTR_TO_MEM_OR_NULL:
@@ -1386,6 +1455,8 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 			 * PTR_TO_PACKET[_END].  In the latter case, we know
 			 * the offset is zero.
 			 */
+			if (type_is_nullable_socket(reg_type))
+				return set_borrowed_socket(env, &regs[value_regno], reg_type);
 			if (reg_type == SCALAR_VALUE)
 				mark_reg_unknown(regs, value_regno);
 			else
@@ -1396,6 +1467,13 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 			regs[value_regno].type = reg_type;
 		}
 
+	} else if (type_is_borrowed_socket(reg->type)) {
+		if (reg->off || !tnum_equals_const(reg->var_off, 0) ||
+		    reg->ref_obj_id ||
+		    !bpf_sock_is_valid_access(off, size, t, reg->type))
+			return -EACCES;
+		if (value_regno >= 0)
+			mark_reg_unknown(regs, value_regno);
 	} else if (reg->type == PTR_TO_STACK) {
 		off += reg->var_off.value;
 		err = check_stack_access(env, reg, off, size);
@@ -1594,6 +1672,18 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 		if (register_is_null(*reg))
 			return 0;
 		arg_type = ARG_PTR_TO_MAP_VALUE;
+	}
+
+	if (arg_type == ARG_PTR_TO_SOCK_COMMON ||
+	    arg_type == ARG_PTR_TO_SOCK_COMMON_OR_NULL) {
+		if (arg_type == ARG_PTR_TO_SOCK_COMMON_OR_NULL &&
+		    register_is_null(*reg))
+			return 0;
+		if (!type_is_borrowed_socket(type) || reg->ref_obj_id ||
+		    reg->off || !tnum_equals_const(reg->var_off, 0) ||
+		    (arg_type == ARG_PTR_TO_SOCK_COMMON && type_is_nullable_socket(type)))
+			return -EACCES;
+		return 0;
 	}
 
 	if (arg_type == ARG_ANYTHING) {
@@ -2018,6 +2108,10 @@ static int check_call(struct bpf_verifier_env *env, int func_id, int insn_idx)
 		err = set_alloc_mem_return(env, &regs[BPF_REG_0], meta.mem_size, insn_idx);
 		if (err)
 			return err;
+	} else if (fn->ret_type == RET_PTR_TO_SOCKET_OR_NULL) {
+		err = set_borrowed_socket(env, &regs[BPF_REG_0], PTR_TO_SOCKET_OR_NULL);
+		if (err)
+			return err;
 	} else if (fn->ret_type == RET_INTEGER) {
 		/* sets type to SCALAR_VALUE */
 		mark_reg_unknown(regs, BPF_REG_0);
@@ -2388,6 +2482,8 @@ static int adjust_ptr_min_max_vals(struct bpf_verifier_env *env,
 	int ret;
 
 	dst_reg = &regs[dst];
+	if (type_is_borrowed_socket(ptr_reg->type))
+		return -EACCES;
 
 	if ((known && (smin_val != smax_val || umin_val != umax_val)) ||
 	    smin_val > smax_val || umin_val > umax_val) {
@@ -2919,6 +3015,19 @@ static int check_alu_op(struct bpf_verifier_env *env, struct bpf_insn *insn)
 	struct bpf_reg_state *regs = cur_regs(env);
 	u8 opcode = BPF_OP(insn->code);
 	int err;
+
+	/* No arithmetic or partial copies of borrowed sockets, including the
+	 * privileged scalarization paths. A 64-bit MOV retains the typed alias.
+	 */
+	if (opcode != BPF_MOV &&
+	    (type_is_borrowed_socket(regs[insn->dst_reg].type) ||
+	     (BPF_SRC(insn->code) == BPF_X &&
+	      type_is_borrowed_socket(regs[insn->src_reg].type))))
+		return -EACCES;
+	if (opcode == BPF_MOV && BPF_SRC(insn->code) == BPF_X &&
+	    BPF_CLASS(insn->code) != BPF_ALU64 &&
+	    type_is_borrowed_socket(regs[insn->src_reg].type))
+		return -EACCES;
 
 	if (opcode == BPF_END || opcode == BPF_NEG) {
 		if (opcode == BPF_NEG) {
@@ -3511,8 +3620,13 @@ static int check_cond_jmp_op(struct bpf_verifier_env *env,
 					dst_reg, insn->imm, opcode);
 	}
 
-	/* detect if R == 0 where R is returned from bpf_map_lookup_elem() */
-	if (BPF_SRC(insn->code) == BPF_K &&
+	/* Socket null identity has no map metadata or resource-release semantics. */
+	if (BPF_SRC(insn->code) == BPF_K && insn->imm == 0 &&
+	    (opcode == BPF_JEQ || opcode == BPF_JNE) &&
+	    type_is_nullable_socket(dst_reg->type)) {
+		mark_socket_regs(this_branch, insn->dst_reg, opcode == BPF_JNE);
+		mark_socket_regs(other_branch, insn->dst_reg, opcode == BPF_JEQ);
+	} else if (BPF_SRC(insn->code) == BPF_K &&
 	    insn->imm == 0 && (opcode == BPF_JEQ || opcode == BPF_JNE) &&
 	    (dst_reg->type == PTR_TO_MAP_VALUE_OR_NULL ||
 	     dst_reg->type == PTR_TO_MEM_OR_NULL)) {
@@ -4418,9 +4532,7 @@ static int do_check(struct bpf_verifier_env *env)
 				 */
 				*prev_src_type = src_reg_type;
 
-			} else if (src_reg_type != *prev_src_type &&
-				   (src_reg_type == PTR_TO_CTX ||
-				    *prev_src_type == PTR_TO_CTX)) {
+			} else if (incompatible_mem_types(*prev_src_type, src_reg_type)) {
 				/* ABuser program is trying to use the same insn
 				 * dst_reg = *(u32*) (src_reg + off)
 				 * with different pointer types:
@@ -4465,9 +4577,7 @@ static int do_check(struct bpf_verifier_env *env)
 
 			if (*prev_dst_type == NOT_INIT) {
 				*prev_dst_type = dst_reg_type;
-			} else if (dst_reg_type != *prev_dst_type &&
-				   (dst_reg_type == PTR_TO_CTX ||
-				    *prev_dst_type == PTR_TO_CTX)) {
+			} else if (incompatible_mem_types(*prev_dst_type, dst_reg_type)) {
 				verbose("same insn cannot be used with different pointers\n");
 				return -EINVAL;
 			}
@@ -4888,7 +4998,8 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 			continue;
 		}
 
-		if (env->insn_aux_data[i + delta].ptr_type != PTR_TO_CTX)
+		if (env->insn_aux_data[i + delta].ptr_type != PTR_TO_CTX &&
+		    !type_is_borrowed_socket(env->insn_aux_data[i + delta].ptr_type))
 			continue;
 
 		ctx_field_size = env->insn_aux_data[i + delta].ctx_field_size;
@@ -4920,8 +5031,12 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 		}
 
 		target_size = 0;
-		cnt = ops->convert_ctx_access(type, insn, insn_buf, env->prog,
-					      &target_size);
+		if (type_is_borrowed_socket(env->insn_aux_data[i + delta].ptr_type))
+			cnt = bpf_sock_convert_ctx_access(type, insn, insn_buf,
+						 env->prog, &target_size);
+		else
+			cnt = ops->convert_ctx_access(type, insn, insn_buf, env->prog,
+						      &target_size);
 		if (cnt == 0 || cnt >= ARRAY_SIZE(insn_buf) ||
 		    (ctx_field_size && !target_size)) {
 			verbose("bpf verifier is misconfigured\n");
