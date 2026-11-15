@@ -92,3 +92,17 @@ calling the remapper. Host tests extract the actual remapper functions with
 modeled allocation/page insertion services, cover separate synthetic regions,
 and reject invalid lengths/offsets before any page insertion. This validation
 does not perform real kernel mapping or access device memory.
+
+Reviewed mmap range correction (supersedes the initial overflow-only guard):
+Huawei mm/vmalloc.c remap_vmalloc_range adds pgoff before find_vm_area. Its
+bounds check applies to the allocation found at the translated address, not
+necessarily the original ring. An A-fd offset could therefore select B's private
+VM_USERMAP metadata. The first host shim incorrectly enforced original-region
+bounds and masked this defect. The regression now extracts both actual remap
+functions verbatim; only region lookup, page insertion and allocation remain
+modeled. Two real POSIX-backed allocations reproduce the issue on172ee6766.
+The Huawei adaptation validates nonempty page-aligned length, starting offset
+and remaining length against this ring's2+2*data_pages exposed pages before
+calling the remapper. Subtraction avoids offset+length overflow. Consumer-only
+write and callback flags/file/VM-ops accounting remain unchanged. Foreign-region
+and boundary tests, plus removal-of-range-check mutation, cover the correction.

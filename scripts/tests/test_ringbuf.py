@@ -32,7 +32,7 @@ if integrated:
  for name in ['bpf_map_mmap','bpf_map_poll']:
   s+='\n'+re.search(r'^static [^\n]*\b'+name+r'\(.*?^\}',sys,re.M|re.S)[0]
 mutations={
- 'mmap-range': ('!PAGE_ALIGNED(size) || vma->vm_pgoff >= user_pages ||\n\t    (size >> PAGE_SHIFT) > user_pages - vma->vm_pgoff', 'false'),
+ 'mmap-range': ('!PAGE_ALIGNED(size) || vma->vm_pgoff >= user_pages ||\n\t    (size >> PAGE_SHIFT) > user_pages - vma->vm_pgoff', '!PAGE_ALIGNED(size) || !user_pages'),
  'dispatch': ('return &bpf_ringbuf_reserve_proto;', 'return NULL;'),
  'compat-forward': ('if (func_id != BPF_FUNC_ringbuf_reserve)', 'if (0)'),
  'compat-reverse': ('if (map->map_type != BPF_MAP_TYPE_RINGBUF)', 'if (0)'),
