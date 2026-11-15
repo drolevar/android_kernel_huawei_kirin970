@@ -2250,7 +2250,8 @@ static int btf_enum_check_kflag_member(struct btf_verifier_env *env,
 				       const struct btf_type *member_type)
 {
 	u32 struct_bits_off, nr_bits, bytes_end, struct_size;
-	u32 int_bitsize = sizeof(int) * BITS_PER_BYTE;
+	/* Huawei adaptation: enum metadata permits 1, 2, 4 and 8 bytes. */
+	u32 int_bitsize = member_type->size * BITS_PER_BYTE;
 
 	struct_bits_off = BTF_MEMBER_BIT_OFFSET(member->offset);
 	nr_bits = BTF_MEMBER_BITFIELD_SIZE(member->offset);
@@ -2658,7 +2659,10 @@ static int btf_datasec_resolve(struct btf_verifier_env *env,
 
 		if (!env_type_is_resolve_sink(env, var_type) &&
 		    !env_type_is_resolved(env, var_type_id)) {
-			env_stack_set_next_member(env, i + 1);
+			/* Huawei adaptation: recheck this entry's size after
+			 * resolving its VAR, before advancing to the next entry.
+			 */
+			env_stack_set_next_member(env, i);
 			return env_stack_push(env, var_type, var_type_id);
 		}
 
