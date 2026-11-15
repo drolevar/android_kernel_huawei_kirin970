@@ -57,7 +57,7 @@ r=subprocess.run(cmd,capture_output=True,text=True)
 receipt={'mutation':a.mutation,'source_root':str(k),'command':cmd,'compile_exit':r.returncode,'compile_output':r.stdout+r.stderr,'compiler_version':subprocess.check_output([a.cc,'--version'],text=True),'dispatch_sha256':hashlib.sha256(dispatch.encode()).hexdigest(),'cases':{}}
 print(r.stdout+r.stderr,end='')
 if not r.returncode:
-    cases=['valid','null','error','sys_only'] if a.dispatcher_only else ['attributes','alloc','fd','replace','cache','socket_first','map_first','multi','helper','precharge','optmem','interleave','btf','clone','cache_collision','publish_race','delete_race','empty_race','destroy_race','corpus_btf','map_btf']
+    cases=['valid','null','error','sys_only','sys_only_null','sys_only_error'] if a.dispatcher_only else ['attributes','alloc','fd','replace','cache','socket_first','map_first','multi','helper','precharge','optmem','interleave','btf','clone','cache_collision','publish_race','delete_race','empty_race','destroy_race','corpus_btf','map_btf']
     for case in cases:
         r=subprocess.run([str(a.output/'test'),case],capture_output=True,text=True,timeout=10)
         receipt['cases'][case]={'exit':r.returncode,'output':r.stdout+r.stderr}

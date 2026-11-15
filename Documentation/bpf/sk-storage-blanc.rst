@@ -13,7 +13,8 @@ Program access is restricted to sk_storage_get (107) in CGROUP_SOCK's existing
 socket-create context. Its second argument is the original PTR_TO_CTX, not a
 borrowed skb socket, acquired lookup result, or sockopt context. The optional
 initializer must be scalar NULL or a fully initialized, in-bounds map-value
-buffer. Map/helper compatibility is enforced in both directions. Generic map
+buffer using the existing stack/packet-value rules; map-value-pointer
+initializers are not added by this subset. Map/helper compatibility is enforced in both directions. Generic map
 lookup/update/delete helpers and sk_storage_delete are not exposed for this
 map. CLONE and value spinlocks are not implemented. No BPF version override
 is selected. The broader netd program set remains unsupported.

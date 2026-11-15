@@ -19,9 +19,9 @@ static void *checked_copy(void *d, const void *s, size_t n) { assert(depth); ass
 #include "dispatch.h"
 int main(int argc,char **argv) {
     assert(argc==2); int value=123,out=0,err; struct ops ops={lookup,NULL}; struct bpf_map map={&ops,&value};
-    if (!strcmp(argv[1],"null")) map.answer=NULL;
-    if (!strcmp(argv[1],"error")) map.answer=(void *)-EBADF;
-    if (!strcmp(argv[1],"sys_only")) ops.map_lookup_elem_sys_only=sys_lookup;
+    if (strstr(argv[1],"null")) map.answer=NULL;
+    if (strstr(argv[1],"error")) map.answer=(void *)-EBADF;
+    if (strstr(argv[1],"sys_only")) ops.map_lookup_elem_sys_only=sys_lookup;
     err=dispatch(&map,NULL,&out,sizeof(out)); assert(!depth);
     assert(calls+syscalls==1); assert(syscalls==!!ops.map_lookup_elem_sys_only);
     assert(err==(IS_ERR(map.answer)?-EBADF:map.answer?0:-ENOENT));

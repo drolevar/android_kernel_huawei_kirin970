@@ -199,7 +199,7 @@ int main(int argc,char **argv) {
   return 0;
  }
  if(!strcmp(c,"attributes")) {
-  CHECK(BPF_MAP_TYPE_SK_STORAGE==24);CHECK(!alloc_error(&attr));
+  CHECK(BPF_MAP_TYPE_SK_STORAGE==24);CHECK(!alloc_error(&attr));struct bpf_map *m=newmap();CHECK(m->map_type==24&&m->key_size==4&&m->value_size==128&&!m->max_entries&&m->map_flags==1&&m->pages);destroy(m);
   for(int i=0;i<7;i++){union bpf_attr a=attr;switch(i){case 0:a.key_size=8;break;case 1:a.value_size=4;break;case 2:a.max_entries=1;break;case 3:a.map_flags=0;break;case 4:a.map_flags=513;break;case 5:a.btf_key_type_id=0;break;case 6:a.btf_value_type_id=0;break;}CHECK(alloc_error(&a)==-EINVAL);}
   admin=0;CHECK(alloc_error(&attr)==-EPERM);return 0;
  }
@@ -221,9 +221,10 @@ int main(int argc,char **argv) {
  } else if(!strcmp(c,"destroy_race")) {
   CHECK(!update(m,0,3,0));before_lock=competing_destroy;destroy(m);m=NULL;CHECK(!socks[0].sk_bpf_storage);
  } else if(!strcmp(c,"fd")) {
-  CHECK(lookup(m,-1)==-EBADF);CHECK(lookup(m,4)==-ENOTSOCK);sockets[0].closed=true;CHECK(lookup(m,0)==-EBADF);sockets[0].closed=false;
+  CHECK(lookup(m,-1)==-EBADF);CHECK(lookup(m,4)==-ENOTSOCK);sockets[0].closed=true;CHECK(lookup(m,0)==-EBADF);CHECK(update(m,0,1,0)==-EBADF);CHECK(del(m,0)==-EBADF);sockets[0].closed=false;
   for(int fd=2;fd<=3;fd++){CHECK(lookup(m,fd)==-EINVAL);CHECK(update(m,fd,1,0)==-EINVAL);CHECK(del(m,fd)==-EINVAL);}
-  CHECK(lookup(m,0)==-ENOENT);CHECK(update(m,-1,1,0)==-EBADF);CHECK(del(m,4)==-ENOTSOCK);
+  CHECK(lookup(m,0)==-ENOENT);CHECK(update(m,-1,1,0)==-EBADF);CHECK(del(m,-1)==-EBADF);CHECK(update(m,4,1,0)==-ENOTSOCK);CHECK(del(m,4)==-ENOTSOCK);
+  int next;CHECK(m->ops->map_get_next_key(m,NULL,&next)==-ENOTSUPP);
  } else if(!strcmp(c,"replace")) {
   CHECK(update(m,0,1,BPF_EXIST)==-ENOENT);CHECK(update(m,0,1,3)==-EINVAL);CHECK(!update(m,0,7,0));int charge=socks[0].sk_omem_alloc;
   CHECK(update(m,0,3,BPF_NOEXIST)==-EEXIST);CHECK(!update(m,0,8,BPF_EXIST));CHECK(lookup(m,0)==8);CHECK(socks[0].sk_omem_alloc==charge);CHECK(nfrees==1);CHECK(!del(m,0));CHECK(del(m,0)==-ENOENT);CHECK(!socks[0].sk_omem_alloc);
