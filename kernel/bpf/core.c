@@ -1621,13 +1621,13 @@ void bpf_prog_array_free(struct bpf_prog_array __rcu *progs)
 
 int bpf_prog_array_length(struct bpf_prog_array __rcu *progs)
 {
-	struct bpf_prog **prog;
+	struct bpf_prog **prog, *p;
 	u32 cnt = 0;
 
 	rcu_read_lock();
 	prog = rcu_dereference(progs)->progs;
-	for (; *prog; prog++)
-		if (*prog != &dummy_bpf_prog.prog)
+	for (; (p = READ_ONCE(*prog)); prog++)
+		if (p != &dummy_bpf_prog.prog)
 			cnt++;
 	rcu_read_unlock();
 	return cnt;
@@ -1636,36 +1636,33 @@ int bpf_prog_array_length(struct bpf_prog_array __rcu *progs)
 int bpf_prog_array_copy_to_user(struct bpf_prog_array __rcu *progs,
 				__u32 __user *prog_ids, u32 cnt)
 {
-	struct bpf_prog **prog;
-	unsigned long err = 0;
+	struct bpf_prog **prog, *p;
+	unsigned long err;
 	u32 i = 0, *ids;
-	bool nospc;
+	bool nospc = false;
 
-	/* users of this function are doing:
-	 * cnt = bpf_prog_array_length();
-	 * if (cnt > 0)
-	 *     bpf_prog_array_copy_to_user(..., cnt);
-	 * so below kcalloc doesn't need extra cnt > 0 check, but
-	 * bpf_prog_array_length() releases rcu lock and
-	 * prog array could have been swapped with empty or larger array,
-	 * so always copy 'cnt' prog_ids to the user.
-	 * In a rare race the user will see zero prog_ids
+	if (!cnt)
+		return 0;
+
+	/* Callers stabilize the array pointer. A prior length measurement may
+	 * exceed the number of live entries when slots become dummy programs,
+	 * so copy exactly cnt IDs, padding unused slots with zeroes.
 	 */
 	ids = kcalloc(cnt, sizeof(u32), GFP_USER | __GFP_NOWARN);
 	if (!ids)
 		return -ENOMEM;
 	rcu_read_lock();
 	prog = rcu_dereference(progs)->progs;
-	for (; *prog; prog++) {
-		if (*prog == &dummy_bpf_prog.prog)
+	for (; (p = READ_ONCE(*prog)); prog++) {
+		if (p == &dummy_bpf_prog.prog)
 			continue;
-		ids[i] = (*prog)->aux->id;
-		if (++i == cnt) {
-			prog++;
+		/* Only a further live program means the buffer is too small. */
+		if (i == cnt) {
+			nospc = true;
 			break;
 		}
+		ids[i++] = p->aux->id;
 	}
-	nospc = !!(*prog);
 	rcu_read_unlock();
 	err = copy_to_user(prog_ids, ids, cnt * sizeof(u32));
 	kfree(ids);
