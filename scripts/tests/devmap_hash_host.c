@@ -135,8 +135,8 @@ static int fd_refs;
 static struct fd fdget(int fd) { CHECK(fd==7);fd_refs++;return (struct fd){fd_map}; }
 static void fdput(struct fd fd) { CHECK(fd.map==fd_map);fd_refs--; }
 static struct bpf_map *__bpf_map_get(struct fd fd) { return fd.map; }
-enum { SCALAR_VALUE, CONST_PTR_TO_MAP, PTR_TO_MAP_VALUE_OR_NULL, PTR_TO_MAP_VALUE };
-struct bpf_reg_state { int type; struct bpf_map *map_ptr; u32 id; long smin_value,smax_value,var_off,off; };
+enum { SCALAR_VALUE, CONST_PTR_TO_MAP, PTR_TO_MAP_VALUE_OR_NULL, PTR_TO_MAP_VALUE, PTR_TO_MEM, PTR_TO_MEM_OR_NULL };
+struct bpf_reg_state { int type; struct bpf_map *map_ptr; u32 id,ref_obj_id; long smin_value,smax_value,var_off,off; };
 struct bpf_verifier_env { struct bpf_reg_state regs[11]; };
 #define cur_regs(e) ((e)->regs)
 #define DST_OP 1
