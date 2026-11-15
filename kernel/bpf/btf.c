@@ -16,6 +16,8 @@
 #include <linux/sort.h>
 #include <linux/bpf_verifier.h>
 #include <linux/btf.h>
+#include <linux/refcount.h>
+#include <linux/kallsyms.h>
 
 /* BTF (BPF Type Format) is the meta data format which describes
  * the data types of BPF program/map.  Hence, it basically focus
@@ -620,46 +622,6 @@ static bool btf_type_int_is_regular(const struct btf_type *t)
 	return true;
 }
 
-/*
- * Check that given struct member is a regular int with expected
- * offset and size.
- */
-bool btf_member_is_reg_int(const struct btf *btf, const struct btf_type *s,
-			   const struct btf_member *m,
-			   u32 expected_offset, u32 expected_size)
-{
-	const struct btf_type *t;
-	u32 id, int_data;
-	u8 nr_bits;
-
-	id = m->type;
-	t = btf_type_id_size(btf, &id, NULL);
-	if (!t || !btf_type_is_int(t))
-		return false;
-
-	int_data = btf_type_int(t);
-	nr_bits = BTF_INT_BITS(int_data);
-	if (btf_type_kflag(s)) {
-		u32 bitfield_size = BTF_MEMBER_BITFIELD_SIZE(m->offset);
-		u32 bit_offset = BTF_MEMBER_BIT_OFFSET(m->offset);
-
-		/* if kflag set, int should be a regular int and
-		 * bit offset should be at byte boundary.
-		 */
-		return !bitfield_size &&
-		       BITS_ROUNDUP_BYTES(bit_offset) == expected_offset &&
-		       BITS_ROUNDUP_BYTES(nr_bits) == expected_size;
-	}
-
-	if (BTF_INT_OFFSET(int_data) ||
-	    BITS_PER_BYTE_MASKED(m->offset) ||
-	    BITS_ROUNDUP_BYTES(m->offset) != expected_offset ||
-	    BITS_PER_BYTE_MASKED(nr_bits) ||
-	    BITS_ROUNDUP_BYTES(nr_bits) != expected_size)
-		return false;
-
-	return true;
-}
 
 __printf(2, 3) static void __btf_verifier_log(struct bpf_verifier_log *log,
 					      const char *fmt, ...)
@@ -837,8 +799,8 @@ static int btf_add_type(struct btf_verifier_env *env, struct btf_type *t)
 		new_size = min_t(u32, BTF_MAX_TYPE,
 				 btf->types_size + expand_by);
 
-		new_types = kvcalloc(new_size, sizeof(*new_types),
-				     GFP_KERNEL | __GFP_NOWARN);
+		new_types = kvmalloc_array(new_size, sizeof(*new_types),
+				     GFP_KERNEL | __GFP_NOWARN | __GFP_ZERO);
 		if (!new_types)
 			return -ENOMEM;
 
@@ -927,18 +889,18 @@ static int env_resolve_init(struct btf_verifier_env *env)
 	u8 *visit_states = NULL;
 
 	/* +1 for btf_void */
-	resolved_sizes = kvcalloc(nr_types + 1, sizeof(*resolved_sizes),
-				  GFP_KERNEL | __GFP_NOWARN);
+	resolved_sizes = kvmalloc_array(nr_types + 1, sizeof(*resolved_sizes),
+				  GFP_KERNEL | __GFP_NOWARN | __GFP_ZERO);
 	if (!resolved_sizes)
 		goto nomem;
 
-	resolved_ids = kvcalloc(nr_types + 1, sizeof(*resolved_ids),
-				GFP_KERNEL | __GFP_NOWARN);
+	resolved_ids = kvmalloc_array(nr_types + 1, sizeof(*resolved_ids),
+				GFP_KERNEL | __GFP_NOWARN | __GFP_ZERO);
 	if (!resolved_ids)
 		goto nomem;
 
-	visit_states = kvcalloc(nr_types + 1, sizeof(*visit_states),
-				GFP_KERNEL | __GFP_NOWARN);
+	visit_states = kvmalloc_array(nr_types + 1, sizeof(*visit_states),
+				GFP_KERNEL | __GFP_NOWARN | __GFP_ZERO);
 	if (!visit_states)
 		goto nomem;
 
@@ -2211,42 +2173,6 @@ static void btf_struct_log(struct btf_verifier_env *env,
 	btf_verifier_log(env, "size=%u vlen=%u", t->size, btf_type_vlen(t));
 }
 
-/* find 'struct bpf_spin_lock' in map value.
- * return >= 0 offset if found
- * and < 0 in case of error
- */
-int btf_find_spin_lock(const struct btf *btf, const struct btf_type *t)
-{
-	const struct btf_member *member;
-	u32 i, off = -ENOENT;
-
-	if (!__btf_type_is_struct(t))
-		return -EINVAL;
-
-	for_each_member(i, t, member) {
-		const struct btf_type *member_type = btf_type_by_id(btf,
-								    member->type);
-		if (!__btf_type_is_struct(member_type))
-			continue;
-		if (member_type->size != sizeof(struct bpf_spin_lock))
-			continue;
-		if (strcmp(__btf_name_by_offset(btf, member_type->name_off),
-			   "bpf_spin_lock"))
-			continue;
-		if (off != -ENOENT)
-			/* only one 'struct bpf_spin_lock' is allowed */
-			return -E2BIG;
-		off = btf_member_bit_offset(t, member);
-		if (off % 8)
-			/* valid C code cannot generate such BTF */
-			return -EINVAL;
-		off /= 8;
-		if (off % __alignof__(struct bpf_spin_lock))
-			/* valid struct bpf_spin_lock will be 4 byte aligned */
-			return -EINVAL;
-	}
-	return off;
-}
 
 static void btf_struct_seq_show(const struct btf *btf, const struct btf_type *t,
 				u32 type_id, void *data, u8 bits_offset,
@@ -2693,7 +2619,7 @@ static s32 btf_datasec_check_meta(struct btf_verifier_env *env,
 			return -EINVAL;
 		}
 
-		last_vsi_end_off = vsi->offset + vsi->size;
+		last_vsi_end_off = (u64)vsi->offset + vsi->size;
 		if (last_vsi_end_off > t->size) {
 			btf_verifier_log_vsi(env, t, vsi,
 					     "Invalid offset+size");
@@ -2983,12 +2909,15 @@ static int btf_check_all_metas(struct btf_verifier_env *env)
 	while (cur < end) {
 		struct btf_type *t = cur;
 		s32 meta_size;
+		int err;
 
 		meta_size = btf_check_meta(env, t, end - cur);
 		if (meta_size < 0)
 			return meta_size;
 
-		btf_add_type(env, t);
+		err = btf_add_type(env, t);
+		if (err)
+			return err;
 		cur += meta_size;
 		env->log_type_id++;
 	}
@@ -3357,6 +3286,11 @@ static struct btf *btf_parse(void __user *btf_data, u32 btf_data_size,
 	if (err)
 		goto errout;
 
+	if (log->level && !log->ubuf) {
+		err = -EFAULT;
+		goto errout;
+	}
+
 	if (log->level && bpf_verifier_log_full(log)) {
 		err = -ENOSPC;
 		goto errout;
@@ -3367,6 +3301,11 @@ static struct btf *btf_parse(void __user *btf_data, u32 btf_data_size,
 	return btf;
 
 errout:
+	/* A diagnostic copy fault wins over a simultaneous parse error, but
+	 * malformed log attributes (including an absent original buffer) do not.
+	 */
+	if (env && env->log.level && log_ubuf && !env->log.ubuf)
+		err = -EFAULT;
 	btf_verifier_env_free(env);
 	if (btf)
 		btf_free(btf);
