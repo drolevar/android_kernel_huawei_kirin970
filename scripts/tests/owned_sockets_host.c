@@ -46,6 +46,10 @@ int main(int argc,char **argv)
   spill(0,0);branch(0);
   assert(pushed.acquired_refs==1&&!pushed.regs[0].ref_obj_id);
   assert(pushed.regs[6].type==PTR_TO_SOCKET);
+  env.cur_state=&pushed;
+  assert(check_reference_leak(&env)==-EINVAL);
+  pushed.regs[1]=pushed.regs[6];assert(!check_call(&env,86,1));
+  assert(!pushed.acquired_refs);env.cur_state=&state;
   assert(state.acquired_refs==1);release_socket(6);
   assert(state.stack[0].spilled_ptr.type==NOT_INIT);
  } else if(!strcmp(c,"aliases")) {
@@ -53,6 +57,7 @@ int main(int argc,char **argv)
   assert(!check_stack_read(&state,-8,8,7));release_socket(7);
   assert(state.regs[6].type==NOT_INIT&&state.regs[7].type==NOT_INIT);
   assert(state.stack[0].spilled_ptr.type==NOT_INIT&&!state.acquired_refs);
+  assert(check_mem_access(&env,1,6,12,BPF_W,BPF_READ,8,false)<0);
   state.regs[1]=state.regs[6];assert(check_call(&env,86,1)<0);
  } else if(!strcmp(c,"release-errors")) {
   load(6);branch(6);state.regs[1]=state.regs[6];assert(check_call(&env,86,1)<0);
@@ -81,6 +86,13 @@ int main(int argc,char **argv)
   env.allow_ptr_leaks=true;
   branch(7);
   assert(!check_mem_access(&env,1,7,12,BPF_W,BPF_READ,8,false));
+  /* Execute the storage-NULL branch too: no read, release, known-NULL test. */
+  env.cur_state=&pushed;pushed.regs[1]=pushed.regs[6];
+  assert(!check_call(&env,86,1)&&!pushed.acquired_refs);
+  assert(pushed.regs[7].type==SCALAR_VALUE&&!pushed.regs[7].ref_obj_id);
+  struct bpf_insn test_null={.code=BPF_JMP|BPF_JEQ|BPF_K,.dst_reg=7,.off=2};
+  int pc=0;assert(!check_cond_jmp_op(&env,&test_null,&pc)&&pc==2);
+  env.cur_state=&state;
   release_socket(6);assert(!state.acquired_refs);
   assert(state.regs[7].type==PTR_TO_MAP_VALUE&&!state.regs[7].ref_obj_id);
   assert(state.regs[8].type==SCALAR_VALUE);
