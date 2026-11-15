@@ -187,17 +187,29 @@ static int check_reference_proto(const struct bpf_func_proto *fn)
 {
 	const enum bpf_arg_type args[] = { fn->arg1_type, fn->arg2_type,
 		fn->arg3_type, fn->arg4_type, fn->arg5_type };
-	int i, sizes = 0, pointers = 0;
+	int i, sizes = 0, pointers = 0, sockets = 0;
 	for (i = 0; i < 5; i++) {
 		sizes += args[i] == ARG_CONST_ALLOC_SIZE_OR_ZERO;
 		pointers += args[i] == ARG_PTR_TO_ALLOC_MEM;
+		sockets += args[i] == ARG_PTR_TO_SOCK_COMMON ||
+			   args[i] == ARG_PTR_TO_SOCK_COMMON_OR_NULL;
 	}
+	if (fn->acquires_reference)
+		return fn->ret_type == RET_PTR_TO_SOCKET_OR_NULL &&
+		       !fn->releases_reference && !sizes && !pointers && !sockets ?
+		       0 : -EINVAL;
+	if (sockets > 1)
+		return -EINVAL;
 	if (fn->ret_type == RET_PTR_TO_ALLOC_MEM_OR_NULL)
 		return sizes == 1 && !pointers && !fn->releases_reference ? 0 : -EINVAL;
 	if (sizes)
 		return -EINVAL;
-	if (fn->releases_reference)
+	if (fn->releases_reference) {
+		if (sockets)
+			return !pointers && fn->arg1_type == ARG_PTR_TO_SOCK_COMMON &&
+			       fn->ret_type == RET_INTEGER ? 0 : -EINVAL;
 		return pointers == 1 && fn->ret_type == RET_VOID ? 0 : -EINVAL;
+	}
 	return 0;
 }
 

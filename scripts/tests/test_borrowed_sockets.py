@@ -6,7 +6,8 @@ with modeled kernel services. Not a kernel loader, concurrency or JIT test.
 import argparse, hashlib, json, re, subprocess
 from pathlib import Path
 p=argparse.ArgumentParser(description=__doc__)
-p.add_argument('--mutation',choices=['identity','ownership','mixed','alu']);p.add_argument('--cc',required=True);p.add_argument('--output',required=True,type=Path)
+p.add_argument('--owned', action='store_true')
+p.add_argument('--mutation',choices=['identity','ownership','mixed','alu','cast-ownership','storage-ownership','socket-null']);p.add_argument('--cc',required=True);p.add_argument('--output',required=True,type=Path)
 a=p.parse_args();root=Path(__file__).resolve().parents[2]
 a.output.mkdir(parents=True,exist_ok=False)
 v=(root/'kernel/bpf/verifier.c').read_text(); net=(root/'net/core/filter.c').read_text()
@@ -53,12 +54,16 @@ s=s.replace('static int check_mem_access(', '#define DST_OP 2\n'+function(v,'mar
 protos=[]
 for path,names in [('kernel/bpf/ringbuf.c',['bpf_ringbuf_reserve_proto','bpf_ringbuf_submit_proto','bpf_ringbuf_discard_proto']),('net/core/bpf_sk_storage.c',['bpf_sk_storage_get_borrowed_proto','bpf_sk_storage_get_cg_sock_proto']),('net/core/filter.c',['bpf_sk_fullsock_proto'])]:
  text=(root/path).read_text()
+ if path=='net/core/filter.c' and (root/'net/core/filter_owned_sockets.inc').exists():
+  text += (root/'net/core/filter_owned_sockets.inc').read_text()
+ if path=='net/core/filter.c':
+  names += [n for n in ['bpf_sk_lookup_tcp_proto','bpf_sk_lookup_udp_proto','bpf_sk_release_proto'] if 'const struct bpf_func_proto '+n+' =' in text]
  for name in names:protos.append(re.search(r'^(?:static )?const struct bpf_func_proto '+name+r' = \{.*?^\};',text,re.M|re.S)[0])
 dispatch='\n'.join(function(net,n) for n in ['bpf_base_func_proto','sk_filter_func_proto','cg_skb_func_proto','sock_filter_func_proto'])
 known={re.search(r'bpf_func_proto (\w+)',x)[1] for x in protos}
 others=set(re.findall(r'return &(\w+);',dispatch))-known
-stubs='#define CONFIG_BPF_SYSCALL 1\n#define capable(x) true\n'
-for name in ['bpf_ringbuf_reserve','bpf_ringbuf_submit','bpf_ringbuf_discard','bpf_sk_storage_get','bpf_sk_fullsock']:stubs+='static u64 '+name+'(u64 a,u64 b,u64 c,u64 d,u64 e){abort();}\n'
+stubs='#define CONFIG_INET 1\n#define CONFIG_BPF_SYSCALL 1\n#define capable(x) true\n'
+for name in ['bpf_ringbuf_reserve','bpf_ringbuf_submit','bpf_ringbuf_discard','bpf_sk_storage_get','bpf_sk_fullsock','bpf_sk_lookup_tcp','bpf_sk_lookup_udp','bpf_sk_release']:stubs+='static u64 '+name+'(u64 a,u64 b,u64 c,u64 d,u64 e){abort();}\n'
 stubs+=''.join('static const struct bpf_func_proto '+n+'={0};\n' for n in sorted(others))+'static const struct bpf_func_proto *bpf_get_trace_printk_proto(void){abort();}\n'
 x=s.index('static const struct bpf_func_proto reserve_proto=');y=s.index('static struct bpf_prog_aux aux=',x)
 s=s[:x]+stubs+'\n'.join(protos)+'\n'+dispatch+'\nstatic const struct bpf_func_proto *route(int id){return cg_skb_func_proto(id);}\nstatic struct bpf_verifier_ops ops={route};\n'+s[y:]
@@ -105,15 +110,21 @@ int main(int argc,char **argv){assert(argc==2);const char *c=argv[1];
  else if(!strcmp(c,"alu-entry")){load(6);state.regs[7]=state.regs[6];env.allow_ptr_leaks=true;struct bpf_insn i={.code=BPF_ALU64|BPF_SUB|BPF_X,.dst_reg=6,.src_reg=7};assert(check_alu_op(&env,&i)==-EACCES);i.code=BPF_ALU|BPF_MOV|BPF_X;assert(check_alu_op(&env,&i)==-EACCES);i.code=BPF_ALU64|BPF_NEG;i.src_reg=0;assert(check_alu_op(&env,&i)==-EACCES);}
  else if(!strcmp(c,"bad-registers")){scalar(0,0);scalar(1,1);for(int reg=11;reg<16;reg++){struct bpf_insn i={.code=BPF_ALU64|BPF_ADD|BPF_K,.dst_reg=reg,.imm=1};assert(check_alu_op(&env,&i)==-EINVAL);i=(struct bpf_insn){.code=BPF_ALU|BPF_MOV|BPF_X,.dst_reg=0,.src_reg=reg};assert(check_alu_op(&env,&i)==-EINVAL);}}
  else if(!strcmp(c,"reserved")){scalar(0,0);scalar(1,1);struct bpf_insn i={.code=BPF_ALU64|BPF_MOV|BPF_X,.dst_reg=0,.src_reg=1,.imm=1};assert(check_alu_op(&env,&i)==-EINVAL);i.imm=0;i.off=1;assert(check_alu_op(&env,&i)==-EINVAL);i=(struct bpf_insn){.code=BPF_ALU64|BPF_NEG,.dst_reg=0,.src_reg=1};assert(check_alu_op(&env,&i)==-EINVAL);i=(struct bpf_insn){.code=BPF_ALU64|BPF_END,.dst_reg=0,.imm=32};assert(check_alu_op(&env,&i)==-EINVAL);}
- else if(!strcmp(c,"reject-routes")){assert(!sk_filter_func_proto(95)&&!sk_filter_func_proto(107));assert(!cg_skb_func_proto(84)&&!cg_skb_func_proto(85)&&!cg_skb_func_proto(86)&&!cg_skb_func_proto(108));load(1);assert(check_call(&env,95,0)==-EACCES);branch(1);scalar(2,0);assert(check_call(&env,132,0)==-EINVAL);assert(!sock_filter_func_proto(95));}
+ else if(!strcmp(c,"reject-routes")){assert(!sk_filter_func_proto(95)&&!sk_filter_func_proto(107));assert(cg_skb_func_proto(84)&&cg_skb_func_proto(85)&&cg_skb_func_proto(86)&&!cg_skb_func_proto(108));load(1);assert(check_call(&env,95,0)==-EACCES);branch(1);scalar(2,0);assert(check_call(&env,132,0)==-EINVAL);assert(!sock_filter_func_proto(95));}
  else if(!strcmp(c,"offsets")){struct bpf_call_arg_meta m={0};load(2);state.regs[2].off=1;assert(check_func_arg(&env,2,ARG_PTR_TO_SOCK_COMMON_OR_NULL,&m)==-EACCES);state.regs[2].off=0;state.regs[2].var_off=tnum_const(1);assert(check_func_arg(&env,2,ARG_PTR_TO_SOCK_COMMON_OR_NULL,&m)==-EACCES);state.regs[2].var_off=tnum_const(0);state.regs[2].ref_obj_id=1;assert(check_func_arg(&env,2,ARG_PTR_TO_SOCK_COMMON_OR_NULL,&m)==-EACCES);}
  else if(!strcmp(c,"context")){struct bpf_insn_access_aux i={0};assert(cg_skb_is_valid_access(168,8,BPF_READ,&i)&&i.reg_type==PTR_TO_SOCK_COMMON_OR_NULL);assert(cg_skb_is_valid_access(164,4,BPF_READ,&i));assert(!cg_skb_is_valid_access(168,4,BPF_READ,&i)&&!cg_skb_is_valid_access(168,8,BPF_WRITE,&i)&&!cg_skb_is_valid_access(164,4,BPF_WRITE,&i));for(int off=140;off<176;off+=4){assert(!sk_filter_is_valid_access(off,4,BPF_READ,&i));if(off!=164)assert(!cg_skb_is_valid_access(off,4,BPF_READ,&i));}}
  else if(!strcmp(c,"overflow")){env.id_gen=INT_MAX;assert(set_borrowed_socket(&env,&state.regs[0],PTR_TO_SOCKET_OR_NULL)==-E2BIG);}
  else abort();
  free_verifier_state(&state,false);free_verifier_state(&pushed,false);assert(!allocations);puts("PASS");return 0;}
 '''
+if a.owned:
+ s=s.replace('#define check_map_access(...) (-EACCES)', function(v,'__check_map_access')+'\n'+function(v,'check_map_access'))
+ s=s[:s.index('int main(int argc,')]+(root/'scripts/tests/owned_sockets_host.c').read_text()
 if a.mutation:
  mutations={
+  'cast-ownership':('regs[BPF_REG_0].ref_obj_id = meta.ref_obj_id;', 'regs[BPF_REG_0].ref_obj_id = 0;'),
+  'storage-ownership':('regs[BPF_REG_0].map_ptr = meta.map_ptr;', 'regs[BPF_REG_0].ref_obj_id = meta.ref_obj_id; regs[BPF_REG_0].map_ptr = meta.map_ptr;'),
+  'socket-null':('is_null && id && state->regs[regno].ref_obj_id == id', 'false'),
   'identity':('reg->id = ++env->id_gen;', 'reg->id = 1;'),
   'ownership':('memset(reg, 0, sizeof(*reg));', 'u32 old_ref = reg->ref_obj_id; memset(reg, 0, sizeof(*reg)); reg->ref_obj_id = old_ref;'),
   'mixed':('return old != NOT_INIT && old != new &&', 'return false && old != NOT_INIT && old != new &&'),
@@ -123,6 +134,6 @@ if a.mutation:
 f=a.output/'production.c';f.write_text(s);base=json.loads((a.output/'foundation/receipt.json').read_text());cmd=[str(f) if x==str(a.output/'foundation/production.c') else str(a.output/'test') if x==str(a.output/'foundation/test') else x for x in base['command']]
 r=subprocess.run(cmd,capture_output=True,text=True,timeout=60);rec={'command':cmd,'compile_exit':r.returncode,'compile_output':r.stdout+r.stderr,'extracted_sha256':hashlib.sha256(s.encode()).hexdigest(),'boundary':__doc__,'cases':{}};print(r.stdout+r.stderr)
 if not r.returncode:
- for case in ['independent','spill-fullsock','ring-overwrite','storage-live','mismatch','typed-access','arithmetic','alu-entry','bad-registers','reserved','reject-routes','offsets','context','overflow']:
+ for case in (['admission','nullable','cast','aliases','release-errors','mixed','storage'] if a.owned else ['independent','spill-fullsock','ring-overwrite','storage-live','mismatch','typed-access','arithmetic','alu-entry','bad-registers','reserved','reject-routes','offsets','context','overflow']):
   r=subprocess.run([str(a.output/'test'),case],capture_output=True,text=True,timeout=20);rec['cases'][case]={'exit':r.returncode,'output':r.stdout+r.stderr};print(case,r.returncode,r.stdout+r.stderr)
 (a.output/'receipt.json').write_text(json.dumps(rec,indent=2)+'\n');raise SystemExit(bool(rec['compile_exit'] or any(x['exit'] for x in rec['cases'].values())))

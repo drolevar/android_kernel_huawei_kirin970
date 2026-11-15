@@ -812,7 +812,7 @@ static int check_reg_arg(struct bpf_verifier_env *env, u32 regno,
 	return 0;
 }
 
-/* Borrowed socket identities are never resource ownership IDs. */
+/* Socket type and ownership are independent: skb loads are borrowed. */
 static bool type_is_borrowed_socket(enum bpf_reg_type type)
 {
 	return type == PTR_TO_SOCK_COMMON || type == PTR_TO_SOCK_COMMON_OR_NULL ||
@@ -846,6 +846,8 @@ static void mark_socket_reg(struct bpf_reg_state *reg, u32 id, bool is_null)
 		return;
 	if (is_null) {
 		reg->type = SCALAR_VALUE;
+		reg->ref_obj_id = 0;
+		reg->id = 0;
 		__mark_reg_known_zero(reg);
 	} else {
 		reg->type = reg->type == PTR_TO_SOCKET_OR_NULL ?
@@ -860,6 +862,9 @@ static void mark_socket_regs(struct bpf_verifier_state *state, u32 regno,
 	u32 id = state->regs[regno].id;
 	int i;
 
+	/* Only a failed acquisition cancels the obligation, not a failed cast. */
+	if (is_null && id && state->regs[regno].ref_obj_id == id)
+		WARN_ON_ONCE(release_reference_state(state, id));
 	for (i = 0; i < MAX_BPF_REG; i++)
 		mark_socket_reg(&state->regs[i], id, is_null);
 	for (i = 0; i < state->allocated_stack / BPF_REG_SIZE; i++)
@@ -1469,7 +1474,8 @@ static int check_mem_access(struct bpf_verifier_env *env, int insn_idx, u32 regn
 
 	} else if (type_is_borrowed_socket(reg->type)) {
 		if (reg->off || !tnum_equals_const(reg->var_off, 0) ||
-		    reg->ref_obj_id ||
+		    (reg->ref_obj_id &&
+		     !reference_is_live(env->cur_state, reg->ref_obj_id)) ||
 		    !bpf_sock_is_valid_access(off, size, t, reg->type))
 			return -EACCES;
 		if (value_regno >= 0)
@@ -1679,10 +1685,16 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 		if (arg_type == ARG_PTR_TO_SOCK_COMMON_OR_NULL &&
 		    register_is_null(*reg))
 			return 0;
-		if (!type_is_borrowed_socket(type) || reg->ref_obj_id ||
+		if (!type_is_borrowed_socket(type) ||
+		    (reg->ref_obj_id && !reference_is_live(env->cur_state, reg->ref_obj_id)) ||
 		    reg->off || !tnum_equals_const(reg->var_off, 0) ||
 		    (arg_type == ARG_PTR_TO_SOCK_COMMON && type_is_nullable_socket(type)))
 			return -EACCES;
+		if (reg->ref_obj_id) {
+			if (meta->ref_obj_id)
+				return -EINVAL;
+			meta->ref_obj_id = reg->ref_obj_id;
+		}
 		return 0;
 	}
 
@@ -2112,6 +2124,18 @@ static int check_call(struct bpf_verifier_env *env, int func_id, int insn_idx)
 		err = set_borrowed_socket(env, &regs[BPF_REG_0], PTR_TO_SOCKET_OR_NULL);
 		if (err)
 			return err;
+		if (fn->acquires_reference) {
+			err = acquire_reference_state(env, insn_idx);
+			if (err < 0)
+				return err;
+			regs[BPF_REG_0].id = err;
+			regs[BPF_REG_0].ref_obj_id = err;
+		} else {
+			/* fullsock aliases ownership, but has independent NULL identity.
+			 * Map/storage return values must never inherit this ID.
+			 */
+			regs[BPF_REG_0].ref_obj_id = meta.ref_obj_id;
+		}
 	} else if (fn->ret_type == RET_INTEGER) {
 		/* sets type to SCALAR_VALUE */
 		mark_reg_unknown(regs, BPF_REG_0);
@@ -3624,7 +3648,7 @@ static int check_cond_jmp_op(struct bpf_verifier_env *env,
 					dst_reg, insn->imm, opcode);
 	}
 
-	/* Socket null identity has no map metadata or resource-release semantics. */
+	/* Socket NULL refinement must not interpret the map metadata union. */
 	if (BPF_SRC(insn->code) == BPF_K && insn->imm == 0 &&
 	    (opcode == BPF_JEQ || opcode == BPF_JNE) &&
 	    type_is_nullable_socket(dst_reg->type)) {
