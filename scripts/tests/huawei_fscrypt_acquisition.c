@@ -5,8 +5,9 @@
 #include "crypto-subject.h"
 #include "subject.h"
 static struct fscrypt_context saved;
+static int context_error;
 static int save_context(struct inode *i, const void *p, size_t n, void *data)
-{ CHECK(n == 108); memcpy(&saved, p, n); return 0; }
+{ CHECK(n == 108); CHECK(lookup_key->sem.readers == 0); memcpy(&saved, p, n); return context_error; }
 static struct operations ops = { .set_context = save_context };
 static struct super_block sb = { .s_cop = &ops };
 static struct inode ino = { .i_sb = &sb };
@@ -21,7 +22,7 @@ static void setup(unsigned int size)
     p->size = size; p->raw[63] = 7;
     key.type = &key_type_logon; key.payload = &ukp; key.description = "synthetic-only";
     lookup_key = &key; alternate_key = &key;
-    primary_error = alternate_error = lookups = 0;
+    primary_error = alternate_error = lookups = context_error = 0;
     fail_alloc = fail_setkey = fail_unwrap = fail_request = 0;
     revoke_on_lock = false; ops.key_prefix = NULL;
 }
@@ -87,6 +88,17 @@ int main(int argc, char **argv)
         setup(32); ukp.datalen--; struct fscrypt_ce_key lease;
         CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease) == -EINVAL);
         CHECK(lookups==1);
+    } else if (!strcmp(c, "lookup-errors")) {
+        struct fscrypt_ce_key lease;
+        primary_error=-ENOKEY; alternate_error=-EACCES;
+        CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-EACCES);
+        CHECK(lookups==2);
+        setup(32); key.type=NULL;
+        CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-EKEYREJECTED);
+        CHECK(lookups==1); balanced();
+        setup(32); key.validation_error=-EKEYREVOKED;
+        CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-EKEYREVOKED);
+        CHECK(lookups==1);
     } else if (!strcmp(c, "sizes")) {
         unsigned sizes[]={0,1,31,33,63,65,UINT32_MAX};
         for(unsigned i=0;i<sizeof(sizes)/sizeof(sizes[0]);i++) {
@@ -105,8 +117,8 @@ int main(int argc, char **argv)
             CHECK(!ci.ci_gtfm); balanced();
         }
     } else if (!strcmp(c, "policy-errors")) {
-        for(int f=0;f<3;f++) {
-            setup(64); if(f==0) fail_alloc=1; if(f==1) fail_setkey=1; if(f==2) fail_request=1;
+        for(int f=0;f<4;f++) {
+            setup(64); if(f==0) fail_alloc=1; if(f==1) fail_setkey=1; if(f==2) fail_request=1; if(f==3) context_error=-EIO;
             CHECK(create_encryption_context_from_policy(&ino,&policy)<0); balanced();
         }
     } else if (!strcmp(c, "f2fs-ce")) {
@@ -116,6 +128,15 @@ int main(int argc, char **argv)
         CHECK(((struct fscrypt_key *)ukp.data)->size==64);
         sdp(FSCRYPT_SDP_ECE_CLASS,32,0);
         CHECK(f2fs_do_get_fek(desc,cipher,out,iv,0,0)==-EINVAL);
+    } else if (!strcmp(c, "f2fs-errors")) {
+        u8 plain[80]={0},cipher[80]={0},out[80]={0},iv[16]={0},desc[8]={0};
+        for(int f=0;f<6;f++) {
+            setup(32); CHECK(!f2fs_do_get_fek(desc,cipher,plain,iv,1,0));
+            if(f==0) fail_alloc=1; if(f==1) fail_setkey=1;
+            if(f==2) fail_request=1; if(f==3) fail_unwrap=1;
+            if(f==4) revoke_on_lock=true; if(f==5) primary_error=-EACCES;
+            CHECK(f2fs_do_get_fek(desc,cipher,out,iv,0,0)<0); balanced();
+        }
     } else if (!strcmp(c, "sdp-bounds")) {
         u8 raw[96],desc[8]={0}; int size;
         unsigned invalid[]={1,31,33,64,UINT32_MAX};

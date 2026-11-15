@@ -44,7 +44,7 @@ for variant in ('baseline','v3'):
  cmd=[a.cc,'-std=gnu11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-pointer-sign','-Wno-unused-function','-Wno-unused-parameter','-Wno-sign-compare','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(out),'-I'+str(here),str(here/'huawei_fscrypt_acquisition.c'),'-lcrypto','-o',str(binary)]
  if variant=='v3':cmd+=['-DCONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3']
  commands.append(cmd);subprocess.run(cmd,check=True,timeout=60)
- for case in ('immutable','tails','revocation','prefix','sizes','errors','policy-errors','f2fs-ce','sdp-bounds'):
+ for case in ('immutable','tails','revocation','prefix','lookup-errors','sizes','errors','policy-errors','f2fs-ce','f2fs-errors','sdp-bounds'):
   r=subprocess.run([str(binary),case],capture_output=True,text=True,timeout=10)
   (out/(variant+'-'+case+'.log')).write_text(r.stdout+r.stderr)
   results.append({'variant':variant,'case':case,'exit':r.returncode})
