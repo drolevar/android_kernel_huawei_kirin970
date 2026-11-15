@@ -63,3 +63,18 @@ rule is not implemented in production here. Modern ADD/REMOVE/STATUS, inode
 owner replacement and retiring ci_gtfm need a separate ownership design and
 runtime validation. CE-to-SDP writes remain non-atomic; crash recovery remains
 unresolved. No device tests or kernel full build are implied by host results.
+
+Independent review follow-up tests extract `f2fs_do_get_sece_fek()` itself;
+modeled ECC boundaries assert the selected curve, private/public lengths,
+exact source bytes/offsets and destination pointer. AES-GCM remains real
+OpenSSL through the existing shim. This validates caller integration, not
+ECDH mathematics, kernel ECC providers or hardware keys. A separate case
+requires a postlookup `key_validate() == -ENOKEY` to remain terminal even
+when an alternate key is available.
+
+The measured configuration disables enhanced-inline V2. The unchanged
+non-V3 V2 `f2fs_do_get_keyindex()` still requires a size32 legacy payload.
+Removing shared size64-to32 normalization must not be interpreted as proving
+size64 support for that hardware metadata path. Its runtime contract needs
+separate evidence; this candidate does not weaken its validation. V3 builds
+prove compilation only, not hardware compatibility or keyslot behavior.

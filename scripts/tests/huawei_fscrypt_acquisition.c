@@ -12,8 +12,8 @@ static struct operations ops = { .set_context = save_context };
 static struct super_block sb = { .s_cop = &ops };
 static struct inode ino = { .i_sb = &sb };
 static struct fscrypt_policy policy = { .contents_encryption_mode = 1, .filenames_encryption_mode = 4 };
-static struct user_key_payload ukp;
-static struct key key;
+static struct user_key_payload ukp, alternate_ukp;
+static struct key key, alternate;
 static void setup(unsigned int size)
 {
     memset(&ukp, 0, sizeof(ukp)); memset(&key, 0, sizeof(key));
@@ -21,13 +21,15 @@ static void setup(unsigned int size)
     struct fscrypt_key *p = (void *)ukp.data;
     p->size = size; p->raw[63] = 7;
     key.type = &key_type_logon; key.payload = &ukp; key.description = "synthetic-only";
-    lookup_key = &key; alternate_key = &key;
+    alternate_ukp = ukp; alternate = key; alternate.payload = &alternate_ukp;
+    lookup_key = &key; alternate_key = &alternate;
     primary_error = alternate_error = lookups = context_error = 0;
     fail_alloc = fail_setkey = fail_unwrap = fail_request = 0;
     revoke_on_lock = false; ops.key_prefix = NULL;
 }
 static void balanced(void)
-{ CHECK(key.refs == 0 && key.sem.readers == 0 && key.sem.underflow == 0 && key.sem.down == key.sem.up && tfm_live == 0 && request_live == 0); }
+{ CHECK(key.refs == 0 && key.sem.readers == 0 && key.sem.underflow == 0 && key.sem.down == key.sem.up && tfm_live == 0 && request_live == 0);
+  CHECK(alternate.refs == 0 && alternate.sem.readers == 0 && alternate.sem.underflow == 0 && alternate.sem.down == alternate.sem.up); }
 static void unwrap(struct fscrypt_info *ci, int expected)
 { u8 raw[64]; CHECK(find_and_derive_key(&ino, ci, &saved, raw, sizeof(raw)) == expected); }
 static void sdp(unsigned int cl, unsigned int n, unsigned int pub)
@@ -75,7 +77,7 @@ int main(int argc, char **argv)
             int r = fscrypt_acquire_ce_key(saved.master_key_descriptor, "f2fs:", &lease);
             CHECK(r == (errors[i] == -ENOKEY ? 0 : errors[i]));
             CHECK(lookups == (errors[i] == -ENOKEY ? 2 : 1));
-            if (!r) { CHECK(lease.alternate_prefix); fscrypt_release_ce_key(&lease); }
+            if (!r) { CHECK(lease.alternate_prefix && lease.key == &alternate); fscrypt_release_ce_key(&lease); }
             balanced();
         }
         /* request_key collapses absence/negative/search-skipped expiry to
@@ -99,6 +101,12 @@ int main(int argc, char **argv)
         setup(32); key.validation_error=-EKEYREVOKED;
         CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-EKEYREVOKED);
         CHECK(lookups==1);
+        setup(32); key.validation_error=-ENOKEY; /* invalidated after lookup */
+        CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-ENOKEY);
+        CHECK(lookups==1); /* a valid alternate must not be tried */
+        balanced(); setup(32); primary_error=-ENOKEY; revoke_on_lock=true;
+        CHECK(fscrypt_acquire_ce_key(saved.master_key_descriptor,"f2fs:",&lease)==-EKEYREVOKED);
+        CHECK(lookups==2);
     } else if (!strcmp(c, "sizes")) {
         unsigned sizes[]={0,1,31,33,63,65,UINT32_MAX};
         for(unsigned i=0;i<sizeof(sizes)/sizeof(sizes[0]);i++) {
@@ -136,6 +144,27 @@ int main(int argc, char **argv)
             if(f==2) fail_request=1; if(f==3) fail_unwrap=1;
             if(f==4) revoke_on_lock=true; if(f==5) primary_error=-EACCES;
             CHECK(f2fs_do_get_fek(desc,cipher,out,iv,0,0)<0); balanced();
+        }
+    } else if (!strcmp(c, "sece-callers")) {
+        struct f2fs_sdp_fscrypt_context ctx={0};
+        u8 plain[80]={1}, decoded[80]={0};
+        for(unsigned private_size=0; private_size<=32; private_size+=32) {
+            setup(32); sdp(FSCRYPT_SDP_SECE_CLASS,private_size,64);
+            struct fscrypt_sdp_key *sk=(void *)ukp.data;
+            memset(sk->raw,0xa3,sizeof(sk->raw)); memset(sk->pubkey,0xb4,sizeof(sk->pubkey));
+            ecc_file=ctx.file_pub_key; ecc_create_calls=ecc_unwrap_calls=ecc_error=0;
+            CHECK(!f2fs_do_get_sece_fek(&ctx,plain,0));
+            CHECK(ecc_create_calls==1 && ecc_unwrap_calls==0); balanced();
+            if (!private_size) {
+                CHECK(f2fs_do_get_sece_fek(&ctx,decoded,1)==-EINVAL);
+                CHECK(ecc_unwrap_calls==0); balanced();
+            } else {
+                CHECK(!f2fs_do_get_sece_fek(&ctx,decoded,1));
+                CHECK(ecc_unwrap_calls==1 && !memcmp(plain,decoded,64)); balanced();
+                ecc_error=-EIO;
+                CHECK(f2fs_do_get_sece_fek(&ctx,decoded,1)==-EIO); balanced();
+                CHECK(f2fs_do_get_sece_fek(&ctx,plain,0)==-EIO); balanced();
+            }
         }
     } else if (!strcmp(c, "sdp-bounds")) {
         u8 raw[96],desc[8]={0}; int size;

@@ -125,7 +125,11 @@ static bool revoke_on_lock;
 static void down_read(struct semaphore *s)
 {
     s->readers++; s->down++;
-    if (revoke_on_lock) { lookup_key->payload = NULL; revoke_on_lock = false; }
+    if (revoke_on_lock) {
+        if (lookup_key && s == &lookup_key->sem) lookup_key->payload = NULL;
+        else { CHECK(alternate_key && s == &alternate_key->sem); alternate_key->payload = NULL; }
+        revoke_on_lock = false;
+    }
 }
 static void up_read(struct semaphore *s)
 { if (s->readers == 0) s->underflow++; else s->readers--; s->up++; }
@@ -156,3 +160,29 @@ static bool fscrypt_valid_enc_modes(u32 data, u32 names)
 /* Deterministic synthetic bytes, not a random generator for production. */
 static void get_random_bytes(void *p, size_t n) { memset(p, 0x5a, n); }
 static int fscrypt_generate_metadata_nonce(u8 *n, struct inode *i, size_t size) { return -EOPNOTSUPP; }
+
+/* ECC is modeled only to validate extracted caller routing, lengths and bytes.
+ * This does NOT implement/validate ECDH or Huawei key services. */
+static u8 *ecc_file;
+static int ecc_create_calls, ecc_unwrap_calls, ecc_error;
+static int get_file_pubkey_shared_secret(unsigned int curve, const u8 *pub,
+    unsigned int pubsize, u8 *file, unsigned int filesize,
+    u8 *shared, unsigned int sharedsize)
+{
+    CHECK(curve==ECC_CURVE_NIST_P256 && pubsize==64 && filesize==64 && sharedsize==32);
+    CHECK(file==ecc_file); for(unsigned i=0;i<64;i++) CHECK(pub[i]==0xb4);
+    ecc_create_calls++;
+    if(ecc_error) return ecc_error;
+    memset(file,0xc5,64); memset(shared,0x71,32); return 0;
+}
+static int get_shared_secret(unsigned int curve, const u8 *priv,
+    unsigned int privsize, const u8 *file, unsigned int filesize,
+    u8 *shared, unsigned int sharedsize)
+{
+    CHECK(curve==ECC_CURVE_NIST_P256 && privsize==32 && filesize==64 && sharedsize==32);
+    CHECK(file==ecc_file); for(unsigned i=0;i<32;i++) CHECK(priv[i]==0xa3);
+    for(unsigned i=0;i<64;i++) CHECK(file[i]==0xc5);
+    ecc_unwrap_calls++;
+    if(ecc_error) return ecc_error;
+    memset(shared,0x71,32); return 0;
+}
