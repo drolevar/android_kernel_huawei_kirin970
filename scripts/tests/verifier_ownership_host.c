@@ -8,9 +8,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <errno.h>
-#include <linux/bpf.h>
-#define __BPF_HW_FUNC_MIN_ID 10000
-#define __BPF_HW_FUNC_MAX_ID 10000
+#include BPF_UAPI_HEADER
 #define BPF_MAP_PTR_POISON ((void*)1)
 typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef int32_t s32;
 typedef uint64_t u64; typedef int64_t s64;

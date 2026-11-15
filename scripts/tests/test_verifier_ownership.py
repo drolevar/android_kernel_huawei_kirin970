@@ -3,7 +3,7 @@
 """Execute extracted production ownership/bounds/state logic with host allocation.
 Not a kernel program loader, JIT, helper implementation or concurrency test.
 """
-import argparse, hashlib, json, re, subprocess
+import argparse, hashlib, json, re, subprocess, shutil
 from pathlib import Path
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--mutation',choices=['bounds','aliases','prune','base','null','call','copy']);p.add_argument('--cc',required=True);p.add_argument('--keep-output',required=True,type=Path)
@@ -44,9 +44,10 @@ if a.mutation:
  if a.mutation=='null': source=source.replace('release_reference_state(state, id));','release_reference_state(state, regs[regno].ref_obj_id));',1)
 a.keep_output.mkdir(parents=True,exist_ok=False)
 f=a.keep_output/'production.c';f.write_text(source)
-cmd=[a.cc,'-std=gnu11','-g','-O1','-Wall','-Wextra','-Wno-sign-compare','-Wno-unused-variable','-Werror','-Wno-unused-function','-Wno-unused-parameter','-fsanitize=address,undefined','-fno-omit-frame-pointer',str(f),'-o',str(a.keep_output/'test')]
-receipt={'mutation':a.mutation,'command':cmd,'production_sources':{},'cases':[]}
-for n in ['kernel/bpf/verifier.c','kernel/bpf/verifier_refs.inc','include/linux/bpf_verifier.h','include/linux/bpf.h']:
+cmd=[a.cc,'-DBPF_UAPI_HEADER="'+str(root/'include/uapi/linux/bpf.h')+'"','-std=gnu11','-g','-O1','-Wall','-Wextra','-Wno-sign-compare','-Wno-unused-variable','-Werror','-Wno-unused-function','-Wno-unused-parameter','-fsanitize=address,undefined','-fno-omit-frame-pointer',str(f),'-o',str(a.keep_output/'test')]
+compiler=Path(shutil.which(a.cc) or a.cc).resolve()
+receipt={'source_commit':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),'source_dirty':bool(subprocess.check_output(['git','-C',str(root),'status','--porcelain'],text=True)),'compiler':{'path':str(compiler),'sha256':hashlib.sha256(compiler.read_bytes()).hexdigest(),'version':subprocess.check_output([a.cc,'--version'],text=True)},'mutation':a.mutation,'command':cmd,'production_sources':{},'cases':[]}
+for n in ['kernel/bpf/verifier.c','kernel/bpf/verifier_refs.inc','include/linux/bpf_verifier.h','include/linux/bpf.h','include/uapi/linux/bpf.h','scripts/tests/test_verifier_ownership.py','scripts/tests/verifier_ownership_host.c']:
  receipt['production_sources'][n]=hashlib.sha256((root/n).read_bytes()).hexdigest()
 r=subprocess.run(cmd,capture_output=True,text=True,timeout=60);(a.keep_output/'compile.log').write_text(r.stdout+r.stderr);receipt['compile_exit']=r.returncode
 if r.returncode: print(r.stderr)
