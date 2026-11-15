@@ -1553,6 +1553,14 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 	if (err)
 		return err;
 
+	if (arg_type == ARG_PTR_TO_MAP_VALUE_OR_NULL) {
+		if (!meta->map_ptr)
+			return -EACCES;
+		if (register_is_null(*reg))
+			return 0;
+		arg_type = ARG_PTR_TO_MAP_VALUE;
+	}
+
 	if (arg_type == ARG_ANYTHING) {
 		if (is_pointer_value(env, regno)) {
 			verbose("R%d leaks addr into helper function\n", regno);
@@ -1710,6 +1718,10 @@ static int check_map_func_compatibility(struct bpf_map *map, int func_id)
 
 	/* We need a two way check, first is from map perspective ... */
 	switch (map->map_type) {
+	case BPF_MAP_TYPE_SK_STORAGE:
+		if (func_id != BPF_FUNC_sk_storage_get)
+			goto error;
+		break;
 	case BPF_MAP_TYPE_DEVMAP_HASH:
 		/* Control-plane-only candidate: no helper may consume this map.
 		 * In particular, sparse keys must never enter DEVMAP bitmaps.
@@ -1758,6 +1770,10 @@ static int check_map_func_compatibility(struct bpf_map *map, int func_id)
 
 	/* ... and second from the function itself. */
 	switch (func_id) {
+	case BPF_FUNC_sk_storage_get:
+		if (map->map_type != BPF_MAP_TYPE_SK_STORAGE)
+			goto error;
+		break;
 	case BPF_FUNC_tail_call:
 		if (map->map_type != BPF_MAP_TYPE_PROG_ARRAY)
 			goto error;

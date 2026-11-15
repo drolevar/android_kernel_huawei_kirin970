@@ -38,6 +38,7 @@
 #include <net/netlink.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
+#include <net/bpf_sk_storage.h>
 #include <net/flow_dissector.h>
 #include <linux/errno.h>
 #include <linux/timer.h>
@@ -3341,6 +3342,10 @@ static const struct bpf_func_proto *
 sock_filter_func_proto(enum bpf_func_id func_id)
 {
 	switch (func_id) {
+#ifdef CONFIG_BPF_SYSCALL
+	case BPF_FUNC_sk_storage_get:
+		return &bpf_sk_storage_get_cg_sock_proto;
+#endif
 	/* inet and inet6 sockets are created in a process
 	 * context so there is always a valid uid/gid
 	 */

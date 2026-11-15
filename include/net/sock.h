@@ -409,6 +409,9 @@ struct sock {
 	int			sk_rcvbuf;
 
 	struct sk_filter __rcu	*sk_filter;
+#ifdef CONFIG_BPF_SYSCALL
+	struct bpf_sk_storage __rcu *sk_bpf_storage;
+#endif
 	union {
 		struct socket_wq __rcu	*sk_wq;
 		struct socket_wq	*sk_wq_raw;

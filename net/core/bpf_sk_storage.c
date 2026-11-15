@@ -6,6 +6,7 @@
 #include <linux/types.h>
 #include <linux/spinlock.h>
 #include <linux/bpf.h>
+#include <linux/btf.h>
 #include <net/bpf_sk_storage.h>
 #include <net/sock.h>
 #include <uapi/linux/btf.h>
@@ -214,7 +215,7 @@ static void __selem_link_sk(struct bpf_sk_storage *sk_storage,
 			    struct bpf_sk_storage_elem *selem)
 {
 	RCU_INIT_POINTER(selem->sk_storage, sk_storage);
-	hlist_add_head(&selem->snode, &sk_storage->list);
+	hlist_add_head_rcu(&selem->snode, &sk_storage->list);
 }
 
 static void selem_unlink_map(struct bpf_sk_storage_elem *selem)
@@ -310,11 +311,11 @@ sk_storage_lookup(struct sock *sk, struct bpf_map *map, bool cacheit_lockit)
 static int check_flags(const struct bpf_sk_storage_data *old_sdata,
 		       u64 map_flags)
 {
-	if (old_sdata && (map_flags & ~BPF_F_LOCK) == BPF_NOEXIST)
+	if (old_sdata && map_flags == BPF_NOEXIST)
 		/* elem already exists */
 		return -EEXIST;
 
-	if (!old_sdata && (map_flags & ~BPF_F_LOCK) == BPF_EXIST)
+	if (!old_sdata && map_flags == BPF_EXIST)
 		/* elem doesn't exist, cannot update it */
 		return -ENOENT;
 
@@ -393,10 +394,8 @@ static struct bpf_sk_storage_data *sk_storage_update(struct sock *sk,
 	struct bpf_sk_storage_map *smap;
 	int err;
 
-	/* BPF_EXIST and BPF_NOEXIST cannot be both set */
-	if (unlikely((map_flags & ~BPF_F_LOCK) > BPF_EXIST) ||
-	    /* BPF_F_LOCK can only be used in a value with spin_lock */
-	    unlikely((map_flags & BPF_F_LOCK) && !map_value_has_spin_lock(map)))
+	/* No value spinlocks in this bounded contract. */
+	if (unlikely(map_flags > BPF_EXIST))
 		return ERR_PTR(-EINVAL);
 
 	smap = (struct bpf_sk_storage_map *)map;
@@ -421,22 +420,6 @@ static struct bpf_sk_storage_data *sk_storage_update(struct sock *sk,
 		return SDATA(selem);
 	}
 
-	if ((map_flags & BPF_F_LOCK) && !(map_flags & BPF_NOEXIST)) {
-		/* Hoping to find an old_sdata to do inline update
-		 * such that it can avoid taking the sk_storage->lock
-		 * and changing the lists.
-		 */
-		old_sdata = __sk_storage_lookup(sk_storage, smap, false);
-		err = check_flags(old_sdata, map_flags);
-		if (err)
-			return ERR_PTR(err);
-		if (old_sdata && selem_linked_to_sk(SELEM(old_sdata))) {
-			copy_map_value_locked(map, old_sdata->data,
-					      value, false);
-			return old_sdata;
-		}
-	}
-
 	raw_spin_lock_bh(&sk_storage->lock);
 
 	/* Recheck sk_storage->list under sk_storage->lock */
@@ -454,12 +437,6 @@ static struct bpf_sk_storage_data *sk_storage_update(struct sock *sk,
 	err = check_flags(old_sdata, map_flags);
 	if (err)
 		goto unlock_err;
-
-	if (old_sdata && (map_flags & BPF_F_LOCK)) {
-		copy_map_value_locked(map, old_sdata->data, value, false);
-		selem = SELEM(old_sdata);
-		goto unlock;
-	}
 
 	/* sk_storage->lock is held.  Hence, we are sure
 	 * we can unlink and uncharge the old_sdata successfully
@@ -487,7 +464,6 @@ static struct bpf_sk_storage_data *sk_storage_update(struct sock *sk,
 		__selem_unlink_sk(sk_storage, SELEM(old_sdata), false);
 	}
 
-unlock:
 	raw_spin_unlock_bh(&sk_storage->lock);
 	return SDATA(selem);
 
@@ -602,7 +578,7 @@ static void bpf_sk_storage_map_free(struct bpf_map *map)
 static int bpf_sk_storage_map_alloc_check(union bpf_attr *attr)
 {
 	if (attr->map_flags != BPF_F_NO_PREALLOC || attr->max_entries ||
-	    attr->key_size != sizeof(int) || !attr->value_size ||
+	    attr->key_size != sizeof(int) || attr->value_size != 128 ||
 	    /* Enforce BTF for userspace sk dumping */
 	    !attr->btf_key_type_id || !attr->btf_value_type_id)
 		return -EINVAL;
@@ -627,21 +603,36 @@ static struct bpf_map *bpf_sk_storage_map_alloc(union bpf_attr *attr)
 	unsigned int i;
 	u32 nbuckets;
 	u64 cost;
+	int err;
+
+	err = bpf_sk_storage_map_alloc_check(attr);
+	if (err)
+		return ERR_PTR(err);
 
 	smap = kzalloc(sizeof(*smap), GFP_USER | __GFP_NOWARN);
 	if (!smap)
 		return ERR_PTR(-ENOMEM);
-	bpf_map_init_from_attr(&smap->map, attr);
+	smap->map.map_type = attr->map_type;
+	smap->map.key_size = attr->key_size;
+	smap->map.value_size = attr->value_size;
+	smap->map.map_flags = attr->map_flags;
 
-	smap->bucket_log = ilog2(roundup_pow_of_two(num_possible_cpus()));
+	smap->bucket_log = ilog2(roundup_pow_of_two(
+				max_t(u32, 2, num_possible_cpus())));
 	nbuckets = 1U << smap->bucket_log;
-	smap->buckets = kvcalloc(sizeof(*smap->buckets), nbuckets,
-				 GFP_USER | __GFP_NOWARN);
+	cost = (u64)sizeof(*smap->buckets) * nbuckets + sizeof(*smap);
+	smap->map.pages = round_up(cost, PAGE_SIZE) >> PAGE_SHIFT;
+	err = bpf_map_precharge_memlock(smap->map.pages);
+	if (err) {
+		kfree(smap);
+		return ERR_PTR(err);
+	}
+	smap->buckets = kvzalloc((size_t)sizeof(*smap->buckets) * nbuckets,
+				GFP_USER | __GFP_NOWARN);
 	if (!smap->buckets) {
 		kfree(smap);
 		return ERR_PTR(-ENOMEM);
 	}
-	cost = sizeof(*smap->buckets) * nbuckets + sizeof(*smap);
 
 	for (i = 0; i < nbuckets; i++) {
 		INIT_HLIST_HEAD(&smap->buckets[i].list);
@@ -662,12 +653,64 @@ static int notsupp_get_next_key(struct bpf_map *map, void *key,
 	return -ENOTSUPP;
 }
 
+/* This subset has no value-lock machinery. Walk inline types instead of
+ * silently accepting a bpf_spin_lock (including nested/array definitions).
+ * Bound both recursion and total work for adversarial but valid BTF graphs.
+ */
+static int sk_storage_btf_value(const struct btf *btf,
+				const struct btf_type *type,
+				u32 depth, u32 *budget)
+{
+	const struct btf_member *member;
+	u32 kind, i, id;
+	const char *name;
+	int err;
+
+	if (!type || depth > 16 || !*budget)
+		return -EOPNOTSUPP;
+	--*budget;
+	kind = BTF_INFO_KIND(type->info);
+	switch (kind) {
+	case BTF_KIND_INT:
+	case BTF_KIND_ENUM:
+	case BTF_KIND_PTR:
+		return 0;
+	case BTF_KIND_TYPEDEF:
+	case BTF_KIND_VOLATILE:
+	case BTF_KIND_CONST:
+	case BTF_KIND_RESTRICT:
+		id = type->type;
+		break;
+	case BTF_KIND_ARRAY:
+		id = ((const struct btf_array *)(type + 1))->type;
+		break;
+	case BTF_KIND_STRUCT:
+	case BTF_KIND_UNION:
+		name = btf_name_by_offset(btf, type->name_off);
+		if (!name || !strcmp(name, "bpf_spin_lock"))
+			return -EOPNOTSUPP;
+		member = (const struct btf_member *)(type + 1);
+		for (i = 0; i < BTF_INFO_VLEN(type->info); i++) {
+			err = sk_storage_btf_value(btf,
+				btf_type_by_id(btf, member[i].type),
+				depth + 1, budget);
+			if (err)
+				return err;
+		}
+		return 0;
+	default:
+		return -EOPNOTSUPP;
+	}
+	return sk_storage_btf_value(btf, btf_type_by_id(btf, id),
+				    depth + 1, budget);
+}
+
 static int bpf_sk_storage_map_check_btf(const struct bpf_map *map,
 					const struct btf *btf,
 					const struct btf_type *key_type,
 					const struct btf_type *value_type)
 {
-	u32 int_data;
+	u32 int_data, budget = 1024;
 
 	if (BTF_INFO_KIND(key_type->info) != BTF_KIND_INT)
 		return -EINVAL;
@@ -676,7 +719,7 @@ static int bpf_sk_storage_map_check_btf(const struct bpf_map *map,
 	if (BTF_INT_BITS(int_data) != 32 || BTF_INT_OFFSET(int_data))
 		return -EINVAL;
 
-	return 0;
+	return sk_storage_btf_value(btf, value_type, 0, &budget);
 }
 
 static void *bpf_fd_sk_storage_lookup_elem(struct bpf_map *map, void *key)
@@ -688,6 +731,10 @@ static void *bpf_fd_sk_storage_lookup_elem(struct bpf_map *map, void *key)
 	fd = *(int *)key;
 	sock = sockfd_lookup(fd, &err);
 	if (sock) {
+		if (!sock->sk || !sk_fullsock(sock->sk)) {
+			sockfd_put(sock);
+			return ERR_PTR(-EINVAL);
+		}
 		sdata = sk_storage_lookup(sock->sk, map, true);
 		sockfd_put(sock);
 		return sdata ? sdata->data : NULL;
@@ -706,6 +753,10 @@ static int bpf_fd_sk_storage_update_elem(struct bpf_map *map, void *key,
 	fd = *(int *)key;
 	sock = sockfd_lookup(fd, &err);
 	if (sock) {
+		if (!sock->sk || !sk_fullsock(sock->sk)) {
+			sockfd_put(sock);
+			return -EINVAL;
+		}
 		sdata = sk_storage_update(sock->sk, map, value, map_flags);
 		sockfd_put(sock);
 		return IS_ERR(sdata) ? PTR_ERR(sdata) : 0;
@@ -722,6 +773,10 @@ static int bpf_fd_sk_storage_delete_elem(struct bpf_map *map, void *key)
 	fd = *(int *)key;
 	sock = sockfd_lookup(fd, &err);
 	if (sock) {
+		if (!sock->sk || !sk_fullsock(sock->sk)) {
+			sockfd_put(sock);
+			return -EINVAL;
+		}
 		err = sk_storage_delete(sock->sk, map);
 		sockfd_put(sock);
 		return err;
@@ -735,7 +790,7 @@ BPF_CALL_4(bpf_sk_storage_get, struct bpf_map *, map, struct sock *, sk,
 {
 	struct bpf_sk_storage_data *sdata;
 
-	if (flags > BPF_SK_STORAGE_GET_F_CREATE)
+	if (!sk || !sk_fullsock(sk) || flags > BPF_SK_STORAGE_GET_F_CREATE)
 		return (unsigned long)NULL;
 
 	sdata = sk_storage_lookup(sk, map, true);
@@ -761,21 +816,7 @@ BPF_CALL_4(bpf_sk_storage_get, struct bpf_map *, map, struct sock *, sk,
 	return (unsigned long)NULL;
 }
 
-BPF_CALL_2(bpf_sk_storage_delete, struct bpf_map *, map, struct sock *, sk)
-{
-	if (refcount_inc_not_zero(&sk->sk_refcnt)) {
-		int err;
-
-		err = sk_storage_delete(sk, map);
-		sock_put(sk);
-		return err;
-	}
-
-	return -ENOENT;
-}
-
 const struct bpf_map_ops sk_storage_map_ops = {
-	.map_alloc_check = bpf_sk_storage_map_alloc_check,
 	.map_alloc = bpf_sk_storage_map_alloc,
 	.map_free = bpf_sk_storage_map_free,
 	.map_get_next_key = notsupp_get_next_key,
@@ -785,20 +826,15 @@ const struct bpf_map_ops sk_storage_map_ops = {
 	.map_check_btf = bpf_sk_storage_map_check_btf,
 };
 
-const struct bpf_func_proto bpf_sk_storage_get_proto = {
+/* Only CGROUP_SOCK creation context is a supported socket route here.
+ * No generic socket-pointer or borrowed skb->sk helper is exported.
+ */
+const struct bpf_func_proto bpf_sk_storage_get_cg_sock_proto = {
 	.func		= bpf_sk_storage_get,
 	.gpl_only	= false,
 	.ret_type	= RET_PTR_TO_MAP_VALUE_OR_NULL,
 	.arg1_type	= ARG_CONST_MAP_PTR,
-	.arg2_type	= ARG_PTR_TO_SOCKET,
+	.arg2_type	= ARG_PTR_TO_CTX,
 	.arg3_type	= ARG_PTR_TO_MAP_VALUE_OR_NULL,
 	.arg4_type	= ARG_ANYTHING,
-};
-
-const struct bpf_func_proto bpf_sk_storage_delete_proto = {
-	.func		= bpf_sk_storage_delete,
-	.gpl_only	= false,
-	.ret_type	= RET_INTEGER,
-	.arg1_type	= ARG_CONST_MAP_PTR,
-	.arg2_type	= ARG_PTR_TO_SOCKET,
 };

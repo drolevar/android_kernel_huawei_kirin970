@@ -1,0 +1,76 @@
+From f26ccb547b8a6e0db16aeacfb4da88c6d20b04b9 Mon Sep 17 00:00:00 2001
+From: Stanislav Fomichev <sdf@google.com>
+Date: Tue, 28 Jul 2020 17:31:03 -0700
+Subject: [PATCH] UPSTREAM: bpf: Expose socket storage to
+ BPF_PROG_TYPE_CGROUP_SOCK
+
+This lets us use socket storage from the following hooks:
+
+* BPF_CGROUP_INET_SOCK_CREATE
+* BPF_CGROUP_INET_SOCK_RELEASE
+* BPF_CGROUP_INET4_POST_BIND
+* BPF_CGROUP_INET6_POST_BIND
+
+Using existing 'bpf_sk_storage_get_proto' doesn't work because
+second argument is ARG_PTR_TO_SOCKET. Even though
+BPF_PROG_TYPE_CGROUP_SOCK hooks operate on 'struct bpf_sock',
+the verifier still considers it as a PTR_TO_CTX.
+That's why I'm adding another 'bpf_sk_storage_get_cg_sock_proto'
+definition strictly for BPF_PROG_TYPE_CGROUP_SOCK which accepts
+ARG_PTR_TO_CTX which is really 'struct sock' for this program type.
+
+Change-Id: I32bda1b9eb1f30067f58b7acb4d6140c70becdbc
+Signed-off-by: Stanislav Fomichev <sdf@google.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Song Liu <songliubraving@fb.com>
+Link: https://lore.kernel.org/bpf/20200729003104.1280813-1-sdf@google.com
+---
+ net/core/bpf_sk_storage.c | 10 ++++++++++
+ net/core/filter.c         |  3 +++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/net/core/bpf_sk_storage.c b/net/core/bpf_sk_storage.c
+index b36e601d177d..f7ecfa14a980 100644
+--- a/net/core/bpf_sk_storage.c
++++ b/net/core/bpf_sk_storage.c
+@@ -908,6 +908,16 @@ const struct bpf_func_proto bpf_sk_storage_get_proto = {
+ 	.arg4_type	= ARG_ANYTHING,
+ };
+ 
++const struct bpf_func_proto bpf_sk_storage_get_cg_sock_proto = {
++	.func		= bpf_sk_storage_get,
++	.gpl_only	= false,
++	.ret_type	= RET_PTR_TO_MAP_VALUE_OR_NULL,
++	.arg1_type	= ARG_CONST_MAP_PTR,
++	.arg2_type	= ARG_PTR_TO_CTX, /* context is 'struct sock' */
++	.arg3_type	= ARG_PTR_TO_MAP_VALUE_OR_NULL,
++	.arg4_type	= ARG_ANYTHING,
++};
++
+ const struct bpf_func_proto bpf_sk_storage_delete_proto = {
+ 	.func		= bpf_sk_storage_delete,
+ 	.gpl_only	= false,
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 00441ca51002..62bf96dc5125 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -6259,6 +6259,7 @@ bool bpf_helper_changes_pkt_data(void *func)
+ }
+ 
+ const struct bpf_func_proto bpf_event_output_data_proto __weak;
++const struct bpf_func_proto bpf_sk_storage_get_cg_sock_proto __weak;
+ 
+ static const struct bpf_func_proto *
+ sock_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -6291,6 +6292,8 @@ sock_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+ 	case BPF_FUNC_get_cgroup_classid:
+ 		return &bpf_get_cgroup_classid_curr_proto;
+ #endif
++	case BPF_FUNC_sk_storage_get:
++		return &bpf_sk_storage_get_cg_sock_proto;
+ 	default:
+ 		return bpf_base_func_proto(func_id);
+ 	}
+-- 
+2.56.0
+
