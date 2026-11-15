@@ -34,7 +34,8 @@ typedef uint32_t u32; typedef uint64_t u64; typedef unsigned gfp_t;
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL<<PAGE_SHIFT)
 #define PAGE_MASK (~(PAGE_SIZE-1))
-#define PAGE_ALIGNED(x) (!((x)&(PAGE_SIZE-1)))
+#define PAGE_ALIGNED(x) (!((uintptr_t)(x)&(PAGE_SIZE-1)))
+#define PAGE_ALIGN(x) (((x)+PAGE_SIZE-1)&PAGE_MASK)
 #define NUMA_NO_NODE -1
 #define U32_MAX UINT32_MAX
 #define ENOTSUPP 524
@@ -43,6 +44,8 @@ typedef uint32_t u32; typedef uint64_t u64; typedef unsigned gfp_t;
 #define VM_SHARED 4
 #define VM_EXEC 8
 #define VM_MAYEXEC 16
+#define VM_DONTEXPAND 32
+#define VM_DONTDUMP 64
 #define FMODE_READ 1
 #define FMODE_WRITE 2
 #define POLLERR 8
@@ -71,9 +74,17 @@ static int memfd=-1;static size_t next_page;
 struct page { size_t index; };
 static struct page *alloc_pages_node(int node,gfp_t flags,int order) { struct page *p=allocate(sizeof(*p)); if(!p)return NULL;p->index=next_page++;CHECK(!ftruncate(memfd,next_page*PAGE_SIZE));page_live++;return p; }
 static void __free_page(struct page *p) { page_live--;kfree(p); }
-static void *mapped;static size_t mapped_len;
-static void *vmap(struct page **pages,int nr,unsigned flags,int prot) { if(++allocations==fail_alloc)return NULL;CHECK(!mapped);mapped_len=nr*PAGE_SIZE;mapped=mmap(NULL,mapped_len,PROT_NONE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);CHECK(mapped!=MAP_FAILED);for(int i=0;i<nr;i++) CHECK(mmap((char *)mapped+i*PAGE_SIZE,PAGE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_FIXED,memfd,pages[i]->index*PAGE_SIZE)!=(void *)-1);vmap_live++;return mapped; }
-static void vunmap(void *p) { CHECK(p==mapped);CHECK(!munmap(p,mapped_len));mapped=NULL;vmap_live--; }
+struct vm_struct {void *addr;size_t size;unsigned flags;struct page **pages;};
+static struct vm_struct regions[8];
+static struct vm_struct *find_vm_area(const void *p) {uintptr_t x=(uintptr_t)p;for(int i=0;i<8;i++)if(regions[i].addr&&x>=(uintptr_t)regions[i].addr&&x<(uintptr_t)regions[i].addr+regions[i].size)return &regions[i];return NULL;}
+static size_t get_vm_area_size(struct vm_struct *v){return v->size;}
+static void *vmap(struct page **pages,int nr,unsigned flags,int prot) {
+ if(++allocations==fail_alloc)return NULL;int slot=0;while(slot<8&&regions[slot].addr)slot++;CHECK(slot<8);
+ size_t size=nr*PAGE_SIZE;void *base=mmap(NULL,size,PROT_NONE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);CHECK(base!=MAP_FAILED);
+ for(int i=0;i<nr;i++)CHECK(mmap((char *)base+i*PAGE_SIZE,PAGE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_FIXED,memfd,pages[i]->index*PAGE_SIZE)!=MAP_FAILED);
+ regions[slot]=(struct vm_struct){base,size,flags,pages};vmap_live++;return base;
+}
+static void vunmap(void *p) {struct vm_struct *v=find_vm_area(p);CHECK(v&&v->addr==p);CHECK(!munmap(p,v->size));memset(v,0,sizeof(*v));vmap_live--;}
 #define kmemleak_not_leak(p) ((void)(p))
 static int bpf_map_precharge_memlock(u32 pages) { CHECK(pages>0);return charge_error; }
 static void synchronize_rcu(void) { rcu_syncs++; }
@@ -105,8 +116,10 @@ typedef long atomic64_t;
 static void atomic64_inc(atomic64_t *p){++*p;}
 static void atomic64_dec(atomic64_t *p){CHECK(*p>0);--*p;}
 struct poll_table_struct {int unused;};
-static int remap_error;static unsigned long mapped_offset;static size_t remapped_length;
-static int remap_vmalloc_range(struct vm_area_struct *v,void *addr,unsigned long off) { if(remap_error)return remap_error;CHECK(addr==mapped);if(off>=mapped_len/PAGE_SIZE || v->vm_end<v->vm_start || v->vm_end-v->vm_start>mapped_len-off*PAGE_SIZE)return -EINVAL;mapped_offset=off;remapped_length=v->vm_end-v->vm_start;return 0; }
+static int remap_error,remap_calls;static unsigned long mapped_offset;static size_t remapped_length;
+static struct vm_struct *remapped_region;
+static struct page *vmalloc_to_page(void *p){struct vm_struct *v=find_vm_area(p);CHECK(v);mapped_offset=((uintptr_t)p-(uintptr_t)v->addr)/PAGE_SIZE;remapped_region=v;return v->pages[mapped_offset];}
+static int vm_insert_page(struct vm_area_struct *v,unsigned long addr,struct page *p){remap_calls++;remapped_length=v->vm_end-v->vm_start;return remap_error;}
 #define poll_wait(f,q,p) ((void)(q),pollwaits++)
 struct bpf_map {const struct bpf_map_ops *ops;bool frozen;struct mutex freeze_mutex;atomic64_t writecnt;u32 map_type,key_size,value_size,max_entries,map_flags,pages;int numa_node;};
 struct bpf_map_ops {struct bpf_map *(*map_alloc)(union bpf_attr *);void(*map_free)(struct bpf_map *);int(*map_mmap)(struct bpf_map *,struct vm_area_struct *);unsigned(*map_poll)(struct bpf_map *,struct file *,struct poll_table_struct *);void *(*map_lookup_elem)(struct bpf_map *,void *);int(*map_update_elem)(struct bpf_map *,void *,void *,u64);int(*map_delete_elem)(struct bpf_map *,void *);int(*map_get_next_key)(struct bpf_map *,void *,void *);};
@@ -204,6 +217,23 @@ int main(int argc,char **argv) {
   v.vm_flags=VM_SHARED|VM_MAYWRITE;CHECK(!bpf_map_mmap(&f,&v));CHECK(!(v.vm_flags&VM_MAYWRITE));v.vm_ops->close(&v);CHECK(!m->map.writecnt);
   CHECK(!bpf_map_poll(&f,NULL));finish(m);
 #endif
+ } else if(!strcmp(c,"foreign-region")) {
+  struct bpf_ringbuf_map *one=make(4096),*two=make(4096),*a,*b;
+  a=(uintptr_t)one->rb<(uintptr_t)two->rb?one:two;b=a==one?two:one;
+  unsigned long offset=((uintptr_t)b->rb-(uintptr_t)a->rb)/PAGE_SIZE-RINGBUF_PGOFF;
+  struct file afile={.private_data=&a->map,.f_mode=FMODE_READ,.refs=1};
+  struct vm_area_struct v={.vm_flags=VM_SHARED|VM_MAYWRITE,.vm_start=0x10000,.vm_end=0x11000,.vm_pgoff=offset,.vm_file=&afile};
+  int ret=bpf_map_mmap(&afile,&v);
+  if(ret==0)fprintf(stderr,"foreign mapping succeeded: A map offset reaches B metadata, target_is_B=%d\n",remapped_region==find_vm_area(b->rb));
+  bool rejected=ret==-EINVAL&&!remap_calls&&!v.vm_ops&&!v.vm_private_data&&v.vm_file==&afile;ringbuf_map_free(&one->map);ringbuf_map_free(&two->map);CHECK(rejected);
+ } else if(!strcmp(c,"mmap-boundary")) {
+  struct bpf_ringbuf_map *m=make(4096);struct vm_area_struct v={.vm_flags=0,.vm_start=0x10000};
+  unsigned long valid[][2]={{0,4},{1,3},{3,1},{0,1}};
+  for(unsigned i=0;i<4;i++){v.vm_pgoff=valid[i][0];v.vm_end=v.vm_start+valid[i][1]*PAGE_SIZE;CHECK(!ringbuf_map_mmap(&m->map,&v));}
+  unsigned long invalid[][2]={{4,1},{3,2},{0,5},{ULONG_MAX/PAGE_SIZE,1},{ULONG_MAX,1}};
+  for(unsigned i=0;i<5;i++){v.vm_pgoff=invalid[i][0];v.vm_end=v.vm_start+invalid[i][1]*PAGE_SIZE;int calls=remap_calls;CHECK(ringbuf_map_mmap(&m->map,&v)==-EINVAL);CHECK(remap_calls==calls);}
+  v.vm_pgoff=0;v.vm_end=v.vm_start;CHECK(ringbuf_map_mmap(&m->map,&v)==-EINVAL);v.vm_end=v.vm_start-1;CHECK(ringbuf_map_mmap(&m->map,&v)==-EINVAL);v.vm_end=v.vm_start+PAGE_SIZE-1;CHECK(ringbuf_map_mmap(&m->map,&v)==-EINVAL);
+  v.vm_end=v.vm_start+PAGE_SIZE;v.vm_flags=VM_WRITE|VM_MAYWRITE;CHECK(!ringbuf_map_mmap(&m->map,&v));CHECK((v.vm_flags&(VM_WRITE|VM_MAYWRITE))==(VM_WRITE|VM_MAYWRITE));finish(m);
  } else CHECK(0);
  CHECK(!page_live&&!alloc_live&&!vmap_live&&!queued);close(memfd);puts("PASS");return 0;
 }

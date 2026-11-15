@@ -84,3 +84,11 @@ real BPF verifier program-load acceptance. Separate producer tests execute the
 real helper bodies against modeled kernel services. Late compatibility failure
 may already allocate verifier state; the error test discards it and checks
 balanced cleanup rather than assuming failed check_call leaves state unchanged.
+
+Huawei mmap correction: the older remap_vmalloc_range implementation resolves
+the allocation after applying the offset. The callback therefore validates
+offset and length against its own exposed position and doubled-data pages before
+calling the remapper. Host tests extract the actual remapper functions with
+modeled allocation/page insertion services, cover separate synthetic regions,
+and reject invalid lengths/offsets before any page insertion. This validation
+does not perform real kernel mapping or access device memory.

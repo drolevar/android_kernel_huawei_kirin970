@@ -270,6 +270,7 @@ static int ringbuf_map_get_next_key(struct bpf_map *map, void *key,
 static int ringbuf_map_mmap(struct bpf_map *map, struct vm_area_struct *vma)
 {
 	struct bpf_ringbuf_map *rb_map;
+	unsigned long user_pages, size;
 
 	rb_map = container_of(map, struct bpf_ringbuf_map, map);
 
@@ -280,9 +281,21 @@ static int ringbuf_map_mmap(struct bpf_map *map, struct vm_area_struct *vma)
 	} else {
 		vma->vm_flags &= ~VM_MAYWRITE;
 	}
-	if (vma->vm_pgoff > ULONG_MAX - RINGBUF_PGOFF)
+	/* Huawei's remapper adds pgoff before finding the vmalloc area. It
+	 * therefore cannot prove that the result still belongs to this ring.
+	 * Bound the original exposed region (positions + both data aliases)
+	 * before passing any offset to it; do not expose private metadata or
+	 * permit an offset to select another VM_USERMAP allocation.
+	 */
+	user_pages = RINGBUF_POS_PAGES +
+		     2 * ((unsigned long)map->max_entries >> PAGE_SHIFT);
+	if (vma->vm_end <= vma->vm_start)
 		return -EINVAL;
-	/* remap_vmalloc_range() checks size and offset constraints */
+	size = vma->vm_end - vma->vm_start;
+	if (!PAGE_ALIGNED(size) || vma->vm_pgoff >= user_pages ||
+	    (size >> PAGE_SHIFT) > user_pages - vma->vm_pgoff)
+		return -EINVAL;
+
 	return remap_vmalloc_range(vma, rb_map->rb,
 				   vma->vm_pgoff + RINGBUF_PGOFF);
 }
