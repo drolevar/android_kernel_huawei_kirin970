@@ -1,0 +1,5 @@
+{
+  "manual_attempt1_equals_libbpf_open": true,
+  "manual_pre510_equals_assumed_no_func_datasec": true,
+  "manual_retry_equals_assumed_no_global_func": true
+}

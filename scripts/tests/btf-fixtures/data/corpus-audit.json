@@ -1,0 +1,7686 @@
+[
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              198,
+              0,
+              192
+            ],
+            [
+              199,
+              0,
+              192
+            ],
+            [
+              200,
+              0,
+              192
+            ],
+            [
+              201,
+              0,
+              192
+            ],
+            [
+              202,
+              0,
+              192
+            ],
+            [
+              203,
+              0,
+              192
+            ],
+            [
+              220,
+              0,
+              192
+            ],
+            [
+              221,
+              0,
+              192
+            ],
+            [
+              246,
+              0,
+              192
+            ]
+          ],
+          "id": 249,
+          "name": ".android_maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              210,
+              0,
+              180
+            ],
+            [
+              211,
+              0,
+              180
+            ],
+            [
+              212,
+              0,
+              180
+            ],
+            [
+              213,
+              0,
+              180
+            ],
+            [
+              214,
+              0,
+              180
+            ],
+            [
+              215,
+              0,
+              180
+            ],
+            [
+              216,
+              0,
+              180
+            ],
+            [
+              217,
+              0,
+              180
+            ],
+            [
+              218,
+              0,
+              180
+            ],
+            [
+              219,
+              0,
+              180
+            ],
+            [
+              222,
+              0,
+              180
+            ],
+            [
+              223,
+              0,
+              180
+            ],
+            [
+              224,
+              0,
+              180
+            ],
+            [
+              225,
+              0,
+              180
+            ],
+            [
+              226,
+              0,
+              180
+            ],
+            [
+              227,
+              0,
+              180
+            ],
+            [
+              228,
+              0,
+              180
+            ],
+            [
+              229,
+              0,
+              180
+            ],
+            [
+              230,
+              0,
+              180
+            ],
+            [
+              231,
+              0,
+              180
+            ],
+            [
+              232,
+              0,
+              180
+            ],
+            [
+              233,
+              0,
+              180
+            ],
+            [
+              234,
+              0,
+              180
+            ],
+            [
+              235,
+              0,
+              180
+            ],
+            [
+              236,
+              0,
+              180
+            ],
+            [
+              237,
+              0,
+              180
+            ],
+            [
+              238,
+              0,
+              180
+            ],
+            [
+              239,
+              0,
+              180
+            ],
+            [
+              240,
+              0,
+              180
+            ],
+            [
+              241,
+              0,
+              180
+            ],
+            [
+              242,
+              0,
+              180
+            ],
+            [
+              243,
+              0,
+              180
+            ],
+            [
+              244,
+              0,
+              180
+            ],
+            [
+              245,
+              0,
+              180
+            ]
+          ],
+          "id": 250,
+          "name": ".android_progs",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              76,
+              0,
+              40
+            ],
+            [
+              84,
+              0,
+              40
+            ],
+            [
+              88,
+              0,
+              40
+            ],
+            [
+              94,
+              0,
+              40
+            ],
+            [
+              100,
+              0,
+              40
+            ],
+            [
+              103,
+              0,
+              40
+            ],
+            [
+              107,
+              0,
+              40
+            ],
+            [
+              109,
+              0,
+              40
+            ],
+            [
+              113,
+              0,
+              40
+            ]
+          ],
+          "id": 251,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              66,
+              0,
+              8
+            ]
+          ],
+          "id": 252,
+          "name": ".maps.tether_dev_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              62,
+              0,
+              88
+            ]
+          ],
+          "id": 253,
+          "name": ".maps.tether_downstream4_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              52,
+              0,
+              88
+            ]
+          ],
+          "id": 254,
+          "name": ".maps.tether_downstream64_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              44,
+              0,
+              48
+            ]
+          ],
+          "id": 255,
+          "name": ".maps.tether_downstream6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              5,
+              0,
+              8
+            ]
+          ],
+          "id": 256,
+          "name": ".maps.tether_error_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              17,
+              0,
+              16
+            ]
+          ],
+          "id": 257,
+          "name": ".maps.tether_limit_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              13,
+              0,
+              56
+            ]
+          ],
+          "id": 258,
+          "name": ".maps.tether_stats_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              64,
+              0,
+              88
+            ]
+          ],
+          "id": 259,
+          "name": ".maps.tether_upstream4_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              56,
+              0,
+              48
+            ]
+          ],
+          "id": 260,
+          "name": ".maps.tether_upstream6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              248,
+              0,
+              11
+            ]
+          ],
+          "id": 261,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 19,
+        "CONST": 2,
+        "DATASEC": 13,
+        "ENUM": 3,
+        "FUNC": 34,
+        "FUNC_PROTO": 34,
+        "FWD": 2,
+        "INT": 10,
+        "PTR": 23,
+        "STRUCT": 32,
+        "TYPEDEF": 26,
+        "UNION": 3,
+        "VAR": 62
+      },
+      "type_count": 263,
+      "typed_externs": []
+    },
+    "elf_sha256": "9208f74bcf184d200fa05016aed00a6f162a60ed7154d71c1fc09ad30cc217dc",
+    "ext": {
+      "core_relo": {
+        "bytes": 0,
+        "records": 0,
+        "sections": []
+      },
+      "func_info": {
+        "bytes": 548,
+        "records": 34,
+        "sections": [
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_ether$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_ether$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_ether$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_ether$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_rawip$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_rawip$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$5_10"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$5_10"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$5_10"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$5_10"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$opt5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$opt5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$opt5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$opt5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$opt4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$opt4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$opt4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$opt4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$5_4"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$4_9"
+          }
+        ]
+      },
+      "line_info": {
+        "bytes": 96260,
+        "records": 5999,
+        "sections": [
+          {
+            "records": 120,
+            "section": "schedcls/tether_downstream6_ether$5_4"
+          },
+          {
+            "records": 128,
+            "section": "schedcls/tether_upstream6_ether$5_4"
+          },
+          {
+            "records": 115,
+            "section": "schedcls/tether_downstream6_ether$4_9"
+          },
+          {
+            "records": 124,
+            "section": "schedcls/tether_upstream6_ether$4_9"
+          },
+          {
+            "records": 130,
+            "section": "schedcls/tether_downstream6_rawip$5_4"
+          },
+          {
+            "records": 138,
+            "section": "schedcls/tether_upstream6_rawip$5_4"
+          },
+          {
+            "records": 125,
+            "section": "schedcls/tether_downstream6_rawip$4_14"
+          },
+          {
+            "records": 133,
+            "section": "schedcls/tether_upstream6_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream6_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream6_rawip$4_9"
+          },
+          {
+            "records": 312,
+            "section": "schedcls/tether_downstream4_rawip$5_10"
+          },
+          {
+            "records": 312,
+            "section": "schedcls/tether_upstream4_rawip$5_10"
+          },
+          {
+            "records": 276,
+            "section": "schedcls/tether_downstream4_ether$5_10"
+          },
+          {
+            "records": 276,
+            "section": "schedcls/tether_upstream4_ether$5_10"
+          },
+          {
+            "records": 312,
+            "section": "schedcls/tether_downstream4_rawip$opt5_4"
+          },
+          {
+            "records": 312,
+            "section": "schedcls/tether_upstream4_rawip$opt5_4"
+          },
+          {
+            "records": 276,
+            "section": "schedcls/tether_downstream4_ether$opt5_4"
+          },
+          {
+            "records": 276,
+            "section": "schedcls/tether_upstream4_ether$opt5_4"
+          },
+          {
+            "records": 303,
+            "section": "schedcls/tether_downstream4_rawip$opt4_14"
+          },
+          {
+            "records": 303,
+            "section": "schedcls/tether_upstream4_rawip$opt4_14"
+          },
+          {
+            "records": 268,
+            "section": "schedcls/tether_downstream4_ether$opt4_14"
+          },
+          {
+            "records": 268,
+            "section": "schedcls/tether_upstream4_ether$opt4_14"
+          },
+          {
+            "records": 194,
+            "section": "schedcls/tether_downstream4_rawip$5_4"
+          },
+          {
+            "records": 194,
+            "section": "schedcls/tether_upstream4_rawip$5_4"
+          },
+          {
+            "records": 190,
+            "section": "schedcls/tether_downstream4_rawip$4_14"
+          },
+          {
+            "records": 190,
+            "section": "schedcls/tether_upstream4_rawip$4_14"
+          },
+          {
+            "records": 181,
+            "section": "schedcls/tether_downstream4_ether$5_4"
+          },
+          {
+            "records": 181,
+            "section": "schedcls/tether_upstream4_ether$5_4"
+          },
+          {
+            "records": 178,
+            "section": "schedcls/tether_downstream4_ether$4_14"
+          },
+          {
+            "records": 178,
+            "section": "schedcls/tether_upstream4_ether$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_downstream4_ether$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/tether_upstream4_ether$4_9"
+          }
+        ]
+      }
+    },
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 31,
+          "name": "tether_error_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 6,
+          "max_entries": 16,
+          "name": "tether_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 1,
+          "value_size": 48,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 14,
+          "max_entries": 16,
+          "name": "tether_limit_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 15
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 18,
+          "max_entries": 64,
+          "name": "tether_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 48,
+          "key_type_id": 45,
+          "max_entries": 1024,
+          "name": "tether_downstream64_map",
+          "resolved_key_size": 48,
+          "resolved_value_size": 40,
+          "type": 1,
+          "value_size": 40,
+          "value_type_id": 47
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 24,
+          "key_type_id": 53,
+          "max_entries": 64,
+          "name": "tether_upstream6_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 24,
+          "key_type_id": 57,
+          "max_entries": 1024,
+          "name": "tether_downstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 24,
+          "key_type_id": 57,
+          "max_entries": 1024,
+          "name": "tether_upstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 64,
+          "name": "tether_dev_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 25,
+          "value_size": 4,
+          "value_type_id": 1
+        }
+      ],
+      "open_errno": 0
+    },
+    "manual": {
+      "attempts": 2,
+      "maps": [
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_error_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 6,
+          "kv_ret": 0,
+          "name": "tether_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 1,
+          "value_size": 48,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 14,
+          "kv_ret": 0,
+          "name": "tether_limit_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 15
+        },
+        {
+          "flags": 0,
+          "key_size": 28,
+          "key_type_id": 18,
+          "kv_ret": 0,
+          "name": "tether_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 48,
+          "key_type_id": 45,
+          "kv_ret": 0,
+          "name": "tether_downstream64_map",
+          "resolved_key_size": 48,
+          "resolved_value_size": 40,
+          "type": 1,
+          "value_size": 40,
+          "value_type_id": 47
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 53,
+          "kv_ret": 0,
+          "name": "tether_upstream6_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_downstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_upstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_dev_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 25,
+          "value_size": 4,
+          "value_type_id": 1
+        }
+      ],
+      "ret": 0
+    },
+    "manual-pre510": {
+      "attempts": 2,
+      "maps": [
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_error_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 6,
+          "kv_ret": 0,
+          "name": "tether_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 1,
+          "value_size": 48,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 14,
+          "kv_ret": 0,
+          "name": "tether_limit_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 15
+        },
+        {
+          "flags": 0,
+          "key_size": 28,
+          "key_type_id": 18,
+          "kv_ret": 0,
+          "name": "tether_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 48,
+          "key_type_id": 45,
+          "kv_ret": 0,
+          "name": "tether_downstream64_map",
+          "resolved_key_size": 48,
+          "resolved_value_size": 40,
+          "type": 1,
+          "value_size": 40,
+          "value_type_id": 47
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 53,
+          "kv_ret": 0,
+          "name": "tether_upstream6_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_downstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_upstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_dev_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 25,
+          "value_size": 4,
+          "value_type_id": 1
+        }
+      ],
+      "ret": 0
+    },
+    "manual-success": {
+      "attempts": 1,
+      "maps": [
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_error_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 6,
+          "kv_ret": 0,
+          "name": "tether_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 1,
+          "value_size": 48,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 14,
+          "kv_ret": 0,
+          "name": "tether_limit_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 15
+        },
+        {
+          "flags": 0,
+          "key_size": 28,
+          "key_type_id": 18,
+          "kv_ret": 0,
+          "name": "tether_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 48,
+          "key_type_id": 45,
+          "kv_ret": 0,
+          "name": "tether_downstream64_map",
+          "resolved_key_size": 48,
+          "resolved_value_size": 40,
+          "type": 1,
+          "value_size": 40,
+          "value_type_id": 47
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 53,
+          "kv_ret": 0,
+          "name": "tether_upstream6_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 37
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_downstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 24,
+          "key_type_id": 57,
+          "kv_ret": 0,
+          "name": "tether_upstream4_map",
+          "resolved_key_size": 24,
+          "resolved_value_size": 64,
+          "type": 1,
+          "value_size": 64,
+          "value_type_id": 59
+        },
+        {
+          "flags": 0,
+          "key_size": 4,
+          "key_type_id": 1,
+          "kv_ret": 0,
+          "name": "tether_dev_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 25,
+          "value_size": 4,
+          "value_type_id": 1
+        }
+      ],
+      "ret": 0
+    },
+    "name": "offload.o",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "ec1a4753cbec18c56470f4d9500b0c835983e00ac84546ed708a00a169c2ac49",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 573933,
+        "size": 5142,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 3,
+        "link": 0,
+        "name": "schedcls/tether_downstream6_ether$5_4",
+        "offset": 64,
+        "size": 2560,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 4,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream6_ether$5_4",
+        "offset": 433440,
+        "size": 256,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 5,
+        "link": 0,
+        "name": "schedcls/tether_upstream6_ether$5_4",
+        "offset": 2624,
+        "size": 2672,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 6,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream6_ether$5_4",
+        "offset": 433696,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 7,
+        "link": 0,
+        "name": "schedcls/tether_downstream6_ether$4_9",
+        "offset": 5296,
+        "size": 2408,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 8,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream6_ether$4_9",
+        "offset": 433968,
+        "size": 224,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 9,
+        "link": 0,
+        "name": "schedcls/tether_upstream6_ether$4_9",
+        "offset": 7704,
+        "size": 2504,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 10,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream6_ether$4_9",
+        "offset": 434192,
+        "size": 240,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 11,
+        "link": 0,
+        "name": "schedcls/tether_downstream6_rawip$5_4",
+        "offset": 10208,
+        "size": 2560,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 12,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream6_rawip$5_4",
+        "offset": 434432,
+        "size": 288,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 13,
+        "link": 0,
+        "name": "schedcls/tether_upstream6_rawip$5_4",
+        "offset": 12768,
+        "size": 2680,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 14,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream6_rawip$5_4",
+        "offset": 434720,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 15,
+        "link": 0,
+        "name": "schedcls/tether_downstream6_rawip$4_14",
+        "offset": 15448,
+        "size": 2424,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 16,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream6_rawip$4_14",
+        "offset": 435024,
+        "size": 256,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 17,
+        "link": 0,
+        "name": "schedcls/tether_upstream6_rawip$4_14",
+        "offset": 17872,
+        "size": 2520,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 18,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream6_rawip$4_14",
+        "offset": 435280,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 19,
+        "link": 0,
+        "name": "schedcls/tether_downstream6_rawip$4_9",
+        "offset": 20392,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 20,
+        "link": 0,
+        "name": "schedcls/tether_upstream6_rawip$4_9",
+        "offset": 20408,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 21,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$5_10",
+        "offset": 20424,
+        "size": 6064,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 22,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_rawip$5_10",
+        "offset": 435552,
+        "size": 528,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 23,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$5_10",
+        "offset": 26488,
+        "size": 6064,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 24,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_rawip$5_10",
+        "offset": 436080,
+        "size": 528,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 25,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$5_10",
+        "offset": 32552,
+        "size": 5728,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 26,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_ether$5_10",
+        "offset": 436608,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 27,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$5_10",
+        "offset": 38280,
+        "size": 5728,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 28,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_ether$5_10",
+        "offset": 437072,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 29,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$opt5_4",
+        "offset": 44008,
+        "size": 6064,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 30,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_rawip$opt5_4",
+        "offset": 437536,
+        "size": 528,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 31,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$opt5_4",
+        "offset": 50072,
+        "size": 6064,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 32,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_rawip$opt5_4",
+        "offset": 438064,
+        "size": 528,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 33,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$opt5_4",
+        "offset": 56136,
+        "size": 5728,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 34,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_ether$opt5_4",
+        "offset": 438592,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 35,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$opt5_4",
+        "offset": 61864,
+        "size": 5728,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 36,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_ether$opt5_4",
+        "offset": 439056,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 37,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$opt4_14",
+        "offset": 67592,
+        "size": 5752,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 38,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_rawip$opt4_14",
+        "offset": 439520,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 39,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$opt4_14",
+        "offset": 73344,
+        "size": 5752,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 40,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_rawip$opt4_14",
+        "offset": 439984,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 41,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$opt4_14",
+        "offset": 79096,
+        "size": 5392,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 42,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_ether$opt4_14",
+        "offset": 440448,
+        "size": 400,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 43,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$opt4_14",
+        "offset": 84488,
+        "size": 5392,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 44,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_ether$opt4_14",
+        "offset": 440848,
+        "size": 400,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 45,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$5_4",
+        "offset": 89880,
+        "size": 3712,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 46,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_rawip$5_4",
+        "offset": 441248,
+        "size": 336,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 47,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$5_4",
+        "offset": 93592,
+        "size": 3712,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 48,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_rawip$5_4",
+        "offset": 441584,
+        "size": 336,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 49,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$4_14",
+        "offset": 97304,
+        "size": 3544,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 50,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_rawip$4_14",
+        "offset": 441920,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 51,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$4_14",
+        "offset": 100848,
+        "size": 3544,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 52,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_rawip$4_14",
+        "offset": 442224,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 53,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$5_4",
+        "offset": 104392,
+        "size": 3584,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 54,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_ether$5_4",
+        "offset": 442528,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 55,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$5_4",
+        "offset": 107976,
+        "size": 3584,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 56,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_ether$5_4",
+        "offset": 442832,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 57,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$4_14",
+        "offset": 111560,
+        "size": 3408,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 58,
+        "link": 98,
+        "name": ".relschedcls/tether_downstream4_ether$4_14",
+        "offset": 443136,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 59,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$4_14",
+        "offset": 114968,
+        "size": 3408,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 60,
+        "link": 98,
+        "name": ".relschedcls/tether_upstream4_ether$4_14",
+        "offset": 443408,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 61,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_rawip$4_9",
+        "offset": 118376,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 62,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_rawip$4_9",
+        "offset": 118392,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 63,
+        "link": 0,
+        "name": "schedcls/tether_downstream4_ether$4_9",
+        "offset": 118408,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 64,
+        "link": 0,
+        "name": "schedcls/tether_upstream4_ether$4_9",
+        "offset": 118424,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 65,
+        "link": 0,
+        "name": ".android_maps",
+        "offset": 118440,
+        "size": 1728,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 66,
+        "link": 0,
+        "name": ".maps.tether_error_map",
+        "offset": 120168,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 67,
+        "link": 0,
+        "name": ".maps.tether_stats_map",
+        "offset": 120176,
+        "size": 56,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 68,
+        "link": 0,
+        "name": ".maps.tether_limit_map",
+        "offset": 120232,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 69,
+        "link": 0,
+        "name": ".maps.tether_downstream6_map",
+        "offset": 120248,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 70,
+        "link": 0,
+        "name": ".maps.tether_downstream64_map",
+        "offset": 120296,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 71,
+        "link": 0,
+        "name": ".maps.tether_upstream6_map",
+        "offset": 120384,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 72,
+        "link": 0,
+        "name": ".android_progs",
+        "offset": 120432,
+        "size": 6120,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 73,
+        "link": 0,
+        "name": ".maps.tether_downstream4_map",
+        "offset": 126552,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 74,
+        "link": 0,
+        "name": ".maps.tether_upstream4_map",
+        "offset": 126640,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 75,
+        "link": 0,
+        "name": ".maps.tether_dev_map",
+        "offset": 126728,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 76,
+        "link": 0,
+        "name": "license",
+        "offset": 126736,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 77,
+        "link": 0,
+        "name": ".maps",
+        "offset": 126752,
+        "size": 360,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 78,
+        "link": 0,
+        "name": ".debug_loclists",
+        "offset": 127112,
+        "size": 59747,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 79,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 186859,
+        "size": 855,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 80,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 187714,
+        "size": 50423,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 81,
+        "link": 98,
+        "name": ".rel.debug_info",
+        "offset": 443680,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 82,
+        "link": 0,
+        "name": ".debug_rnglists",
+        "offset": 238137,
+        "size": 2396,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 83,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 240533,
+        "size": 2316,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 84,
+        "link": 98,
+        "name": ".rel.debug_str_offsets",
+        "offset": 443776,
+        "size": 9232,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 85,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 242849,
+        "size": 10889,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 86,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 253738,
+        "size": 10648,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 87,
+        "link": 98,
+        "name": ".rel.debug_addr",
+        "offset": 453008,
+        "size": 21280,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 88,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 264388,
+        "size": 29027,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 89,
+        "link": 98,
+        "name": ".rel.BTF",
+        "offset": 474288,
+        "size": 992,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 90,
+        "link": 0,
+        "name": ".BTF.ext",
+        "offset": 293416,
+        "size": 96840,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 91,
+        "link": 98,
+        "name": ".rel.BTF.ext",
+        "offset": 475280,
+        "size": 96528,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 92,
+        "link": 0,
+        "name": ".debug_frame",
+        "offset": 390256,
+        "size": 832,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 93,
+        "link": 98,
+        "name": ".rel.debug_frame",
+        "offset": 571808,
+        "size": 1088,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 94,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 391088,
+        "size": 38569,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 95,
+        "link": 98,
+        "name": ".rel.debug_line",
+        "offset": 572896,
+        "size": 928,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 96,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 429657,
+        "size": 399,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 97,
+        "link": 98,
+        "name": ".llvm_addrsig",
+        "offset": 573824,
+        "size": 109,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 98,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 430056,
+        "size": 3384,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  },
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              71,
+              0,
+              192
+            ],
+            [
+              72,
+              0,
+              192
+            ],
+            [
+              73,
+              0,
+              192
+            ],
+            [
+              74,
+              0,
+              192
+            ],
+            [
+              75,
+              0,
+              192
+            ]
+          ],
+          "id": 78,
+          "name": ".android_maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              52,
+              0,
+              40
+            ],
+            [
+              54,
+              0,
+              40
+            ],
+            [
+              56,
+              0,
+              40
+            ],
+            [
+              61,
+              0,
+              40
+            ],
+            [
+              65,
+              0,
+              40
+            ]
+          ],
+          "id": 79,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              42,
+              0,
+              16
+            ]
+          ],
+          "id": 80,
+          "name": ".maps.bitmap",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              36,
+              0,
+              8
+            ]
+          ],
+          "id": 81,
+          "name": ".maps.kernel_stats_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              32,
+              0,
+              48
+            ]
+          ],
+          "id": 82,
+          "name": ".maps.tether2_downstream6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              34,
+              0,
+              48
+            ]
+          ],
+          "id": 83,
+          "name": ".maps.tether3_downstream6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              30,
+              0,
+              48
+            ]
+          ],
+          "id": 84,
+          "name": ".maps.tether_downstream6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              77,
+              0,
+              11
+            ]
+          ],
+          "id": 85,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 12,
+        "CONST": 1,
+        "DATASEC": 8,
+        "ENUM": 1,
+        "INT": 7,
+        "PTR": 9,
+        "STRUCT": 15,
+        "TYPEDEF": 15,
+        "UNION": 1,
+        "VAR": 16
+      },
+      "type_count": 85,
+      "typed_externs": []
+    },
+    "elf_sha256": "90abe957bdf958d125b47037bfd21aa95d6f5033627a5776d8893836ae005bda",
+    "ext": null,
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "tether_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 23
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "tether2_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 23
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "tether3_downstream6_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 20,
+          "type": 1,
+          "value_size": 20,
+          "value_type_id": 23
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 3,
+          "max_entries": 2,
+          "name": "kernel_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 3
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 37,
+          "max_entries": 2,
+          "name": "bitmap",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 2,
+          "value_size": 8,
+          "value_type_id": 38
+        }
+      ],
+      "open_errno": 0
+    },
+    "name": "test.o",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "8c36044ef64e99c37d29c030cbc6e445f740a66c4f887739ab1483d4c94e94c0",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 13928,
+        "size": 589,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 3,
+        "link": 0,
+        "name": ".android_maps",
+        "offset": 64,
+        "size": 960,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 4,
+        "link": 0,
+        "name": ".maps.tether_downstream6_map",
+        "offset": 1024,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 5,
+        "link": 0,
+        "name": ".maps.tether2_downstream6_map",
+        "offset": 1072,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 6,
+        "link": 0,
+        "name": ".maps.tether3_downstream6_map",
+        "offset": 1120,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 7,
+        "link": 0,
+        "name": ".maps.kernel_stats_map",
+        "offset": 1168,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 8,
+        "link": 0,
+        "name": ".maps.bitmap",
+        "offset": 1176,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 9,
+        "link": 0,
+        "name": "license",
+        "offset": 1192,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 10,
+        "link": 0,
+        "name": ".maps",
+        "offset": 1208,
+        "size": 200,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 11,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 1408,
+        "size": 174,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 12,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 1582,
+        "size": 1336,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 13,
+        "link": 25,
+        "name": ".rel.debug_info",
+        "offset": 11288,
+        "size": 64,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 14,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 2918,
+        "size": 460,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 15,
+        "link": 25,
+        "name": ".rel.debug_str_offsets",
+        "offset": 11352,
+        "size": 1808,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 16,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 3378,
+        "size": 2086,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 17,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 5464,
+        "size": 136,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 18,
+        "link": 25,
+        "name": ".rel.debug_addr",
+        "offset": 13160,
+        "size": 256,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 19,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 5600,
+        "size": 4554,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 20,
+        "link": 25,
+        "name": ".rel.BTF",
+        "offset": 13416,
+        "size": 256,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 21,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 10154,
+        "size": 255,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 22,
+        "link": 25,
+        "name": ".rel.debug_line",
+        "offset": 13672,
+        "size": 240,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 23,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 10409,
+        "size": 297,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 24,
+        "link": 25,
+        "name": ".llvm_addrsig",
+        "offset": 13912,
+        "size": 16,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 25,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 10712,
+        "size": 576,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  },
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              79,
+              0,
+              192
+            ],
+            [
+              89,
+              0,
+              192
+            ]
+          ],
+          "id": 93,
+          "name": ".android_maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              85,
+              0,
+              180
+            ],
+            [
+              86,
+              0,
+              180
+            ],
+            [
+              87,
+              0,
+              180
+            ],
+            [
+              88,
+              0,
+              180
+            ],
+            [
+              90,
+              0,
+              180
+            ]
+          ],
+          "id": 94,
+          "name": ".android_progs",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              48,
+              0,
+              40
+            ],
+            [
+              52,
+              0,
+              40
+            ]
+          ],
+          "id": 95,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              37,
+              0,
+              64
+            ]
+          ],
+          "id": 96,
+          "name": ".maps.clat_egress4_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              27,
+              0,
+              64
+            ]
+          ],
+          "id": 97,
+          "name": ".maps.clat_ingress6_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              92,
+              0,
+              11
+            ]
+          ],
+          "id": 98,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 12,
+        "CONST": 2,
+        "DATASEC": 6,
+        "ENUM": 3,
+        "FUNC": 5,
+        "FUNC_PROTO": 5,
+        "FWD": 2,
+        "INT": 10,
+        "PTR": 10,
+        "STRUCT": 13,
+        "TYPEDEF": 17,
+        "UNION": 3,
+        "VAR": 12
+      },
+      "type_count": 100,
+      "typed_externs": []
+    },
+    "elf_sha256": "966ea4779ca9a4c1a294cb25f7685a6edd9f7a41f8d519c8a0f9791b062c725d",
+    "ext": {
+      "core_relo": {
+        "bytes": 0,
+        "records": 0,
+        "sections": []
+      },
+      "func_info": {
+        "bytes": 84,
+        "records": 5,
+        "sections": [
+          {
+            "records": 1,
+            "section": "schedcls/ingress6_clat_ether$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/ingress6_clat_ether$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/ingress6_clat_rawip$4_14"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/ingress6_clat_rawip$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/egress4_clat_rawip$4_9"
+          }
+        ]
+      },
+      "line_info": {
+        "bytes": 7628,
+        "records": 474,
+        "sections": [
+          {
+            "records": 106,
+            "section": "schedcls/ingress6_clat_ether$4_14"
+          },
+          {
+            "records": 90,
+            "section": "schedcls/ingress6_clat_ether$4_9"
+          },
+          {
+            "records": 97,
+            "section": "schedcls/ingress6_clat_rawip$4_14"
+          },
+          {
+            "records": 81,
+            "section": "schedcls/ingress6_clat_rawip$4_9"
+          },
+          {
+            "records": 100,
+            "section": "schedcls/egress4_clat_rawip$4_9"
+          }
+        ]
+      }
+    },
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 36,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "clat_ingress6_map",
+          "resolved_key_size": 36,
+          "resolved_value_size": 24,
+          "type": 1,
+          "value_size": 24,
+          "value_type_id": 19
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 8,
+          "key_type_id": 28,
+          "max_entries": 16,
+          "name": "clat_egress4_map",
+          "resolved_key_size": 8,
+          "resolved_value_size": 56,
+          "type": 1,
+          "value_size": 56,
+          "value_type_id": 30
+        }
+      ],
+      "open_errno": 0
+    },
+    "name": "clatd.o",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "e04ab8e9622dfd7ab3ae47091997b8d909d64e3bfb01daa3b0526638da563779",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 76865,
+        "size": 959,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 3,
+        "link": 0,
+        "name": "schedcls/ingress6_clat_ether$4_14",
+        "offset": 64,
+        "size": 3064,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 4,
+        "link": 39,
+        "name": ".relschedcls/ingress6_clat_ether$4_14",
+        "offset": 61440,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 5,
+        "link": 0,
+        "name": "schedcls/ingress6_clat_ether$4_9",
+        "offset": 3128,
+        "size": 2736,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 6,
+        "link": 39,
+        "name": ".relschedcls/ingress6_clat_ether$4_9",
+        "offset": 61456,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 7,
+        "link": 0,
+        "name": "schedcls/ingress6_clat_rawip$4_14",
+        "offset": 5864,
+        "size": 2416,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 8,
+        "link": 39,
+        "name": ".relschedcls/ingress6_clat_rawip$4_14",
+        "offset": 61472,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 9,
+        "link": 0,
+        "name": "schedcls/ingress6_clat_rawip$4_9",
+        "offset": 8280,
+        "size": 2096,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 10,
+        "link": 39,
+        "name": ".relschedcls/ingress6_clat_rawip$4_9",
+        "offset": 61488,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 11,
+        "link": 0,
+        "name": "schedcls/egress4_clat_rawip$4_9",
+        "offset": 10376,
+        "size": 1976,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 12,
+        "link": 39,
+        "name": ".relschedcls/egress4_clat_rawip$4_9",
+        "offset": 61504,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 13,
+        "link": 0,
+        "name": ".android_maps",
+        "offset": 12352,
+        "size": 384,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 14,
+        "link": 0,
+        "name": ".maps.clat_ingress6_map",
+        "offset": 12736,
+        "size": 64,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 15,
+        "link": 0,
+        "name": ".android_progs",
+        "offset": 12800,
+        "size": 900,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 16,
+        "link": 0,
+        "name": ".maps.clat_egress4_map",
+        "offset": 13704,
+        "size": 64,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 17,
+        "link": 0,
+        "name": "license",
+        "offset": 13768,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 18,
+        "link": 0,
+        "name": ".maps",
+        "offset": 13784,
+        "size": 80,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 19,
+        "link": 0,
+        "name": ".debug_loclists",
+        "offset": 13864,
+        "size": 7482,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 20,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 21346,
+        "size": 918,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 21,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 22264,
+        "size": 5146,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 22,
+        "link": 39,
+        "name": ".rel.debug_info",
+        "offset": 61520,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 23,
+        "link": 0,
+        "name": ".debug_rnglists",
+        "offset": 27410,
+        "size": 203,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 24,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 27613,
+        "size": 1552,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 25,
+        "link": 39,
+        "name": ".rel.debug_str_offsets",
+        "offset": 61616,
+        "size": 6176,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 26,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 29165,
+        "size": 6158,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 27,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 35323,
+        "size": 296,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 28,
+        "link": 39,
+        "name": ".rel.debug_addr",
+        "offset": 67792,
+        "size": 576,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 29,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 35620,
+        "size": 13746,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 30,
+        "link": 39,
+        "name": ".rel.BTF",
+        "offset": 68368,
+        "size": 192,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 31,
+        "link": 0,
+        "name": ".BTF.ext",
+        "offset": 49368,
+        "size": 7744,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 32,
+        "link": 39,
+        "name": ".rel.BTF.ext",
+        "offset": 68560,
+        "size": 7664,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 33,
+        "link": 0,
+        "name": ".debug_frame",
+        "offset": 57112,
+        "size": 136,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 34,
+        "link": 39,
+        "name": ".rel.debug_frame",
+        "offset": 76224,
+        "size": 160,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 35,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 57248,
+        "size": 3000,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 36,
+        "link": 39,
+        "name": ".rel.debug_line",
+        "offset": 76384,
+        "size": 464,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 37,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 60248,
+        "size": 398,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 38,
+        "link": 39,
+        "name": ".llvm_addrsig",
+        "offset": 76848,
+        "size": 17,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 39,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 60648,
+        "size": 792,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  },
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              74,
+              0,
+              192
+            ],
+            [
+              75,
+              0,
+              192
+            ],
+            [
+              76,
+              0,
+              192
+            ]
+          ],
+          "id": 85,
+          "name": ".android_maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              82,
+              0,
+              180
+            ]
+          ],
+          "id": 86,
+          "name": ".android_progs",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              46,
+              0,
+              40
+            ],
+            [
+              53,
+              0,
+              40
+            ],
+            [
+              55,
+              0,
+              40
+            ]
+          ],
+          "id": 87,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              33,
+              0,
+              52
+            ]
+          ],
+          "id": 88,
+          "name": ".maps.ipv4_dscp_policies_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              35,
+              0,
+              52
+            ]
+          ],
+          "id": 89,
+          "name": ".maps.ipv6_dscp_policies_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              28,
+              0,
+              48
+            ]
+          ],
+          "id": 90,
+          "name": ".maps.socket_policy_cache_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              84,
+              0,
+              11
+            ]
+          ],
+          "id": 91,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 14,
+        "CONST": 2,
+        "DATASEC": 7,
+        "ENUM": 3,
+        "FUNC": 1,
+        "FUNC_PROTO": 1,
+        "FWD": 2,
+        "INT": 10,
+        "PTR": 11,
+        "STRUCT": 12,
+        "TYPEDEF": 16,
+        "UNION": 3,
+        "VAR": 11
+      },
+      "type_count": 93,
+      "typed_externs": []
+    },
+    "elf_sha256": "63c6225cee0cd5460f23e0204e193c50897c8c18622e439bac2c647f8833b1b1",
+    "ext": {
+      "core_relo": {
+        "bytes": 0,
+        "records": 0,
+        "sections": []
+      },
+      "func_info": {
+        "bytes": 20,
+        "records": 1,
+        "sections": [
+          {
+            "records": 1,
+            "section": "schedcls/set_dscp_ether$5_15"
+          }
+        ]
+      },
+      "line_info": {
+        "bytes": 3452,
+        "records": 215,
+        "sections": [
+          {
+            "records": 215,
+            "section": "schedcls/set_dscp_ether$5_15"
+          }
+        ]
+      }
+    },
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 32,
+          "name": "socket_policy_cache_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 44,
+          "type": 6,
+          "value_size": 44,
+          "value_type_id": 4
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "ipv4_dscp_policies_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 2,
+          "value_size": 48,
+          "value_type_id": 29
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 16,
+          "name": "ipv6_dscp_policies_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 48,
+          "type": 2,
+          "value_size": 48,
+          "value_type_id": 29
+        }
+      ],
+      "open_errno": 0
+    },
+    "name": "dscpPolicy.o",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "0641e62fe57fdba24609a87d48b6b25d900dac218e9ff41ba0c1bd7430d3e41d",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 50268,
+        "size": 648,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 3,
+        "link": 0,
+        "name": "schedcls/set_dscp_ether$5_15",
+        "offset": 64,
+        "size": 4408,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 4,
+        "link": 32,
+        "name": ".relschedcls/set_dscp_ether$5_15",
+        "offset": 39008,
+        "size": 64,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 5,
+        "link": 0,
+        "name": ".android_maps",
+        "offset": 4472,
+        "size": 576,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 6,
+        "link": 0,
+        "name": ".maps.socket_policy_cache_map",
+        "offset": 5048,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 7,
+        "link": 0,
+        "name": ".maps.ipv4_dscp_policies_map",
+        "offset": 5096,
+        "size": 52,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 8,
+        "link": 0,
+        "name": ".maps.ipv6_dscp_policies_map",
+        "offset": 5148,
+        "size": 52,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 9,
+        "link": 0,
+        "name": ".android_progs",
+        "offset": 5200,
+        "size": 180,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 10,
+        "link": 0,
+        "name": "license",
+        "offset": 5380,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 11,
+        "link": 0,
+        "name": ".maps",
+        "offset": 5392,
+        "size": 120,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 12,
+        "link": 0,
+        "name": ".debug_loclists",
+        "offset": 5512,
+        "size": 1839,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 13,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 7351,
+        "size": 769,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 14,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 8120,
+        "size": 5015,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 15,
+        "link": 32,
+        "name": ".rel.debug_info",
+        "offset": 39072,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 16,
+        "link": 0,
+        "name": ".debug_rnglists",
+        "offset": 13135,
+        "size": 61,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 17,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 13196,
+        "size": 1612,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 18,
+        "link": 32,
+        "name": ".rel.debug_str_offsets",
+        "offset": 39168,
+        "size": 6416,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 19,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 14808,
+        "size": 6119,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 20,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 20927,
+        "size": 320,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 21,
+        "link": 32,
+        "name": ".rel.debug_addr",
+        "offset": 45584,
+        "size": 624,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 22,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 21248,
+        "size": 11799,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 23,
+        "link": 32,
+        "name": ".rel.BTF",
+        "offset": 46208,
+        "size": 176,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 24,
+        "link": 0,
+        "name": ".BTF.ext",
+        "offset": 33048,
+        "size": 3504,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 25,
+        "link": 32,
+        "name": ".rel.BTF.ext",
+        "offset": 46384,
+        "size": 3456,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 26,
+        "link": 0,
+        "name": ".debug_frame",
+        "offset": 36552,
+        "size": 40,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 27,
+        "link": 32,
+        "name": ".rel.debug_frame",
+        "offset": 49840,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 28,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 36592,
+        "size": 1444,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 29,
+        "link": 32,
+        "name": ".rel.debug_line",
+        "offset": 49872,
+        "size": 384,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 30,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 38036,
+        "size": 395,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 31,
+        "link": 32,
+        "name": ".llvm_addrsig",
+        "offset": 50256,
+        "size": 12,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 32,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 38432,
+        "size": 576,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  },
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              382,
+              0,
+              192
+            ],
+            [
+              383,
+              0,
+              192
+            ],
+            [
+              384,
+              0,
+              192
+            ],
+            [
+              385,
+              0,
+              192
+            ],
+            [
+              386,
+              0,
+              192
+            ],
+            [
+              387,
+              0,
+              192
+            ],
+            [
+              388,
+              0,
+              192
+            ],
+            [
+              389,
+              0,
+              192
+            ],
+            [
+              390,
+              0,
+              192
+            ],
+            [
+              391,
+              0,
+              192
+            ],
+            [
+              392,
+              0,
+              192
+            ],
+            [
+              393,
+              0,
+              192
+            ],
+            [
+              394,
+              0,
+              192
+            ],
+            [
+              395,
+              0,
+              192
+            ],
+            [
+              396,
+              0,
+              192
+            ],
+            [
+              397,
+              0,
+              192
+            ],
+            [
+              398,
+              0,
+              192
+            ],
+            [
+              399,
+              0,
+              192
+            ],
+            [
+              400,
+              0,
+              192
+            ],
+            [
+              401,
+              0,
+              192
+            ],
+            [
+              402,
+              0,
+              192
+            ],
+            [
+              403,
+              0,
+              192
+            ],
+            [
+              404,
+              0,
+              192
+            ],
+            [
+              405,
+              0,
+              192
+            ],
+            [
+              406,
+              0,
+              192
+            ],
+            [
+              407,
+              0,
+              192
+            ],
+            [
+              408,
+              0,
+              192
+            ],
+            [
+              409,
+              0,
+              192
+            ],
+            [
+              410,
+              0,
+              192
+            ],
+            [
+              411,
+              0,
+              192
+            ],
+            [
+              412,
+              0,
+              192
+            ],
+            [
+              413,
+              0,
+              192
+            ],
+            [
+              414,
+              0,
+              192
+            ],
+            [
+              415,
+              0,
+              192
+            ],
+            [
+              416,
+              0,
+              192
+            ]
+          ],
+          "id": 474,
+          "name": ".android_maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              422,
+              0,
+              180
+            ],
+            [
+              423,
+              0,
+              180
+            ],
+            [
+              424,
+              0,
+              180
+            ],
+            [
+              425,
+              0,
+              180
+            ],
+            [
+              426,
+              0,
+              180
+            ],
+            [
+              427,
+              0,
+              180
+            ],
+            [
+              428,
+              0,
+              180
+            ],
+            [
+              429,
+              0,
+              180
+            ],
+            [
+              430,
+              0,
+              180
+            ],
+            [
+              431,
+              0,
+              180
+            ],
+            [
+              432,
+              0,
+              180
+            ],
+            [
+              433,
+              0,
+              180
+            ],
+            [
+              434,
+              0,
+              180
+            ],
+            [
+              435,
+              0,
+              180
+            ],
+            [
+              436,
+              0,
+              180
+            ],
+            [
+              437,
+              0,
+              180
+            ],
+            [
+              438,
+              0,
+              180
+            ],
+            [
+              439,
+              0,
+              180
+            ],
+            [
+              440,
+              0,
+              180
+            ],
+            [
+              441,
+              0,
+              180
+            ],
+            [
+              442,
+              0,
+              180
+            ],
+            [
+              443,
+              0,
+              180
+            ],
+            [
+              444,
+              0,
+              180
+            ],
+            [
+              445,
+              0,
+              180
+            ],
+            [
+              446,
+              0,
+              180
+            ],
+            [
+              447,
+              0,
+              180
+            ],
+            [
+              448,
+              0,
+              180
+            ],
+            [
+              449,
+              0,
+              180
+            ],
+            [
+              450,
+              0,
+              180
+            ],
+            [
+              451,
+              0,
+              180
+            ],
+            [
+              452,
+              0,
+              180
+            ],
+            [
+              453,
+              0,
+              180
+            ],
+            [
+              454,
+              0,
+              180
+            ],
+            [
+              455,
+              0,
+              180
+            ],
+            [
+              456,
+              0,
+              180
+            ],
+            [
+              457,
+              0,
+              180
+            ],
+            [
+              458,
+              0,
+              180
+            ],
+            [
+              459,
+              0,
+              180
+            ],
+            [
+              460,
+              0,
+              180
+            ],
+            [
+              461,
+              0,
+              180
+            ],
+            [
+              462,
+              0,
+              180
+            ],
+            [
+              463,
+              0,
+              180
+            ],
+            [
+              464,
+              0,
+              180
+            ],
+            [
+              465,
+              0,
+              180
+            ],
+            [
+              466,
+              0,
+              180
+            ],
+            [
+              467,
+              0,
+              180
+            ],
+            [
+              468,
+              0,
+              180
+            ],
+            [
+              469,
+              0,
+              180
+            ],
+            [
+              470,
+              0,
+              180
+            ],
+            [
+              471,
+              0,
+              180
+            ]
+          ],
+          "id": 475,
+          "name": ".android_progs",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              133,
+              0,
+              40
+            ],
+            [
+              139,
+              0,
+              40
+            ],
+            [
+              146,
+              0,
+              40
+            ],
+            [
+              151,
+              0,
+              40
+            ],
+            [
+              154,
+              0,
+              40
+            ],
+            [
+              159,
+              0,
+              40
+            ],
+            [
+              161,
+              0,
+              40
+            ],
+            [
+              165,
+              0,
+              40
+            ],
+            [
+              168,
+              0,
+              40
+            ],
+            [
+              172,
+              0,
+              40
+            ],
+            [
+              177,
+              0,
+              40
+            ],
+            [
+              183,
+              0,
+              40
+            ],
+            [
+              185,
+              0,
+              40
+            ],
+            [
+              188,
+              0,
+              40
+            ],
+            [
+              190,
+              0,
+              40
+            ],
+            [
+              195,
+              0,
+              40
+            ],
+            [
+              198,
+              0,
+              40
+            ],
+            [
+              200,
+              0,
+              40
+            ],
+            [
+              206,
+              0,
+              16
+            ],
+            [
+              208,
+              0,
+              40
+            ],
+            [
+              213,
+              0,
+              40
+            ],
+            [
+              215,
+              0,
+              40
+            ],
+            [
+              218,
+              0,
+              40
+            ],
+            [
+              220,
+              0,
+              40
+            ],
+            [
+              222,
+              0,
+              40
+            ],
+            [
+              226,
+              0,
+              16
+            ],
+            [
+              230,
+              0,
+              40
+            ],
+            [
+              232,
+              0,
+              40
+            ],
+            [
+              234,
+              0,
+              40
+            ],
+            [
+              238,
+              0,
+              16
+            ],
+            [
+              241,
+              0,
+              40
+            ],
+            [
+              243,
+              0,
+              40
+            ],
+            [
+              245,
+              0,
+              40
+            ],
+            [
+              247,
+              0,
+              40
+            ],
+            [
+              249,
+              0,
+              40
+            ]
+          ],
+          "id": 476,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              24,
+              0,
+              40
+            ]
+          ],
+          "id": 477,
+          "name": ".maps.app_uid_stats_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              11,
+              0,
+              16
+            ]
+          ],
+          "id": 478,
+          "name": ".maps.blocked_ports_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              5,
+              0,
+              8
+            ]
+          ],
+          "id": 479,
+          "name": ".maps.configuration_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              15,
+              0,
+              16
+            ]
+          ],
+          "id": 480,
+          "name": ".maps.cookie_tag_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              95,
+              0,
+              8
+            ]
+          ],
+          "id": 481,
+          "name": ".maps.data_saver_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              91,
+              0,
+              32
+            ]
+          ],
+          "id": 482,
+          "name": ".maps.iface_index_name_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              32,
+              0,
+              40
+            ]
+          ],
+          "id": 483,
+          "name": ".maps.iface_stats_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              62,
+              0,
+              24
+            ]
+          ],
+          "id": 484,
+          "name": ".maps.ingress_discard_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              126,
+              0,
+              8
+            ]
+          ],
+          "id": 485,
+          "name": ".maps.l4s_accecn_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              124,
+              0,
+              8
+            ]
+          ],
+          "id": 486,
+          "name": ".maps.l4s_conn_counter",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              97,
+              0,
+              32
+            ]
+          ],
+          "id": 487,
+          "name": ".maps.local_net_access_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              99,
+              0,
+              8
+            ]
+          ],
+          "id": 488,
+          "name": ".maps.local_net_blocked_uid_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              113,
+              0,
+              16
+            ]
+          ],
+          "id": 489,
+          "name": ".maps.local_net_cache_generation_id_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              109,
+              0,
+              8
+            ]
+          ],
+          "id": 490,
+          "name": ".maps.local_net_note_op_cache_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              111,
+              0,
+              8
+            ]
+          ],
+          "id": 491,
+          "name": ".maps.local_net_note_op_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              103,
+              0,
+              32
+            ]
+          ],
+          "id": 492,
+          "name": ".maps.local_net_uid_host_allowlist_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              67,
+              0,
+              8
+            ]
+          ],
+          "id": 493,
+          "name": ".maps.lock_array_test_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              69,
+              0,
+              8
+            ]
+          ],
+          "id": 494,
+          "name": ".maps.lock_hash_test_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              118,
+              0,
+              24
+            ]
+          ],
+          "id": 495,
+          "name": ".maps.loopback_access_cache_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              120,
+              0,
+              8
+            ]
+          ],
+          "id": 496,
+          "name": ".maps.loopback_access_metrics_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              122,
+              0,
+              8
+            ]
+          ],
+          "id": 497,
+          "name": ".maps.loopback_checks_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              64,
+              0,
+              8
+            ]
+          ],
+          "id": 498,
+          "name": ".maps.netd_pid_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              93,
+              0,
+              8
+            ]
+          ],
+          "id": 499,
+          "name": ".maps.packet_trace_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              107,
+              0,
+              8
+            ]
+          ],
+          "id": 500,
+          "name": ".maps.permission_propagation_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              85,
+              0,
+              136
+            ]
+          ],
+          "id": 501,
+          "name": ".maps.sk_storage",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              28,
+              0,
+              48
+            ]
+          ],
+          "id": 502,
+          "name": ".maps.stats_map_A",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              30,
+              0,
+              48
+            ]
+          ],
+          "id": 503,
+          "name": ".maps.stats_map_B",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              20,
+              0,
+              8
+            ]
+          ],
+          "id": 504,
+          "name": ".maps.uid_counterset_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              105,
+              0,
+              8
+            ]
+          ],
+          "id": 505,
+          "name": ".maps.uid_migration_enabled_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              36,
+              0,
+              12
+            ]
+          ],
+          "id": 506,
+          "name": ".maps.uid_owner_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              44,
+              0,
+              1032
+            ]
+          ],
+          "id": 507,
+          "name": ".maps.uid_permission_chunk_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              38,
+              0,
+              8
+            ]
+          ],
+          "id": 508,
+          "name": ".maps.uid_permission_map",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              473,
+              0,
+              11
+            ]
+          ],
+          "id": 509,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 31,
+        "CONST": 2,
+        "DATASEC": 36,
+        "ENUM": 4,
+        "FUNC": 50,
+        "FUNC_PROTO": 50,
+        "FWD": 1,
+        "INT": 10,
+        "PTR": 42,
+        "STRUCT": 90,
+        "TYPEDEF": 30,
+        "UNION": 11,
+        "VAR": 153
+      },
+      "type_count": 510,
+      "typed_externs": []
+    },
+    "elf_sha256": "57a1d01cb454df7426b059b95cd0be466aa8bfe45a84bf9114dd44e4c6da80be",
+    "ext": {
+      "core_relo": {
+        "bytes": 0,
+        "records": 0,
+        "sections": []
+      },
+      "func_info": {
+        "bytes": 804,
+        "records": 50,
+        "sections": [
+          {
+            "records": 1,
+            "section": "sockops/accecn_option$6_1"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/egress_accecn_eth$6_1"
+          },
+          {
+            "records": 1,
+            "section": "schedcls/egress_accecn_rawip$6_1"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$6_18_26q2"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$6_1_26q2"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_10_26q2"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_10_25q4"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_10_25q2"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_4_25q2"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_10_u"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$5_4_t"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$4_19_t"
+          },
+          {
+            "records": 1,
+            "section": "ingress/stats$4_9_t"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$6_1_26q2"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_10_26q2"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_10_25q4"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_10_25q2"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_4_25q2"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_10_u"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$5_4_t"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$4_19_t"
+          },
+          {
+            "records": 1,
+            "section": "egress/stats$4_9_t"
+          },
+          {
+            "records": 1,
+            "section": "skfilter/egress_xtbpf$4_9"
+          },
+          {
+            "records": 1,
+            "section": "skfilter/ingress_xtbpf$4_9"
+          },
+          {
+            "records": 1,
+            "section": "schedact/ingress_account$4_9"
+          },
+          {
+            "records": 1,
+            "section": "skfilter/allowlist_xtbpf$4_9"
+          },
+          {
+            "records": 1,
+            "section": "skfilter/denylist_xtbpf$4_9"
+          },
+          {
+            "records": 1,
+            "section": "cgroupsock/inet_create$5_10_t"
+          },
+          {
+            "records": 1,
+            "section": "cgroupsock/inet_create$4_14_t"
+          },
+          {
+            "records": 1,
+            "section": "cgroupsockrelease/inet_release$5_10_t"
+          },
+          {
+            "records": 1,
+            "section": "bind4/inet4_bind$5_15_t"
+          },
+          {
+            "records": 1,
+            "section": "bind4/inet4_bind$4_19_t"
+          },
+          {
+            "records": 1,
+            "section": "bind6/inet6_bind$5_15_t"
+          },
+          {
+            "records": 1,
+            "section": "bind6/inet6_bind$4_19_t"
+          },
+          {
+            "records": 1,
+            "section": "connect4/inet4_connect$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "connect6/inet6_connect$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "recvmsg4/udp4_recvmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "recvmsg6/udp6_recvmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "sendmsg4/udp4_sendmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "sendmsg6/udp6_sendmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "getsockopt/prog$6_18_v"
+          },
+          {
+            "records": 1,
+            "section": "getsockopt/prog$6_1_26q2"
+          },
+          {
+            "records": 1,
+            "section": "getsockopt/prog$6_1_v"
+          },
+          {
+            "records": 1,
+            "section": "getsockopt/prog$5_10_v"
+          },
+          {
+            "records": 1,
+            "section": "getsockopt/prog$5_4_v"
+          },
+          {
+            "records": 1,
+            "section": "setsockopt/prog$6_18_v"
+          },
+          {
+            "records": 1,
+            "section": "setsockopt/prog$6_1_26q2"
+          },
+          {
+            "records": 1,
+            "section": "setsockopt/prog$6_1_v"
+          },
+          {
+            "records": 1,
+            "section": "setsockopt/prog$5_10_v"
+          },
+          {
+            "records": 1,
+            "section": "setsockopt/prog$5_4_v"
+          }
+        ]
+      },
+      "line_info": {
+        "bytes": 113508,
+        "records": 7069,
+        "sections": [
+          {
+            "records": 50,
+            "section": "sockops/accecn_option$6_1"
+          },
+          {
+            "records": 59,
+            "section": "schedcls/egress_accecn_eth$6_1"
+          },
+          {
+            "records": 59,
+            "section": "schedcls/egress_accecn_rawip$6_1"
+          },
+          {
+            "records": 400,
+            "section": "ingress/stats$6_18_26q2"
+          },
+          {
+            "records": 490,
+            "section": "ingress/stats$6_1_26q2"
+          },
+          {
+            "records": 400,
+            "section": "ingress/stats$5_10_26q2"
+          },
+          {
+            "records": 400,
+            "section": "ingress/stats$5_10_25q4"
+          },
+          {
+            "records": 400,
+            "section": "ingress/stats$5_10_25q2"
+          },
+          {
+            "records": 217,
+            "section": "ingress/stats$5_4_25q2"
+          },
+          {
+            "records": 208,
+            "section": "ingress/stats$5_10_u"
+          },
+          {
+            "records": 174,
+            "section": "ingress/stats$5_4_t"
+          },
+          {
+            "records": 152,
+            "section": "ingress/stats$4_19_t"
+          },
+          {
+            "records": 141,
+            "section": "ingress/stats$4_9_t"
+          },
+          {
+            "records": 710,
+            "section": "egress/stats$6_1_26q2"
+          },
+          {
+            "records": 710,
+            "section": "egress/stats$5_10_26q2"
+          },
+          {
+            "records": 710,
+            "section": "egress/stats$5_10_25q4"
+          },
+          {
+            "records": 412,
+            "section": "egress/stats$5_10_25q2"
+          },
+          {
+            "records": 223,
+            "section": "egress/stats$5_4_25q2"
+          },
+          {
+            "records": 206,
+            "section": "egress/stats$5_10_u"
+          },
+          {
+            "records": 178,
+            "section": "egress/stats$5_4_t"
+          },
+          {
+            "records": 154,
+            "section": "egress/stats$4_19_t"
+          },
+          {
+            "records": 154,
+            "section": "egress/stats$4_9_t"
+          },
+          {
+            "records": 28,
+            "section": "skfilter/egress_xtbpf$4_9"
+          },
+          {
+            "records": 20,
+            "section": "skfilter/ingress_xtbpf$4_9"
+          },
+          {
+            "records": 22,
+            "section": "schedact/ingress_account$4_9"
+          },
+          {
+            "records": 8,
+            "section": "skfilter/allowlist_xtbpf$4_9"
+          },
+          {
+            "records": 8,
+            "section": "skfilter/denylist_xtbpf$4_9"
+          },
+          {
+            "records": 54,
+            "section": "cgroupsock/inet_create$5_10_t"
+          },
+          {
+            "records": 39,
+            "section": "cgroupsock/inet_create$4_14_t"
+          },
+          {
+            "records": 5,
+            "section": "cgroupsockrelease/inet_release$5_10_t"
+          },
+          {
+            "records": 42,
+            "section": "bind4/inet4_bind$5_15_t"
+          },
+          {
+            "records": 14,
+            "section": "bind4/inet4_bind$4_19_t"
+          },
+          {
+            "records": 42,
+            "section": "bind6/inet6_bind$5_15_t"
+          },
+          {
+            "records": 14,
+            "section": "bind6/inet6_bind$4_19_t"
+          },
+          {
+            "records": 1,
+            "section": "connect4/inet4_connect$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "connect6/inet6_connect$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "recvmsg4/udp4_recvmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "recvmsg6/udp6_recvmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "sendmsg4/udp4_sendmsg$4_19_v"
+          },
+          {
+            "records": 1,
+            "section": "sendmsg6/udp6_sendmsg$4_19_v"
+          },
+          {
+            "records": 20,
+            "section": "getsockopt/prog$6_18_v"
+          },
+          {
+            "records": 46,
+            "section": "getsockopt/prog$6_1_26q2"
+          },
+          {
+            "records": 20,
+            "section": "getsockopt/prog$6_1_v"
+          },
+          {
+            "records": 16,
+            "section": "getsockopt/prog$5_10_v"
+          },
+          {
+            "records": 3,
+            "section": "getsockopt/prog$5_4_v"
+          },
+          {
+            "records": 5,
+            "section": "setsockopt/prog$6_18_v"
+          },
+          {
+            "records": 37,
+            "section": "setsockopt/prog$6_1_26q2"
+          },
+          {
+            "records": 5,
+            "section": "setsockopt/prog$6_1_v"
+          },
+          {
+            "records": 5,
+            "section": "setsockopt/prog$5_10_v"
+          },
+          {
+            "records": 3,
+            "section": "setsockopt/prog$5_4_v"
+          }
+        ]
+      }
+    },
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 2,
+          "name": "configuration_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 1024,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 6,
+          "max_entries": 1024,
+          "name": "blocked_ports_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 2,
+          "value_size": 8,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 8,
+          "key_type_id": 7,
+          "max_entries": 10000,
+          "name": "cookie_tag_map",
+          "resolved_key_size": 8,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 12
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 20000,
+          "name": "uid_counterset_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 1,
+          "value_size": 1,
+          "value_type_id": 16
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 10000,
+          "name": "app_uid_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 32,
+          "type": 1,
+          "value_size": 32,
+          "value_type_id": 21
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 16,
+          "key_type_id": 25,
+          "max_entries": 5000,
+          "name": "stats_map_A",
+          "resolved_key_size": 16,
+          "resolved_value_size": 32,
+          "type": 1,
+          "value_size": 32,
+          "value_type_id": 21
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 16,
+          "key_type_id": 25,
+          "max_entries": 5000,
+          "name": "stats_map_B",
+          "resolved_key_size": 16,
+          "resolved_value_size": 32,
+          "type": 1,
+          "value_size": 32,
+          "value_type_id": 21
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1000,
+          "name": "iface_stats_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 32,
+          "type": 1,
+          "value_size": 32,
+          "value_type_id": 21
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 20000,
+          "name": "uid_owner_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 33
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 6000,
+          "name": "uid_permission_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 1,
+          "value_size": 1,
+          "value_type_id": 16
+        },
+        {
+          "flags": 1,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 900,
+          "name": "uid_permission_chunk_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1024,
+          "type": 1,
+          "value_size": 1024,
+          "value_type_id": 39
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 16,
+          "key_type_id": 45,
+          "max_entries": 100,
+          "name": "ingress_discard_map",
+          "resolved_key_size": 16,
+          "resolved_value_size": 8,
+          "type": 1,
+          "value_size": 8,
+          "value_type_id": 58
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "netd_pid_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "lock_array_test_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "lock_hash_test_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 1,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 1,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 0,
+          "name": "sk_storage",
+          "resolved_key_size": 4,
+          "resolved_value_size": 128,
+          "type": 24,
+          "value_size": 128,
+          "value_type_id": 70
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1000,
+          "name": "iface_index_name_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 16,
+          "type": 1,
+          "value_size": 16,
+          "value_type_id": 86
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "packet_trace_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 0,
+          "key_type_id": 0,
+          "max_entries": 32768,
+          "name": "packet_trace_ringbuf",
+          "type": 27,
+          "value_size": 0,
+          "value_type_id": 0
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "data_saver_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 1,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 74,
+          "max_entries": 1000,
+          "name": "local_net_access_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 1,
+          "type": 11,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 1,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1000,
+          "name": "local_net_blocked_uid_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 1,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 1,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 28,
+          "key_type_id": 100,
+          "max_entries": 1000,
+          "name": "local_net_uid_host_allowlist_map",
+          "resolved_key_size": 28,
+          "resolved_value_size": 1,
+          "type": 11,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "uid_migration_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "permission_propagation_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 0,
+          "key_type_id": 0,
+          "max_entries": 4096,
+          "name": "local_net_note_op_ringbuf",
+          "type": 27,
+          "value_size": 0,
+          "value_type_id": 0
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 100,
+          "name": "local_net_note_op_cache_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 9,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "local_net_note_op_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "local_net_cache_generation_id_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 8,
+          "type": 2,
+          "value_size": 8,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 0,
+          "key_type_id": 0,
+          "max_entries": 8192,
+          "name": "loopback_access_ringbuf",
+          "type": 27,
+          "value_size": 0,
+          "value_type_id": 0
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 12,
+          "key_type_id": 114,
+          "max_entries": 100,
+          "name": "loopback_access_cache_map",
+          "resolved_key_size": 12,
+          "resolved_value_size": 8,
+          "type": 9,
+          "value_size": 8,
+          "value_type_id": 7
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "loopback_access_metrics_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "loopback_checks_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "l4s_conn_counter",
+          "resolved_key_size": 4,
+          "resolved_value_size": 4,
+          "type": 2,
+          "value_size": 4,
+          "value_type_id": 1
+        },
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 4,
+          "key_type_id": 1,
+          "max_entries": 1,
+          "name": "l4s_accecn_enabled_map",
+          "resolved_key_size": 4,
+          "resolved_value_size": 1,
+          "type": 2,
+          "value_size": 1,
+          "value_type_id": 65
+        }
+      ],
+      "open_errno": 0
+    },
+    "name": "netd.o",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "4208f8b2a4d2435e40af3e0f2de646dd6a04704076896ff138a765fe4441bfe1",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 756019,
+        "size": 7332,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 3,
+        "link": 0,
+        "name": "sockops/accecn_option$6_1",
+        "offset": 64,
+        "size": 640,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 4,
+        "link": 151,
+        "name": ".relsockops/accecn_option$6_1",
+        "offset": 586032,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 5,
+        "link": 0,
+        "name": "schedcls/egress_accecn_eth$6_1",
+        "offset": 704,
+        "size": 992,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 6,
+        "link": 151,
+        "name": ".relschedcls/egress_accecn_eth$6_1",
+        "offset": 586064,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 7,
+        "link": 0,
+        "name": "schedcls/egress_accecn_rawip$6_1",
+        "offset": 1696,
+        "size": 992,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 8,
+        "link": 151,
+        "name": ".relschedcls/egress_accecn_rawip$6_1",
+        "offset": 586096,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 9,
+        "link": 0,
+        "name": "ingress/stats$6_18_26q2",
+        "offset": 2688,
+        "size": 9864,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 10,
+        "link": 151,
+        "name": ".relingress/stats$6_18_26q2",
+        "offset": 586128,
+        "size": 640,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 11,
+        "link": 0,
+        "name": "ingress/stats$6_1_26q2",
+        "offset": 12552,
+        "size": 11280,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 12,
+        "link": 151,
+        "name": ".relingress/stats$6_1_26q2",
+        "offset": 586768,
+        "size": 688,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 13,
+        "link": 0,
+        "name": "ingress/stats$5_10_26q2",
+        "offset": 23832,
+        "size": 9864,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 14,
+        "link": 151,
+        "name": ".relingress/stats$5_10_26q2",
+        "offset": 587456,
+        "size": 640,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 15,
+        "link": 0,
+        "name": "ingress/stats$5_10_25q4",
+        "offset": 33696,
+        "size": 9864,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 16,
+        "link": 151,
+        "name": ".relingress/stats$5_10_25q4",
+        "offset": 588096,
+        "size": 640,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 17,
+        "link": 0,
+        "name": "ingress/stats$5_10_25q2",
+        "offset": 43560,
+        "size": 9864,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 18,
+        "link": 151,
+        "name": ".relingress/stats$5_10_25q2",
+        "offset": 588736,
+        "size": 640,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 19,
+        "link": 0,
+        "name": "ingress/stats$5_4_25q2",
+        "offset": 53424,
+        "size": 4856,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 20,
+        "link": 151,
+        "name": ".relingress/stats$5_4_25q2",
+        "offset": 589376,
+        "size": 320,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 21,
+        "link": 0,
+        "name": "ingress/stats$5_10_u",
+        "offset": 58280,
+        "size": 4096,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 22,
+        "link": 151,
+        "name": ".relingress/stats$5_10_u",
+        "offset": 589696,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 23,
+        "link": 0,
+        "name": "ingress/stats$5_4_t",
+        "offset": 62376,
+        "size": 3816,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 24,
+        "link": 151,
+        "name": ".relingress/stats$5_4_t",
+        "offset": 589968,
+        "size": 240,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 25,
+        "link": 0,
+        "name": "ingress/stats$4_19_t",
+        "offset": 66192,
+        "size": 3592,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 26,
+        "link": 151,
+        "name": ".relingress/stats$4_19_t",
+        "offset": 590208,
+        "size": 240,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 27,
+        "link": 0,
+        "name": "ingress/stats$4_9_t",
+        "offset": 69784,
+        "size": 3288,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 28,
+        "link": 151,
+        "name": ".relingress/stats$4_9_t",
+        "offset": 590448,
+        "size": 224,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 29,
+        "link": 0,
+        "name": "egress/stats$6_1_26q2",
+        "offset": 73072,
+        "size": 17768,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 30,
+        "link": 151,
+        "name": ".relegress/stats$6_1_26q2",
+        "offset": 590672,
+        "size": 1072,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 31,
+        "link": 0,
+        "name": "egress/stats$5_10_26q2",
+        "offset": 90840,
+        "size": 17768,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 32,
+        "link": 151,
+        "name": ".relegress/stats$5_10_26q2",
+        "offset": 591744,
+        "size": 1072,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 33,
+        "link": 0,
+        "name": "egress/stats$5_10_25q4",
+        "offset": 108608,
+        "size": 17768,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 34,
+        "link": 151,
+        "name": ".relegress/stats$5_10_25q4",
+        "offset": 592816,
+        "size": 1072,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 35,
+        "link": 0,
+        "name": "egress/stats$5_10_25q2",
+        "offset": 126376,
+        "size": 9896,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 36,
+        "link": 151,
+        "name": ".relegress/stats$5_10_25q2",
+        "offset": 593888,
+        "size": 688,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 37,
+        "link": 0,
+        "name": "egress/stats$5_4_25q2",
+        "offset": 136272,
+        "size": 4840,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 38,
+        "link": 151,
+        "name": ".relegress/stats$5_4_25q2",
+        "offset": 594576,
+        "size": 352,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 39,
+        "link": 0,
+        "name": "egress/stats$5_10_u",
+        "offset": 141112,
+        "size": 4168,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 40,
+        "link": 151,
+        "name": ".relegress/stats$5_10_u",
+        "offset": 594928,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 41,
+        "link": 0,
+        "name": "egress/stats$5_4_t",
+        "offset": 145280,
+        "size": 3880,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 42,
+        "link": 151,
+        "name": ".relegress/stats$5_4_t",
+        "offset": 595232,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 43,
+        "link": 0,
+        "name": "egress/stats$4_19_t",
+        "offset": 149160,
+        "size": 3768,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 44,
+        "link": 151,
+        "name": ".relegress/stats$4_19_t",
+        "offset": 595504,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 45,
+        "link": 0,
+        "name": "egress/stats$4_9_t",
+        "offset": 152928,
+        "size": 3680,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 46,
+        "link": 151,
+        "name": ".relegress/stats$4_9_t",
+        "offset": 595776,
+        "size": 272,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 47,
+        "link": 0,
+        "name": "skfilter/egress_xtbpf$4_9",
+        "offset": 156608,
+        "size": 560,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 48,
+        "link": 151,
+        "name": ".relskfilter/egress_xtbpf$4_9",
+        "offset": 596048,
+        "size": 64,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 49,
+        "link": 0,
+        "name": "skfilter/ingress_xtbpf$4_9",
+        "offset": 157168,
+        "size": 424,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 50,
+        "link": 151,
+        "name": ".relskfilter/ingress_xtbpf$4_9",
+        "offset": 596112,
+        "size": 48,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 51,
+        "link": 0,
+        "name": "schedact/ingress_account$4_9",
+        "offset": 157592,
+        "size": 440,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 52,
+        "link": 151,
+        "name": ".relschedact/ingress_account$4_9",
+        "offset": 596160,
+        "size": 48,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 53,
+        "link": 0,
+        "name": "skfilter/allowlist_xtbpf$4_9",
+        "offset": 158032,
+        "size": 224,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 54,
+        "link": 151,
+        "name": ".relskfilter/allowlist_xtbpf$4_9",
+        "offset": 596208,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 55,
+        "link": 0,
+        "name": "skfilter/denylist_xtbpf$4_9",
+        "offset": 158256,
+        "size": 128,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 56,
+        "link": 151,
+        "name": ".relskfilter/denylist_xtbpf$4_9",
+        "offset": 596224,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 57,
+        "link": 0,
+        "name": "cgroupsock/inet_create$5_10_t",
+        "offset": 158384,
+        "size": 976,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 58,
+        "link": 151,
+        "name": ".relcgroupsock/inet_create$5_10_t",
+        "offset": 596240,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 59,
+        "link": 0,
+        "name": "cgroupsock/inet_create$4_14_t",
+        "offset": 159360,
+        "size": 760,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 60,
+        "link": 151,
+        "name": ".relcgroupsock/inet_create$4_14_t",
+        "offset": 596336,
+        "size": 80,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 61,
+        "link": 0,
+        "name": "cgroupsockrelease/inet_release$5_10_t",
+        "offset": 160120,
+        "size": 80,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 62,
+        "link": 151,
+        "name": ".relcgroupsockrelease/inet_release$5_10_t",
+        "offset": 596416,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 63,
+        "link": 0,
+        "name": "bind4/inet4_bind$5_15_t",
+        "offset": 160200,
+        "size": 792,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 64,
+        "link": 151,
+        "name": ".relbind4/inet4_bind$5_15_t",
+        "offset": 596432,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 65,
+        "link": 0,
+        "name": "bind4/inet4_bind$4_19_t",
+        "offset": 160992,
+        "size": 288,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 66,
+        "link": 151,
+        "name": ".relbind4/inet4_bind$4_19_t",
+        "offset": 596464,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 67,
+        "link": 0,
+        "name": "bind6/inet6_bind$5_15_t",
+        "offset": 161280,
+        "size": 792,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 68,
+        "link": 151,
+        "name": ".relbind6/inet6_bind$5_15_t",
+        "offset": 596480,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 69,
+        "link": 0,
+        "name": "bind6/inet6_bind$4_19_t",
+        "offset": 162072,
+        "size": 288,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 70,
+        "link": 151,
+        "name": ".relbind6/inet6_bind$4_19_t",
+        "offset": 596512,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 71,
+        "link": 0,
+        "name": "connect4/inet4_connect$4_19_v",
+        "offset": 162360,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 72,
+        "link": 0,
+        "name": "connect6/inet6_connect$4_19_v",
+        "offset": 162376,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 73,
+        "link": 0,
+        "name": "recvmsg4/udp4_recvmsg$4_19_v",
+        "offset": 162392,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 74,
+        "link": 0,
+        "name": "recvmsg6/udp6_recvmsg$4_19_v",
+        "offset": 162408,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 75,
+        "link": 0,
+        "name": "sendmsg4/udp4_sendmsg$4_19_v",
+        "offset": 162424,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 76,
+        "link": 0,
+        "name": "sendmsg6/udp6_sendmsg$4_19_v",
+        "offset": 162440,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 77,
+        "link": 0,
+        "name": "getsockopt/prog$6_18_v",
+        "offset": 162456,
+        "size": 296,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 78,
+        "link": 151,
+        "name": ".relgetsockopt/prog$6_18_v",
+        "offset": 596528,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 79,
+        "link": 0,
+        "name": "getsockopt/prog$6_1_26q2",
+        "offset": 162752,
+        "size": 640,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 80,
+        "link": 151,
+        "name": ".relgetsockopt/prog$6_1_26q2",
+        "offset": 596544,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 81,
+        "link": 0,
+        "name": "getsockopt/prog$6_1_v",
+        "offset": 163392,
+        "size": 296,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 82,
+        "link": 151,
+        "name": ".relgetsockopt/prog$6_1_v",
+        "offset": 596576,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 83,
+        "link": 0,
+        "name": "getsockopt/prog$5_10_v",
+        "offset": 163688,
+        "size": 248,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 84,
+        "link": 151,
+        "name": ".relgetsockopt/prog$5_10_v",
+        "offset": 596592,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 85,
+        "link": 0,
+        "name": "getsockopt/prog$5_4_v",
+        "offset": 163936,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 86,
+        "link": 0,
+        "name": "setsockopt/prog$6_18_v",
+        "offset": 163968,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 87,
+        "link": 151,
+        "name": ".relsetsockopt/prog$6_18_v",
+        "offset": 596608,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 88,
+        "link": 0,
+        "name": "setsockopt/prog$6_1_26q2",
+        "offset": 164056,
+        "size": 536,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 89,
+        "link": 151,
+        "name": ".relsetsockopt/prog$6_1_26q2",
+        "offset": 596624,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 90,
+        "link": 0,
+        "name": "setsockopt/prog$6_1_v",
+        "offset": 164592,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 91,
+        "link": 151,
+        "name": ".relsetsockopt/prog$6_1_v",
+        "offset": 596656,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 92,
+        "link": 0,
+        "name": "setsockopt/prog$5_10_v",
+        "offset": 164680,
+        "size": 88,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 93,
+        "link": 151,
+        "name": ".relsetsockopt/prog$5_10_v",
+        "offset": 596672,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 94,
+        "link": 0,
+        "name": "setsockopt/prog$5_4_v",
+        "offset": 164768,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 95,
+        "link": 0,
+        "name": ".android_maps",
+        "offset": 164800,
+        "size": 6720,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 96,
+        "link": 0,
+        "name": ".maps.configuration_map",
+        "offset": 171520,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 97,
+        "link": 0,
+        "name": ".maps.blocked_ports_map",
+        "offset": 171528,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 98,
+        "link": 0,
+        "name": ".maps.cookie_tag_map",
+        "offset": 171544,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 99,
+        "link": 0,
+        "name": ".maps.uid_counterset_map",
+        "offset": 171560,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 100,
+        "link": 0,
+        "name": ".maps.app_uid_stats_map",
+        "offset": 171568,
+        "size": 40,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 101,
+        "link": 0,
+        "name": ".maps.stats_map_A",
+        "offset": 171608,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 102,
+        "link": 0,
+        "name": ".maps.stats_map_B",
+        "offset": 171656,
+        "size": 48,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 103,
+        "link": 0,
+        "name": ".maps.iface_stats_map",
+        "offset": 171704,
+        "size": 40,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 104,
+        "link": 0,
+        "name": ".maps.uid_owner_map",
+        "offset": 171744,
+        "size": 12,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 105,
+        "link": 0,
+        "name": ".maps.uid_permission_map",
+        "offset": 171756,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 106,
+        "link": 0,
+        "name": ".maps.uid_permission_chunk_map",
+        "offset": 171768,
+        "size": 1032,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 107,
+        "link": 0,
+        "name": ".maps.ingress_discard_map",
+        "offset": 172800,
+        "size": 24,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 108,
+        "link": 0,
+        "name": ".maps.netd_pid_map",
+        "offset": 172824,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 109,
+        "link": 0,
+        "name": ".maps.lock_array_test_map",
+        "offset": 172832,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 110,
+        "link": 0,
+        "name": ".maps.lock_hash_test_map",
+        "offset": 172840,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 111,
+        "link": 0,
+        "name": ".maps.sk_storage",
+        "offset": 172848,
+        "size": 136,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 112,
+        "link": 0,
+        "name": ".maps.iface_index_name_map",
+        "offset": 172992,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 113,
+        "link": 0,
+        "name": ".maps.packet_trace_enabled_map",
+        "offset": 173024,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 114,
+        "link": 0,
+        "name": ".maps.data_saver_enabled_map",
+        "offset": 173032,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 115,
+        "link": 0,
+        "name": ".maps.local_net_access_map",
+        "offset": 173040,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 116,
+        "link": 0,
+        "name": ".maps.local_net_blocked_uid_map",
+        "offset": 173072,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 117,
+        "link": 0,
+        "name": ".maps.local_net_uid_host_allowlist_map",
+        "offset": 173080,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 118,
+        "link": 0,
+        "name": ".maps.uid_migration_enabled_map",
+        "offset": 173112,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 119,
+        "link": 0,
+        "name": ".maps.permission_propagation_enabled_map",
+        "offset": 173120,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 120,
+        "link": 0,
+        "name": ".maps.local_net_note_op_cache_map",
+        "offset": 173128,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 121,
+        "link": 0,
+        "name": ".maps.local_net_note_op_enabled_map",
+        "offset": 173136,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 122,
+        "link": 0,
+        "name": ".maps.local_net_cache_generation_id_map",
+        "offset": 173144,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 123,
+        "link": 0,
+        "name": ".maps.loopback_access_cache_map",
+        "offset": 173160,
+        "size": 24,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 124,
+        "link": 0,
+        "name": ".maps.loopback_access_metrics_enabled_map",
+        "offset": 173184,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 125,
+        "link": 0,
+        "name": ".maps.loopback_checks_enabled_map",
+        "offset": 173192,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 126,
+        "link": 0,
+        "name": ".maps.l4s_conn_counter",
+        "offset": 173200,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 127,
+        "link": 0,
+        "name": ".maps.l4s_accecn_enabled_map",
+        "offset": 173208,
+        "size": 8,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2,
+        "index": 128,
+        "link": 0,
+        "name": ".android_progs",
+        "offset": 173216,
+        "size": 9000,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 129,
+        "link": 0,
+        "name": "license",
+        "offset": 182216,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 130,
+        "link": 0,
+        "name": ".maps",
+        "offset": 182232,
+        "size": 1328,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 131,
+        "link": 0,
+        "name": ".debug_loclists",
+        "offset": 183560,
+        "size": 59802,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 132,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 243362,
+        "size": 1228,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 133,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 244590,
+        "size": 81124,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 134,
+        "link": 151,
+        "name": ".rel.debug_info",
+        "offset": 596688,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 135,
+        "link": 0,
+        "name": ".debug_rnglists",
+        "offset": 325714,
+        "size": 5544,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 136,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 331258,
+        "size": 3932,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 137,
+        "link": 151,
+        "name": ".rel.debug_str_offsets",
+        "offset": 596784,
+        "size": 15696,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 138,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 335190,
+        "size": 17847,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 139,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 353037,
+        "size": 12048,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 140,
+        "link": 151,
+        "name": ".rel.debug_addr",
+        "offset": 612480,
+        "size": 24080,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 141,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 365088,
+        "size": 53624,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 142,
+        "link": 151,
+        "name": ".rel.BTF",
+        "offset": 636560,
+        "size": 2448,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 143,
+        "link": 0,
+        "name": ".BTF.ext",
+        "offset": 418712,
+        "size": 114344,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 144,
+        "link": 151,
+        "name": ".rel.BTF.ext",
+        "offset": 639008,
+        "size": 113904,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 145,
+        "link": 0,
+        "name": ".debug_frame",
+        "offset": 533056,
+        "size": 1216,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 146,
+        "link": 151,
+        "name": ".rel.debug_frame",
+        "offset": 752912,
+        "size": 1600,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 147,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 534272,
+        "size": 45024,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 148,
+        "link": 151,
+        "name": ".rel.debug_line",
+        "offset": 754512,
+        "size": 1168,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 149,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 579296,
+        "size": 397,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 150,
+        "link": 151,
+        "name": ".llvm_addrsig",
+        "offset": 755680,
+        "size": 339,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 151,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 579696,
+        "size": 6336,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  },
+  {
+    "btf": {
+      "datasecs": [
+        {
+          "entries": [
+            [
+              8,
+              0,
+              16
+            ]
+          ],
+          "id": 15,
+          "name": ".maps",
+          "size": 0
+        },
+        {
+          "entries": [
+            [
+              14,
+              0,
+              11
+            ]
+          ],
+          "id": 16,
+          "name": "license",
+          "size": 0
+        }
+      ],
+      "kinds": {
+        "ARRAY": 3,
+        "DATASEC": 2,
+        "FUNC": 1,
+        "FUNC_PROTO": 1,
+        "INT": 3,
+        "PTR": 3,
+        "STRUCT": 1,
+        "VAR": 2
+      },
+      "type_count": 16,
+      "typed_externs": []
+    },
+    "elf_sha256": "9d720a9a3643eaeeab3d4b1b33069fce4cc848567181ec355796ba57f03eba11",
+    "ext": {
+      "core_relo": {
+        "bytes": 0,
+        "records": 0,
+        "sections": []
+      },
+      "func_info": {
+        "bytes": 20,
+        "records": 1,
+        "sections": [
+          {
+            "records": 1,
+            "section": "skfilter/ringbuf_test"
+          }
+        ]
+      },
+      "line_info": {
+        "bytes": 92,
+        "records": 5,
+        "sections": [
+          {
+            "records": 5,
+            "section": "skfilter/ringbuf_test"
+          }
+        ]
+      }
+    },
+    "libbpf_open": {
+      "maps": [
+        {
+          "flags": 0,
+          "freeze_on_initialization": false,
+          "internal": false,
+          "key_size": 0,
+          "key_type_id": 0,
+          "max_entries": 4096,
+          "name": "test_ringbuf",
+          "type": 27,
+          "value_size": 0,
+          "value_type_id": 0
+        }
+      ],
+      "open_errno": 0
+    },
+    "name": "bpfRingbufProg.bpf",
+    "raw_btf_is_load_fixture": false,
+    "raw_btf_sha256": "5737d77a525fcbe873abed097c28a5f5151414a885b8e06016aed6a8ca3be9c4",
+    "sections": [
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 0,
+        "link": 0,
+        "name": "",
+        "offset": 0,
+        "size": 0,
+        "type": 0
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 1,
+        "link": 0,
+        "name": ".strtab",
+        "offset": 3739,
+        "size": 297,
+        "type": 3
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 2,
+        "link": 0,
+        "name": ".text",
+        "offset": 64,
+        "size": 0,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 6,
+        "index": 3,
+        "link": 0,
+        "name": "skfilter/ringbuf_test",
+        "offset": 64,
+        "size": 120,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 4,
+        "link": 26,
+        "name": ".relskfilter/ringbuf_test",
+        "offset": 3000,
+        "size": 16,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 5,
+        "link": 0,
+        "name": "license",
+        "offset": 184,
+        "size": 11,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 3,
+        "index": 6,
+        "link": 0,
+        "name": ".maps",
+        "offset": 200,
+        "size": 16,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 7,
+        "link": 0,
+        "name": ".debug_loclists",
+        "offset": 216,
+        "size": 32,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 8,
+        "link": 0,
+        "name": ".debug_abbrev",
+        "offset": 248,
+        "size": 311,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 9,
+        "link": 0,
+        "name": ".debug_info",
+        "offset": 559,
+        "size": 319,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 10,
+        "link": 26,
+        "name": ".rel.debug_info",
+        "offset": 3016,
+        "size": 80,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 11,
+        "link": 0,
+        "name": ".debug_str_offsets",
+        "offset": 878,
+        "size": 84,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 12,
+        "link": 26,
+        "name": ".rel.debug_str_offsets",
+        "offset": 3096,
+        "size": 304,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 13,
+        "link": 0,
+        "name": ".debug_str",
+        "offset": 962,
+        "size": 433,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 14,
+        "link": 0,
+        "name": ".debug_addr",
+        "offset": 1395,
+        "size": 40,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 15,
+        "link": 26,
+        "name": ".rel.debug_addr",
+        "offset": 3400,
+        "size": 64,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 16,
+        "link": 0,
+        "name": ".BTF",
+        "offset": 1436,
+        "size": 642,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 17,
+        "link": 26,
+        "name": ".rel.BTF",
+        "offset": 3464,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 18,
+        "link": 0,
+        "name": ".BTF.ext",
+        "offset": 2080,
+        "size": 144,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 19,
+        "link": 26,
+        "name": ".rel.BTF.ext",
+        "offset": 3496,
+        "size": 96,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 20,
+        "link": 0,
+        "name": ".debug_frame",
+        "offset": 2224,
+        "size": 40,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 21,
+        "link": 26,
+        "name": ".rel.debug_frame",
+        "offset": 3592,
+        "size": 32,
+        "type": 9
+      },
+      {
+        "entsize": 0,
+        "flags": 0,
+        "index": 22,
+        "link": 0,
+        "name": ".debug_line",
+        "offset": 2264,
+        "size": 174,
+        "type": 1
+      },
+      {
+        "entsize": 16,
+        "flags": 64,
+        "index": 23,
+        "link": 26,
+        "name": ".rel.debug_line",
+        "offset": 3624,
+        "size": 112,
+        "type": 9
+      },
+      {
+        "entsize": 1,
+        "flags": 48,
+        "index": 24,
+        "link": 0,
+        "name": ".debug_line_str",
+        "offset": 2438,
+        "size": 220,
+        "type": 1
+      },
+      {
+        "entsize": 0,
+        "flags": 2147483648,
+        "index": 25,
+        "link": 26,
+        "name": ".llvm_addrsig",
+        "offset": 3736,
+        "size": 3,
+        "type": 1879002115
+      },
+      {
+        "entsize": 24,
+        "flags": 0,
+        "index": 26,
+        "link": 1,
+        "name": ".symtab",
+        "offset": 2664,
+        "size": 336,
+        "type": 2
+      }
+    ],
+    "undefined_symbols": []
+  }
+]

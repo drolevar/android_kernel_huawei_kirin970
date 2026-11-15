@@ -1,0 +1,49 @@
+{
+  "candidate_parser_executed": false,
+  "fixtures": [
+    {
+      "origin": "manual/attempt1.btf",
+      "path": "manual-attempt1.btf",
+      "sha256": "d6ef273abe5f42ee68746138e89233ea4bcb0cc19aec4331c3e9551546e04adb"
+    },
+    {
+      "origin": "manual/attempt2.btf",
+      "path": "manual-attempt2.btf",
+      "sha256": "4d923b0b7700f974272f142e54b460a9c9fa0e4cca4906723fab7e1694a47005"
+    },
+    {
+      "origin": "manual-pre510/attempt1.btf",
+      "path": "manual-pre510-attempt1.btf",
+      "sha256": "b2186e9b37f3a5abf32de79019b702761f3735c387be22ea93ba3a3cffdcb25c"
+    },
+    {
+      "origin": "manual-pre510/attempt2.btf",
+      "path": "manual-pre510-attempt2.btf",
+      "sha256": "b2186e9b37f3a5abf32de79019b702761f3735c387be22ea93ba3a3cffdcb25c"
+    },
+    {
+      "expectation": "candidate parser must decide; manual loader does not validate VAR interval bounds",
+      "origin": "bounded/normalized-unsorted-1.btf",
+      "path": "normalized-unsorted.btf",
+      "sha256": "88a622e6fced727a11e9cf495886bb9be64f26de0434b5a06c8a6f0088da52a3"
+    },
+    {
+      "expectation": "candidate parser must decide; manual loader does not validate VAR interval bounds",
+      "origin": "bounded/offset-overrun-1.btf",
+      "path": "offset-overrun.btf",
+      "sha256": "00a433b0f8d9f2793cd752ba60f811dc6051527dc4fbbe729fe4bd5166251153"
+    },
+    {
+      "expectation": "candidate parser must decide; manual loader does not validate VAR interval bounds",
+      "origin": "bounded/size-overrun-1.btf",
+      "path": "size-overrun.btf",
+      "sha256": "2016e09619f23309b7d47f93baea75a612dd0c57e3e366f51323743a4ab79cb9"
+    },
+    {
+      "expectation": "candidate parser must decide; manual loader does not validate VAR interval bounds",
+      "origin": "bounded/zero-sized-var-1.btf",
+      "path": "zero-sized-var.btf",
+      "sha256": "03deaa1474f86196cb835ea37207a7b8d6b293b967da3c5b6aa130e8806d3b16"
+    }
+  ]
+}

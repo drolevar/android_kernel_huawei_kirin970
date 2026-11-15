@@ -1,0 +1,3 @@
+# These are fixture directories, not compiled object files.
+!data/libbpf/*.o/
+!data/libbpf/*.o/*.btf

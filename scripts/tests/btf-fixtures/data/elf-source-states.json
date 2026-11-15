@@ -1,0 +1,22 @@
+{
+  "packages/modules/Connectivity": {
+    "commit": "7c04d866538e6f689823b769fb5c1e614ca0e295",
+    "uncommitted_changes": false
+  },
+  "system/bpf": {
+    "commit": "1787201ef62581ee5532fdb1e5b0cbc3fb137dab",
+    "uncommitted_changes": false
+  },
+  "bionic": {
+    "commit": "ff3bb041547924ac1a7504e4b3bd3ea18169ca2f",
+    "uncommitted_changes": false
+  },
+  "system/core": {
+    "commit": "65d661b1a536701e8b118be4e9728d7b5ca727c9",
+    "uncommitted_changes": false
+  },
+  "external/libbpf": {
+    "commit": "9723b4de6459ab48b361aed3bae5df3c1bd20cb8",
+    "uncommitted_changes": false
+  }
+}
