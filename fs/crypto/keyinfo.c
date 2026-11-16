@@ -395,6 +395,7 @@ static void put_crypt_info(struct fscrypt_info *ci)
 		crypto_free_aead(ci->ci_gtfm);
 	crypto_free_skcipher(ci->ci_ctfm);
 	crypto_free_cipher(ci->ci_essiv_tfm);
+	fscrypt_mk_drop_owner(&ci->ci_owner);
 	kmem_cache_free(fscrypt_info_cachep, ci);
 }
 
@@ -526,6 +527,7 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = ctx.flags;
 	crypt_info->ci_data_mode = ctx.contents_encryption_mode;
@@ -802,6 +804,7 @@ static struct fscrypt_info *hwdps_get_fscrypt_info(struct fscrypt_context *ctx,
 	ci = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!ci)
 		return ERR_PTR(-ENOMEM);
+	fscrypt_mk_init_owner(&ci->ci_owner);
 	ci->ci_flags = ctx->flags;
 	ci->ci_data_mode = ctx->contents_encryption_mode;
 	ci->ci_filename_mode = ctx->filenames_encryption_mode;

@@ -6,6 +6,7 @@
 #include <linux/refcount.h>
 #include <linux/rwsem.h>
 #include <linux/types.h>
+#include <linux/fscrypt_owner.h>
 
 /* Internal Huawei raw-key lifetime primitive, not an ioctl or keyring ABI.
  * The registry (not yet implemented) must retain one reference, including for
@@ -32,10 +33,6 @@ struct fscrypt_mk_lease {
 	struct fscrypt_master_key *key;
 	u64 generation;
 };
-struct fscrypt_mk_owner {
-	struct fscrypt_master_key *key;
-	u64 generation;
-};
 enum fscrypt_mk_state {
 	FSCRYPT_MK_ABSENT,
 	FSCRYPT_MK_PRESENT,
@@ -56,9 +53,6 @@ int fscrypt_mk_acquire(struct fscrypt_master_key *key, u64 generation,
  */
 const u8 *fscrypt_mk_secret(const struct fscrypt_mk_lease *lease);
 void fscrypt_mk_release(struct fscrypt_mk_lease *lease);
-int fscrypt_mk_enroll(const struct fscrypt_mk_lease *lease,
-		      struct fscrypt_mk_owner *owner);
-void fscrypt_mk_drop_owner(struct fscrypt_mk_owner *owner);
 /* Remove serializes with admitted operations, wipes the secret, and reports
  * whether owners remain.  It never evicts an inode or calls a filesystem.
  */

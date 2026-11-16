@@ -54,6 +54,7 @@ static void f2fs_put_crypt_info(struct fscrypt_info *ci)
 		crypto_free_aead(ci->ci_gtfm);
 	if (ci->ci_essiv_tfm)
 		crypto_free_cipher(ci->ci_essiv_tfm);
+	fscrypt_mk_drop_owner(&ci->ci_owner);
 	kmem_cache_free(fscrypt_info_cachep, ci);
 }
 
@@ -383,6 +384,7 @@ static int f2fs_get_sdp_ece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = sdp_ctx.flags;
 	crypt_info->ci_data_mode = sdp_ctx.contents_encryption_mode;
@@ -631,6 +633,7 @@ static int f2fs_get_sdp_sece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = sdp_ctx.flags;
 	crypt_info->ci_data_mode = sdp_ctx.contents_encryption_mode;

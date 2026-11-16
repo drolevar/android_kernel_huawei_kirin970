@@ -11,6 +11,7 @@
 #include <crypto/algapi.h>
 #include <crypto/hash.h>
 #include <linux/err.h>
+#include <linux/export.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/string.h>
@@ -162,6 +163,8 @@ int fscrypt_mk_enroll(const struct fscrypt_mk_lease *lease,
 	return 0;
 }
 
+EXPORT_SYMBOL_GPL(fscrypt_mk_enroll);
+
 void fscrypt_mk_drop_owner(struct fscrypt_mk_owner *owner)
 {
 	struct fscrypt_master_key *key = owner->key;
@@ -172,6 +175,8 @@ void fscrypt_mk_drop_owner(struct fscrypt_mk_owner *owner)
 	atomic_dec(&key->owners);
 	fscrypt_mk_put(key);
 }
+
+EXPORT_SYMBOL_GPL(fscrypt_mk_drop_owner);
 
 bool fscrypt_mk_remove(struct fscrypt_master_key *key)
 {

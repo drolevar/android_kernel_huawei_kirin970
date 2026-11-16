@@ -11,6 +11,7 @@
 #define _LINUX_FSCRYPT_COMMON_H
 
 #include <linux/key.h>
+#include <linux/fscrypt_owner.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/bio.h>
@@ -57,6 +58,7 @@ struct fscrypt_context {
  * representation of an inode.
  */
 struct fscrypt_info {
+	struct fscrypt_mk_owner ci_owner;
 	u8 ci_data_mode;
 	u8 ci_filename_mode;
 	u8 ci_flags;

@@ -20,6 +20,7 @@ out = a.output.resolve()
 out.mkdir(parents=True, exist_ok=False)
 header = root / 'fs/crypto/master_key.h'
 source = root / 'fs/crypto/master_key.c'
+owner = root / 'include/linux/fscrypt_owner.h'
 if a.red_stub:
     subject = '''
 #define RED_STUB
@@ -40,7 +41,7 @@ static enum fscrypt_mk_state fscrypt_mk_status(struct fscrypt_master_key *k) { r
 static bool fscrypt_mk_remove(struct fscrypt_master_key *k) { return false; }
 '''
 else:
-    subject = re.sub(r'^#include[^\n]*\n', '', header.read_text() + '\n' + source.read_text(), flags=re.M)
+    subject = re.sub(r'^#include[^\n]*\n', '', owner.read_text() + '\n' + header.read_text() + '\n' + source.read_text(), flags=re.M)
 if a.mutation:
     mutations = {
         'remove-wipe': ('memzero_explicit(key->raw, sizeof(key->raw));\n\tkey->present = false;', 'key->present = false;'),
@@ -87,7 +88,7 @@ receipt = {'command': cmd, 'compiler': version, 'results': results,
            'mutation': a.mutation,
            'source_commit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
            'source_sha256': {str(f.relative_to(root)): hashlib.sha256(f.read_bytes()).hexdigest()
-                             for f in (header, source) if f.exists()},
+                             for f in (owner, header, source) if f.exists()},
            'test_sha256': {f.name: hashlib.sha256(f.read_bytes()).hexdigest()
                           for f in (Path(__file__), root / 'scripts/tests/huawei_fscrypt_master.c')},
            'execution': 'production core with POSIX rwlocks/C atomics and OpenSSL SHA256; simulated allocation/crypto failures; no kernel keyring/inodes/syscalls/phone'}

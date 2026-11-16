@@ -9,7 +9,7 @@ p.add_argument('--red-stub',action='store_true')
 p.add_argument('--mutation', choices=['namespace','missing-error','tombstone','lookup-ref','payload-ref','root','size','module-pin','sb-key-put','sb-module-put','link-error','duplicate','keep','init-error','exit-unregister','ring-user-search','entry-user-search','unpossessed-lookup'])
 a=p.parse_args();root=Path(__file__).resolve().parents[2];out=a.output.resolve();out.mkdir(parents=True,exist_ok=False)
 def strip(s):return re.sub(r'^#include[^\n]*\n','',s,flags=re.M)
-files=['fs/crypto/master_key.h','fs/crypto/master_key.c']
+files=['include/linux/fscrypt_owner.h','fs/crypto/master_key.h','fs/crypto/master_key.c']
 core=strip('\n'.join((root/f).read_text() for f in files))
 # Reuse the accepted core's exact test-only POSIX/OpenSSL service definitions.
 shim=(root/'scripts/tests/huawei_fscrypt_master.c').read_text().split('#include "subject.h"')[0]
@@ -34,7 +34,7 @@ static void fscrypt_registry_sb_free(struct super_block *sb) {}
 '''
 else:
  files+=['fs/crypto/registry.h','fs/crypto/keyring.c','include/linux/fscrypt_registry.h']
- subject=strip('\n'.join((root/f).read_text() for f in files[2:]))
+ subject=strip('\n'.join((root/f).read_text() for f in files[3:]))
 if not a.red_stub:
  crypto=(root/'fs/crypto/crypto.c').read_text()
  for name in ('static int __init fscrypt_init(', 'static void __exit fscrypt_exit('):

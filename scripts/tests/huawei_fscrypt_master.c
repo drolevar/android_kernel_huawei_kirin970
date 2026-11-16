@@ -17,6 +17,7 @@ typedef uint64_t u64;
 typedef atomic_int atomic_t;
 typedef atomic_uint refcount_t;
 #define U64_MAX UINT64_MAX
+#define EXPORT_SYMBOL_GPL(name)
 #define GFP_KERNEL 0
 #define SHA256_DIGEST_SIZE 32
 #define ERR_PTR(e) ((void *)(intptr_t)(e))
