@@ -168,11 +168,39 @@ struct fscrypt_name {
 /*
  * crypto opertions for filesystems
  */
+enum fscrypt_context_origin {
+	FSCRYPT_CTX_OWNED_POLICY = 0,
+	FSCRYPT_CTX_BORROWED_INHERIT = 1,
+};
+
+enum fscrypt_context_phase {
+	FSCRYPT_CTX_PREPARED = 0,
+	FSCRYPT_CTX_INSTALLED,
+	FSCRYPT_CTX_FINISHED,
+};
+
+struct fscrypt_operations;
+struct fscrypt_context_op {
+	const struct fscrypt_operations *cop;
+	struct inode *inode;
+	enum fscrypt_context_origin origin;
+	enum fscrypt_context_phase phase;
+	void *fs_data;
+	bool owns_fs_data;
+	int *retry_count;
+};
+
 struct fscrypt_operations {
 	unsigned int flags;
 	const char *key_prefix;
 	int (*get_context)(struct inode *, void *, size_t);
 	int (*set_context)(struct inode *, const void *, size_t, void *);
+	int (*prepare_context)(struct inode *, enum fscrypt_context_origin,
+			       void *, struct fscrypt_context_op **);
+	int (*set_context_prepared)(struct inode *, const void *, size_t,
+				    struct fscrypt_context_op *);
+	int (*finish_context)(struct inode *, struct fscrypt_context_op *, int,
+			      bool *);
 	bool (*dummy_context)(struct inode *);
 	bool (*is_encrypted)(struct inode *);
 	bool (*is_inline_encrypted)(struct inode *);

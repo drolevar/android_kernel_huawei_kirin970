@@ -1113,6 +1113,7 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
 	struct inode *inode;
+	struct fscrypt_ce_scope *scope = NULL;
 	int err;
 
 	err = f2fs_dquot_initialize(dir);
@@ -1133,11 +1134,16 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 	}
 
 	f2fs_lock_op(sbi);
+	if (f2fs_encrypted_inode(inode)) {
+		err = fscrypt_ce_scope_open_cached(dir, CHILD_WRAP, &scope);
+		if (err)
+			goto out;
+	}
 	err = f2fs_acquire_orphan_inode(sbi);
 	if (err)
 		goto out;
 
-	err = f2fs_do_tmpfile(inode, dentry, dir);
+	err = f2fs_do_tmpfile(inode, dentry, dir, scope);
 	if (err)
 		goto release_out;
 
@@ -1155,6 +1161,7 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 		d_tmpfile(dentry, inode);
 	}
 	/* link_count was changed by d_tmpfile as well. */
+	fscrypt_ce_scope_put(scope);
 	f2fs_unlock_op(sbi);
 	unlock_new_inode(inode);
 
@@ -1164,6 +1171,7 @@ static int __f2fs_tmpfile(struct inode *dir, struct dentry *dentry,
 release_out:
 	f2fs_release_orphan_inode(sbi);
 out:
+	fscrypt_ce_scope_put(scope);
 	f2fs_handle_failed_inode(inode);
 	return err;
 }

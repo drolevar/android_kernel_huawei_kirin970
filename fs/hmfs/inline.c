@@ -481,7 +481,7 @@ static int f2fs_add_inline_entries(struct inode *dir, void *inline_dentry)
 		fake_mode = hmfs_get_de_type(de) << S_SHIFT;
 
 		err = hmfs_add_regular_entry(dir, &new_name, NULL, NULL, NULL,
-							ino, fake_mode);
+							ino, fake_mode, NULL);
 		if (err)
 			goto punch_dentry_pages;
 
@@ -548,7 +548,8 @@ static int f2fs_convert_inline_dir(struct inode *dir, struct page *ipage,
 int hmfs_add_inline_entry(struct inode *dir, const struct qstr *new_name,
 				const struct qstr *orig_name,
 				struct dentry *dentry, struct inode *inode,
-				nid_t ino, umode_t mode)
+				nid_t ino, umode_t mode,
+				struct fscrypt_ce_scope *scope)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
 	struct page *ipage;
@@ -579,7 +580,7 @@ int hmfs_add_inline_entry(struct inode *dir, const struct qstr *new_name,
 	if (inode) {
 		down_write(&F2FS_I(inode)->i_sem);
 		page = hmfs_init_inode_metadata(inode, dentry, dir, new_name,
-						orig_name, ipage);
+						orig_name, ipage, scope);
 		if (IS_ERR(page)) {
 			err = PTR_ERR(page);
 			goto fail;

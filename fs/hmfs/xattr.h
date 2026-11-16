@@ -123,6 +123,8 @@ extern const struct xattr_handler *hmfs_xattr_handlers[];
 
 extern int hmfs_setxattr(struct inode *, int, const char *,
 				const void *, size_t, struct page *, int);
+extern int __hmfs_setxattr(struct inode *inode, int index, const char *name,
+		const void *value, size_t size, struct page *ipage, int flags);
 extern int hmfs_getxattr(struct inode *, int, const char *, void *,
 						size_t, struct page *);
 extern ssize_t hmfs_listxattr(struct dentry *, char *, size_t);
@@ -133,6 +135,13 @@ void hmfs_put_xattr_header(struct page *);
 
 #define hmfs_xattr_handlers	NULL
 static inline int hmfs_setxattr(struct inode *inode, int index,
+		const char *name, const void *value, size_t size,
+		struct page *page, int flags)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int __hmfs_setxattr(struct inode *inode, int index,
 		const char *name, const void *value, size_t size,
 		struct page *page, int flags)
 {

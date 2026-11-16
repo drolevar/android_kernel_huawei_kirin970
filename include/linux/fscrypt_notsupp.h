@@ -96,6 +96,33 @@ static inline int fscrypt_has_permitted_context(struct inode *parent,
 	return 0;
 }
 
+struct fscrypt_ce_scope;
+enum fscrypt_ce_purpose {
+	POLICY_WRAP,
+	FILE_UNWRAP,
+	SDP_CE_SOURCE,
+	CHILD_WRAP,
+};
+
+static inline int fscrypt_ce_scope_open_cached(
+		struct inode *inode, enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **scope)
+{
+	*scope = NULL;
+	return -EOPNOTSUPP;
+}
+
+static inline void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope)
+{
+}
+
+static inline int fscrypt_inherit_context_prepared(
+		struct inode *parent, struct inode *child, void *fs_data,
+		struct fscrypt_ce_scope *scope, bool preload)
+{
+	return -EOPNOTSUPP;
+}
+
 static inline int fscrypt_inherit_context(struct inode *parent,
 					  struct inode *child,
 					  void *fs_data, bool preload)

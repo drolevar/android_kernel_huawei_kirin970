@@ -102,6 +102,8 @@ if implemented:
     subject += body(inputs['fs/crypto/policy.c'],
                     'static int create_encryption_context_from_policy(') + '\n'
     subject += body(inputs['fs/crypto/policy.c'],
+                    'int fscrypt_inherit_context_prepared(') + '\n'
+    subject += body(inputs['fs/crypto/policy.c'],
                     'int fscrypt_inherit_context(') + '\n'
     subject += body(inputs['fs/f2fs/keyinfo.c'],
                     'static int f2fs_do_get_ce_fek(') + '\n'

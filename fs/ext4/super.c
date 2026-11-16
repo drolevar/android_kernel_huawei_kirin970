@@ -1198,84 +1198,134 @@ static int ext4_get_context(struct inode *inode, void *ctx, size_t len)
 				 EXT4_XATTR_NAME_ENCRYPTION_CONTEXT, ctx, len);
 }
 
-static int ext4_set_context(struct inode *inode, const void *ctx, size_t len,
-							void *fs_data)
-{
-	handle_t *handle = fs_data;
-	int res, res2, credits, retries = 0;
+struct ext4_fscrypt_context_op {
+	struct fscrypt_context_op op;
+	handle_t *handle;
+	int retries;
+	struct ext4_xattr_deferred_iputs deferred_iputs;
+};
 
-	/*
-	 * Encrypting the root directory is not allowed because e2fsck expects
-	 * lost+found to exist and be unencrypted, and encrypting the root
-	 * directory would imply encrypting the lost+found directory as well as
-	 * the filename "lost+found" itself.
-	 */
+static struct ext4_fscrypt_context_op *
+ext4_context_op(struct inode *inode, struct fscrypt_context_op *op)
+{
+	if (!op || op->cop != inode->i_sb->s_cop || op->inode != inode ||
+	    op->phase == FSCRYPT_CTX_FINISHED)
+		return NULL;
+	return container_of(op, struct ext4_fscrypt_context_op, op);
+}
+
+static int ext4_prepare_context(struct inode *inode,
+		enum fscrypt_context_origin origin, void *borrowed_fs_data,
+		struct fscrypt_context_op **out)
+{
+	struct ext4_fscrypt_context_op *ctxop;
+	handle_t *handle = borrowed_fs_data;
+	int credits;
+	int res;
+
+	if (!out)
+		return -EINVAL;
+	*out = NULL;
 	if (inode->i_ino == EXT4_ROOT_INO)
 		return -EPERM;
+	if (origin != FSCRYPT_CTX_OWNED_POLICY &&
+	    origin != FSCRYPT_CTX_BORROWED_INHERIT)
+		return -EINVAL;
+	if (origin == FSCRYPT_CTX_BORROWED_INHERIT && !handle)
+		return -EINVAL;
 
 	res = ext4_convert_inline_data(inode);
 	if (res)
 		return res;
-
-	/*
-	 * If a journal handle was specified, then the encryption context is
-	 * being set on a new inode via inheritance and is part of a larger
-	 * transaction to create the inode.  Otherwise the encryption context is
-	 * being set on an existing inode in its own transaction.  Only in the
-	 * latter case should the "retry on ENOSPC" logic be used.
-	 */
-
-	if (handle) {
-		res = ext4_xattr_set_handle(handle, inode,
-					    EXT4_XATTR_INDEX_ENCRYPTION,
-					    EXT4_XATTR_NAME_ENCRYPTION_CONTEXT,
-					    ctx, len, 0);
-		if (!res) {
-			ext4_set_inode_flag(inode, EXT4_INODE_ENCRYPT);
-			ext4_clear_inode_state(inode,
-					EXT4_STATE_MAY_INLINE_DATA);
-			/*
-			 * Update inode->i_flags - S_ENCRYPTED will be enabled,
-			 * S_DAX may be disabled
-			 */
-			ext4_set_inode_flags(inode);
-		}
-		return res;
+	if (origin == FSCRYPT_CTX_OWNED_POLICY) {
+		res = dquot_initialize(inode);
+		if (res)
+			return res;
+		res = ext4_xattr_set_credits(
+				inode, sizeof(struct fscrypt_context), false,
+				&credits);
+		if (res)
+			return res;
 	}
 
-	res = dquot_initialize(inode);
-	if (res)
-		return res;
-retry:
-	res = ext4_xattr_set_credits(inode, len, false /* is_create */,
-				     &credits);
+	ctxop = kvmalloc(sizeof(*ctxop), GFP_NOFS | __GFP_ZERO);
+	if (!ctxop)
+		return -ENOMEM;
+	ctxop->op.cop = inode->i_sb->s_cop;
+	ctxop->op.inode = inode;
+	ctxop->op.origin = origin;
+	ctxop->op.phase = FSCRYPT_CTX_PREPARED;
+	ctxop->op.owns_fs_data = origin == FSCRYPT_CTX_OWNED_POLICY;
+
+	if (origin == FSCRYPT_CTX_OWNED_POLICY) {
+		handle = ext4_journal_start(inode, EXT4_HT_MISC, credits);
+		if (IS_ERR(handle)) {
+			res = PTR_ERR(handle);
+			kvfree(ctxop);
+			return res;
+		}
+	}
+	ctxop->handle = handle;
+	ctxop->op.fs_data = handle;
+	*out = &ctxop->op;
+	return 0;
+}
+
+static int ext4_set_context_prepared(struct inode *inode, const void *ctx,
+				     size_t len,
+				     struct fscrypt_context_op *op)
+{
+	struct ext4_fscrypt_context_op *ctxop = ext4_context_op(inode, op);
+	int res;
+
+	if (!ctxop || op->phase != FSCRYPT_CTX_PREPARED)
+		return -EINVAL;
+	res = ext4_xattr_set_handle_prepared(ctxop->handle, inode,
+			EXT4_XATTR_INDEX_ENCRYPTION,
+			EXT4_XATTR_NAME_ENCRYPTION_CONTEXT, ctx, len, 0,
+			&ctxop->deferred_iputs);
+	op->phase = FSCRYPT_CTX_INSTALLED;
 	if (res)
 		return res;
 
-	handle = ext4_journal_start(inode, EXT4_HT_MISC, credits);
-	if (IS_ERR(handle))
-		return PTR_ERR(handle);
-
-	res = ext4_xattr_set_handle(handle, inode, EXT4_XATTR_INDEX_ENCRYPTION,
-				    EXT4_XATTR_NAME_ENCRYPTION_CONTEXT,
-				    ctx, len, 0);
-	if (!res) {
-		ext4_set_inode_flag(inode, EXT4_INODE_ENCRYPT);
-		/*
-		 * Update inode->i_flags - S_ENCRYPTED will be enabled,
-		 * S_DAX may be disabled
-		 */
-		ext4_set_inode_flags(inode);
-		res = ext4_mark_inode_dirty(handle, inode);
+	ext4_set_inode_flag(inode, EXT4_INODE_ENCRYPT);
+	ext4_clear_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA);
+	ext4_set_inode_flags(inode);
+	if (op->origin == FSCRYPT_CTX_OWNED_POLICY) {
+		res = ext4_mark_inode_dirty(ctxop->handle, inode);
 		if (res)
 			EXT4_ERROR_INODE(inode, "Failed to mark inode dirty");
 	}
-	res2 = ext4_journal_stop(handle);
+	return res;
+}
 
-	if (res == -ENOSPC && ext4_should_retry_alloc(inode->i_sb, &retries))
-		goto retry;
-	if (!res)
-		res = res2;
+static int ext4_finish_context(struct inode *inode,
+		struct fscrypt_context_op *op, int install_error, bool *retry)
+{
+	struct ext4_fscrypt_context_op *ctxop = ext4_context_op(inode, op);
+	bool dummy_retry;
+	int res = install_error;
+	int res2;
+
+	if (!retry)
+		retry = &dummy_retry;
+	*retry = false;
+	if (!ctxop)
+		return -EINVAL;
+	op->phase = FSCRYPT_CTX_FINISHED;
+	if (op->origin == FSCRYPT_CTX_OWNED_POLICY) {
+		res2 = ext4_journal_stop(ctxop->handle);
+		if (!res)
+			res = res2;
+		if (op->retry_count)
+			ctxop->retries = *op->retry_count;
+		*retry = res == -ENOSPC &&
+			ext4_should_retry_alloc(inode->i_sb, &ctxop->retries);
+		if (op->retry_count)
+			*op->retry_count = ctxop->retries;
+	}
+	ext4_xattr_drain_deferred_iputs(&ctxop->deferred_iputs);
+	kvfree(ctxop);
 	return res;
 }
 
@@ -1287,7 +1337,9 @@ static bool ext4_dummy_context(struct inode *inode)
 static const struct fscrypt_operations ext4_cryptops = {
 	.key_prefix		= "ext4:",
 	.get_context		= ext4_get_context,
-	.set_context		= ext4_set_context,
+	.prepare_context	= ext4_prepare_context,
+	.set_context_prepared	= ext4_set_context_prepared,
+	.finish_context		= ext4_finish_context,
 	.dummy_context		= ext4_dummy_context,
 	.empty_dir		= ext4_empty_dir,
 	.max_namelen		= EXT4_NAME_LEN,

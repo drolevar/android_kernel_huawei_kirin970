@@ -66,9 +66,13 @@ static inline struct page *fscrypt_control_page(struct page *page)
 extern void fscrypt_restore_control_page(struct page *);
 
 /* policy.c */
+struct fscrypt_ce_scope;
 extern int fscrypt_ioctl_set_policy(struct file *, const void __user *);
 extern int fscrypt_ioctl_get_policy(struct file *, void __user *);
 extern int fscrypt_has_permitted_context(struct inode *, struct inode *);
+extern int fscrypt_inherit_context_prepared(
+		struct inode *parent, struct inode *child, void *fs_data,
+		struct fscrypt_ce_scope *borrowed_scope, bool preload);
 extern int fscrypt_inherit_context(struct inode *, struct inode *,
 					void *, bool);
 
@@ -98,11 +102,13 @@ enum fscrypt_ce_purpose {
 	CHILD_WRAP,
 };
 
-struct fscrypt_ce_scope;
 extern void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner);
 extern int fscrypt_ce_scope_open(struct inode *inode,
 		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
 		enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **out);
+extern int fscrypt_ce_scope_open_cached(
+		struct inode *inode, enum fscrypt_ce_purpose purpose,
 		struct fscrypt_ce_scope **out);
 extern int fscrypt_ce_scope_crypt(struct fscrypt_ce_scope *scope,
 		const u8 *src, u8 *dst,

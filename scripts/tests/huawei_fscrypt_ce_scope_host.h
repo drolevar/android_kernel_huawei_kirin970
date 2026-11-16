@@ -382,14 +382,26 @@ struct fscrypt_info {
 };
 
 struct inode;
+enum fscrypt_context_origin {
+	FSCRYPT_CTX_OWNED_POLICY = 0,
+	FSCRYPT_CTX_BORROWED_INHERIT = 1,
+};
+struct fscrypt_context_op;
 struct operations {
 	const char *key_prefix;
 	unsigned int flags;
 	int (*set_context)(struct inode *, const void *, size_t, void *);
+	int (*prepare_context)(struct inode *, enum fscrypt_context_origin,
+			       void *, struct fscrypt_context_op **);
+	int (*set_context_prepared)(struct inode *, const void *, size_t,
+				    struct fscrypt_context_op *);
+	int (*finish_context)(struct inode *, struct fscrypt_context_op *, int,
+			      bool *);
 	int (*get_context)(struct inode *, void *, size_t);
 	int (*get_keyinfo)(struct inode *, void *, int *);
 	bool (*is_inline_encrypted)(struct inode *);
 };
+#define fscrypt_operations operations
 struct file_system_type { const char *name; };
 struct super_block {
 	struct operations *s_cop;
@@ -401,6 +413,16 @@ struct inode {
 	unsigned long i_ino;
 	unsigned int i_mode;
 };
+struct fscrypt_context_op {
+	const struct operations *cop;
+	struct inode *inode;
+	enum fscrypt_context_origin origin;
+	int phase;
+	void *fs_data;
+	bool owns_fs_data;
+	unsigned int *retry_count;
+};
+#define WARN_ON_ONCE(condition) (!!(condition))
 
 struct crypto_alg { const char *cra_driver_name; };
 struct skcipher_alg { struct crypto_alg base; };

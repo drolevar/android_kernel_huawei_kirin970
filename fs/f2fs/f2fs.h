@@ -3581,7 +3581,8 @@ void f2fs_do_make_empty_dir(struct inode *inode, struct inode *parent,
 struct page *f2fs_init_inode_metadata(struct inode *inode,
 			struct dentry *dentry, struct inode *dir,
 			const struct qstr *new_name,
-			const struct qstr *orig_name, struct page *dpage);
+			const struct qstr *orig_name, struct page *dpage,
+			struct fscrypt_ce_scope *scope);
 void f2fs_update_parent_metadata(struct inode *dir, struct inode *inode,
 			unsigned int current_depth);
 int f2fs_room_for_filename(const void *bitmap, int slots, int max_slots);
@@ -3600,7 +3601,8 @@ void f2fs_update_dentry(nid_t ino, umode_t mode, struct f2fs_dentry_ptr *d,
 			unsigned int bit_pos);
 int f2fs_add_regular_entry(struct inode *dir, const struct qstr *new_name,
 			const struct qstr *orig_name, struct dentry *dentry,
-			struct inode *inode, nid_t ino, umode_t mode);
+			struct inode *inode, nid_t ino, umode_t mode,
+			struct fscrypt_ce_scope *scope);
 int f2fs_add_dentry(struct inode *dir, struct fscrypt_name *fname,
 			struct dentry *dentry, struct inode *inode,
 			nid_t ino, umode_t mode);
@@ -3610,7 +3612,7 @@ int f2fs_do_add_link(struct inode *dir, struct dentry *dentry,
 void f2fs_delete_entry(struct f2fs_dir_entry *dentry, struct page *page,
 			struct inode *dir, struct inode *inode);
 int f2fs_do_tmpfile(struct inode *inode, struct dentry *dentry,
-			struct inode *dir);
+			struct inode *dir, struct fscrypt_ce_scope *scope);
 bool f2fs_empty_dir(struct inode *dir);
 
 static inline int f2fs_add_link(struct dentry *dentry, struct inode *inode)
@@ -4322,7 +4324,8 @@ int f2fs_make_empty_inline_dir(struct inode *inode, struct inode *parent,
 			struct page *ipage);
 int f2fs_add_inline_entry(struct inode *dir, const struct qstr *new_name,
 			const struct qstr *orig_name, struct dentry *dentry,
-			struct inode *inode, nid_t ino, umode_t mode);
+			struct inode *inode, nid_t ino, umode_t mode,
+			struct fscrypt_ce_scope *scope);
 void f2fs_delete_inline_entry(struct f2fs_dir_entry *dentry,
 				struct page *page, struct inode *dir,
 				struct inode *inode);

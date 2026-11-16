@@ -640,7 +640,7 @@ static bool f2fs_xattr_value_same(struct f2fs_xattr_entry *entry,
 					!memcmp(pval, value, size);
 }
 
-static int __hmfs_setxattr(struct inode *inode, int index,
+int __hmfs_setxattr(struct inode *inode, int index,
 			const char *name, const void *value, size_t size,
 			struct page *ipage, int flags)
 {

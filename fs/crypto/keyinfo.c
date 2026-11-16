@@ -387,6 +387,7 @@ int fscrypt_ce_scope_open_cached(struct inode *inode,
 	*out = scope;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_open_cached);
 
 bool fscrypt_ce_scope_matches(const struct fscrypt_ce_scope *scope,
 		const struct inode *inode,

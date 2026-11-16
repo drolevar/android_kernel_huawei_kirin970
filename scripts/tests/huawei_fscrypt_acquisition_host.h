@@ -160,9 +160,35 @@ static const struct user_key_payload *user_key_payload_rcu(struct key *key)
 struct fscrypt_ce_tfm;
 struct fscrypt_info { int ci_key_index; struct crypto_aead *ci_gtfm; struct fscrypt_ce_tfm *ci_gtfm_owner; };
 struct inode;
-struct operations { const char *key_prefix; int (*set_context)(struct inode *, const void *, size_t, void *); };
+enum fscrypt_context_origin {
+	FSCRYPT_CTX_OWNED_POLICY = 0,
+	FSCRYPT_CTX_BORROWED_INHERIT = 1,
+};
+
+struct fscrypt_context_op;
+struct operations {
+	const char *key_prefix;
+	int (*set_context)(struct inode *, const void *, size_t, void *);
+	int (*prepare_context)(struct inode *, enum fscrypt_context_origin,
+		void *, struct fscrypt_context_op **);
+	int (*set_context_prepared)(struct inode *, const void *, size_t,
+		struct fscrypt_context_op *);
+	int (*finish_context)(struct inode *, struct fscrypt_context_op *, int,
+		bool *);
+};
+#define fscrypt_operations operations
 struct super_block { struct operations *s_cop; };
 struct inode { struct super_block *i_sb; };
+struct fscrypt_context_op {
+	const struct operations *cop;
+	struct inode *inode;
+	enum fscrypt_context_origin origin;
+	int phase;
+	void *fs_data;
+	bool owns_fs_data;
+	unsigned int *retry_count;
+};
+#define WARN_ON_ONCE(condition) (!!(condition))
 static bool fscrypt_valid_enc_modes(u32 data, u32 names)
 { return data == FS_ENCRYPTION_MODE_AES_256_XTS && names == FS_ENCRYPTION_MODE_AES_256_CTS; }
 /* Deterministic synthetic bytes, not a random generator for production. */
