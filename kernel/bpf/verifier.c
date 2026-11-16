@@ -4927,17 +4927,15 @@ static void convert_pseudo_ld_imm64(struct bpf_verifier_env *env)
  * insni[off, off + cnt).  Adjust corresponding insn_aux_data by copying
  * [0, off) and [off, end) to new locations, so the patched range stays zero
  */
-static int adjust_insn_aux_data(struct bpf_verifier_env *env, u32 prog_len,
-				u32 off, u32 cnt)
+static void adjust_insn_aux_data(struct bpf_verifier_env *env,
+				 struct bpf_insn_aux_data *new_data,
+				 u32 prog_len, u32 off, u32 cnt)
 {
-	struct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;
+	struct bpf_insn_aux_data *old_data = env->insn_aux_data;
 	int i;
 
 	if (cnt == 1)
-		return 0;
-	new_data = vzalloc(sizeof(struct bpf_insn_aux_data) * prog_len);
-	if (!new_data)
-		return -ENOMEM;
+		return;
 	memcpy(new_data, old_data, sizeof(struct bpf_insn_aux_data) * off);
 	memcpy(new_data + off + cnt - 1, old_data + off,
 	       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));
@@ -4945,19 +4943,27 @@ static int adjust_insn_aux_data(struct bpf_verifier_env *env, u32 prog_len,
 		new_data[i].seen = true;
 	env->insn_aux_data = new_data;
 	vfree(old_data);
-	return 0;
 }
 
 static struct bpf_prog *bpf_patch_insn_data(struct bpf_verifier_env *env, u32 off,
 					    const struct bpf_insn *patch, u32 len)
 {
 	struct bpf_prog *new_prog;
+	struct bpf_insn_aux_data *new_data = NULL;
+
+	if (len > 1) {
+		new_data = vzalloc(array_size(env->prog->len + len - 1,
+					      sizeof(*new_data)));
+		if (!new_data)
+			return NULL;
+	}
 
 	new_prog = bpf_patch_insn_single(env->prog, off, patch, len);
-	if (!new_prog)
+	if (!new_prog) {
+		vfree(new_data);
 		return NULL;
-	if (adjust_insn_aux_data(env, new_prog->len, off, len))
-		return NULL;
+	}
+	adjust_insn_aux_data(env, new_data, new_prog->len, off, len);
 	return new_prog;
 }
 
