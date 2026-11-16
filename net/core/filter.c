@@ -4696,4 +4696,5 @@ out:
 
 #ifdef CONFIG_CGROUP_BPF
 #include "filter_sockopt.inc"
+#include "filter_sockaddr.inc"
 #endif

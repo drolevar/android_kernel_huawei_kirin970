@@ -13,6 +13,20 @@ static int bpf_prog_load_check_attach(enum bpf_prog_type type,
 	if (ifindex)
 		return -EOPNOTSUPP;
 	switch (type) {
+	case BPF_PROG_TYPE_CGROUP_SOCK_ADDR:
+		switch (expected) {
+		case BPF_CGROUP_INET4_BIND:
+		case BPF_CGROUP_INET6_BIND:
+		case BPF_CGROUP_INET4_CONNECT:
+		case BPF_CGROUP_INET6_CONNECT:
+		case BPF_CGROUP_UDP4_SENDMSG:
+		case BPF_CGROUP_UDP6_SENDMSG:
+		case BPF_CGROUP_UDP4_RECVMSG:
+		case BPF_CGROUP_UDP6_RECVMSG:
+			return 0;
+		default:
+			return -EINVAL;
+		}
 	case BPF_PROG_TYPE_CGROUP_SOCKOPT:
 		return expected == BPF_CGROUP_GETSOCKOPT ||
 		       expected == BPF_CGROUP_SETSOCKOPT ? 0 : -EINVAL;

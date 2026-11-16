@@ -4451,8 +4451,15 @@ static int check_sockopt_return(struct bpf_verifier_env *env)
 {
 	const struct bpf_reg_state *reg = &env->cur_state->regs[BPF_REG_0];
 
-	if (env->prog->type != BPF_PROG_TYPE_CGROUP_SOCKOPT)
+	if (env->prog->type != BPF_PROG_TYPE_CGROUP_SOCKOPT &&
+	    env->prog->type != BPF_PROG_TYPE_CGROUP_SOCK_ADDR)
 		return 0;
+	/* recvmsg hooks rewrite an address; their return value is ignored. */
+	if (env->prog->type == BPF_PROG_TYPE_CGROUP_SOCK_ADDR &&
+	    (env->prog->expected_attach_type == BPF_CGROUP_UDP4_RECVMSG ||
+	     env->prog->expected_attach_type == BPF_CGROUP_UDP6_RECVMSG) &&
+	    reg->umin_value != 1)
+		return -EINVAL;
 	if (reg->type != SCALAR_VALUE || reg->umin_value > 1 || reg->umax_value > 1)
 		return -EINVAL;
 	return 0;
@@ -5382,6 +5389,22 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	    (*prog)->expected_attach_type != BPF_CGROUP_GETSOCKOPT &&
 	    (*prog)->expected_attach_type != BPF_CGROUP_SETSOCKOPT)
 		return -EINVAL;
+
+	if ((*prog)->type == BPF_PROG_TYPE_CGROUP_SOCK_ADDR) {
+		switch ((*prog)->expected_attach_type) {
+		case BPF_CGROUP_INET4_BIND:
+		case BPF_CGROUP_INET6_BIND:
+		case BPF_CGROUP_INET4_CONNECT:
+		case BPF_CGROUP_INET6_CONNECT:
+		case BPF_CGROUP_UDP4_SENDMSG:
+		case BPF_CGROUP_UDP6_SENDMSG:
+		case BPF_CGROUP_UDP4_RECVMSG:
+		case BPF_CGROUP_UDP6_RECVMSG:
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
 
 	env = kzalloc(sizeof(struct bpf_verifier_env), GFP_KERNEL);
 	if (!env)
