@@ -241,5 +241,5 @@ obj-$(CONFIG_HUAWEI_SWAPFILE) += swapfile/
 
 obj-$(CONFIG_ICS_DRIVER) += ics_drivers/
 
-obj-y += hisi_sim_adapt/
+obj-$(CONFIG_HISILICON_PLATFORM) += hisi_sim_adapt/
 obj-$(CONFIG_HUAWEI_EMCOM) += emcom/
