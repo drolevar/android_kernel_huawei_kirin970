@@ -267,6 +267,7 @@ out:
 s32 hwdps_check_support(struct inode *inode, uint32_t *flags)
 {
 	s32 err = 0;
+	struct fscrypt_info *ci;
 
 	if (!flags)
 		return -EINVAL;
@@ -276,15 +277,16 @@ s32 hwdps_check_support(struct inode *inode, uint32_t *flags)
 
 	if (!S_ISREG(inode->i_mode))
 		return -EOPNOTSUPP;
+	ci = READ_ONCE(inode->i_crypt_info);
 	/*
 	 * The inode->i_crypt_info->ci_hw_enc_flag keeps sync with the
 	 * flags in xattr_header. And it can not be changed once the
 	 * file is opened.
 	 */
-	if (!inode->i_crypt_info)
+	if (!ci)
 		err = inode->i_sb->s_cop->get_hwdps_flags(inode, NULL, flags);
 	else
-		*flags = (u32)(inode->i_crypt_info->ci_hw_enc_flag);
+		*flags = (u32)(ci->ci_hw_enc_flag);
 
 	if (err != 0)
 		pr_err("hwdps ino %lu get flags err %d\n", inode->i_ino, err);
@@ -431,6 +433,7 @@ s32 hwdps_inherit_context(struct inode *parent, struct inode *inode,
 	fek_efek_t buffer_fek_efek = { &fek, &fek_len,
 		&encoded_wfek, &encoded_len };
 	u32 parent_flags = 0;
+	struct fscrypt_info *parent_ci;
 
 	/* no need to judge page because it can be null */
 	err = check_params(parent, inode, dentry, fs_data);
@@ -440,11 +443,22 @@ s32 hwdps_inherit_context(struct inode *parent, struct inode *inode,
 	err = hwdps_get_parent_dps_flag(parent, &parent_flags, page);
 	if (err != HWDPS_SUCCESS)
 		return err;
+	parent_ci = READ_ONCE(parent->i_crypt_info);
+	if (!parent_ci)
+		return -ENOKEY;
+	if (fscrypt_ci_is_managed(parent_ci))
+		return ((parent_flags & HWDPS_ENABLE_FLAG) != 0) ?
+			-EOPNOTSUPP : HWDPS_SUCCESS;
+	err = fscrypt_check_unmanaged_descriptor(parent->i_sb,
+						 parent_ci->ci_master_key);
+	if (err != 0)
+		return ((parent_flags & HWDPS_ENABLE_FLAG) != 0) ?
+			err : HWDPS_SUCCESS;
 
 	if (!S_ISREG(inode->i_mode))
 		return hwdps_dir_inherit_flags(inode, fs_data, parent_flags);
 
-	err = hwdps_create_fek(parent->i_crypt_info->ci_master_key, inode,
+	err = hwdps_create_fek(parent_ci->ci_master_key, inode,
 		dentry, &buffer_fek_efek, parent_flags);
 	if (err == -HWDPS_ERR_NOT_SUPPORTED) {
 		pr_info_once("hwdps ino %lu not protected\n", inode->i_ino);

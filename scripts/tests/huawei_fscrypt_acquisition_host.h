@@ -11,6 +11,7 @@
 
 typedef uint8_t u8;
 typedef uint32_t u32;
+typedef uint64_t u64;
 typedef u8 __u8;
 typedef u32 __u32;
 #define __packed __attribute__((packed))
@@ -158,7 +159,21 @@ static const struct user_key_payload *user_key_payload_locked(struct key *key)
 static const struct user_key_payload *user_key_payload_rcu(struct key *key)
 { return user_key_payload_locked(key); }
 struct fscrypt_ce_tfm;
-struct fscrypt_info { int ci_key_index; struct crypto_aead *ci_gtfm; struct fscrypt_ce_tfm *ci_gtfm_owner; };
+struct fscrypt_master_key { u8 raw[64]; };
+struct fscrypt_mk_owner {
+	struct fscrypt_master_key *key;
+	u64 generation;
+};
+struct fscrypt_mk_lease {
+	struct fscrypt_master_key *key;
+	u64 generation;
+};
+struct fscrypt_info {
+	int ci_key_index;
+	struct crypto_aead *ci_gtfm;
+	struct fscrypt_ce_tfm *ci_gtfm_owner;
+	struct fscrypt_mk_owner ci_owner;
+};
 struct inode;
 enum fscrypt_context_origin {
 	FSCRYPT_CTX_OWNED_POLICY = 0,
@@ -179,6 +194,48 @@ struct operations {
 #define fscrypt_operations operations
 struct super_block { struct operations *s_cop; };
 struct inode { struct super_block *i_sb; };
+
+static int fscrypt_check_unmanaged_descriptor(struct super_block *sb,
+		const u8 *descriptor)
+{
+	(void)sb;
+	(void)descriptor;
+	return 0;
+}
+
+static struct fscrypt_master_key *fscrypt_registry_lookup(
+		struct super_block *sb, const u8 *descriptor)
+{
+	return ERR_PTR(-ENOENT);
+}
+static void fscrypt_mk_put(struct fscrypt_master_key *mk) { }
+static void fscrypt_mk_init_owner(struct fscrypt_mk_owner *owner)
+{
+	owner->key = NULL;
+	owner->generation = 0;
+}
+static void fscrypt_mk_drop_owner(struct fscrypt_mk_owner *owner)
+{
+	memzero_explicit(owner, sizeof(*owner));
+}
+static int fscrypt_mk_acquire(struct fscrypt_master_key *mk, u64 generation,
+		struct fscrypt_mk_lease *lease)
+{
+	return -ENOKEY;
+}
+static int fscrypt_mk_enroll(const struct fscrypt_mk_lease *lease,
+		struct fscrypt_mk_owner *owner)
+{
+	return -ENOKEY;
+}
+static const u8 *fscrypt_mk_secret(const struct fscrypt_mk_lease *lease)
+{
+	return lease->key ? lease->key->raw : NULL;
+}
+static void fscrypt_mk_release(struct fscrypt_mk_lease *lease)
+{
+	memzero_explicit(lease, sizeof(*lease));
+}
 struct fscrypt_context_op {
 	const struct operations *cop;
 	struct inode *inode;
@@ -186,7 +243,7 @@ struct fscrypt_context_op {
 	int phase;
 	void *fs_data;
 	bool owns_fs_data;
-	unsigned int *retry_count;
+	int *retry_count;
 };
 #define WARN_ON_ONCE(condition) (!!(condition))
 static bool fscrypt_valid_enc_modes(u32 data, u32 names)

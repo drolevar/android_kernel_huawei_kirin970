@@ -80,6 +80,7 @@ int hmfs_sdp_crypt_inherit(struct inode *parent, struct inode *child,
  * keyinfo.c
  */
 int hmfs_get_crypt_keyinfo(struct inode *inode, void *fs_data, int *flag);
+int hmfs_publish_crypt_info(struct inode *inode, struct fscrypt_info *ci);
 
 /*
  * sdp_context.c

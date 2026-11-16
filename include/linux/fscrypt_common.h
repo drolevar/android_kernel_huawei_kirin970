@@ -76,6 +76,24 @@ struct fscrypt_info {
 	u8 ci_hw_enc_flag;
 };
 
+static inline bool fscrypt_ci_is_managed(const struct fscrypt_info *ci)
+{
+	return ci && ci->ci_owner.key != NULL;
+}
+
+#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
+extern int fscrypt_check_unmanaged_descriptor(
+		struct super_block *sb,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE]);
+#else
+static inline int fscrypt_check_unmanaged_descriptor(
+		struct super_block *sb,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE])
+{
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_HWDPS
 #define HWDPS_XATTR_NAME "hwdps"
 #define HWDPS_XATTR_ENABLE_FLAG_NEW 0x0020
@@ -195,6 +213,7 @@ struct fscrypt_operations {
 	const char *key_prefix;
 	int (*get_context)(struct inode *, void *, size_t);
 	int (*set_context)(struct inode *, const void *, size_t, void *);
+	int (*publish_crypt_info)(struct inode *, struct fscrypt_info *);
 	int (*prepare_context)(struct inode *, enum fscrypt_context_origin,
 			       void *, struct fscrypt_context_op **);
 	int (*set_context_prepared)(struct inode *, const void *, size_t,

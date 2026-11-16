@@ -2610,6 +2610,7 @@ static const struct fscrypt_operations f2fs_cryptops = {
 #if F2FS_FS_SDP_ENCRYPTION
 	.get_keyinfo		= f2fs_get_crypt_keyinfo,
 	.is_file_sdp_encrypted 	= f2fs_is_file_sdp_encrypted,
+	.publish_crypt_info	= f2fs_publish_crypt_info,
 #else
 	.get_keyinfo          	= NULL,
 	.is_file_sdp_encrypted 	= NULL,

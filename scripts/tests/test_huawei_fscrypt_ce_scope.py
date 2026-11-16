@@ -82,7 +82,8 @@ crypto_names = ('derive_crypt_complete', 'fscrypt_set_gcm_key',
 if implemented:
     supp = inputs['include/linux/fscrypt_supp.h']
     common = inputs['include/linux/fscrypt_common.h']
-    subject = extract(r'^enum fscrypt_ce_purpose \{.*?^\};', supp) + '\n'
+    subject = body(common, 'fscrypt_ci_is_managed(') + '\n'
+    subject += extract(r'^enum fscrypt_ce_purpose \{.*?^\};', supp) + '\n'
     subject += extract(r'^struct fscrypt_ce_key \{.*?^\};', supp) + '\n'
     subject += extract(r'^struct fscrypt_ce_tfm \{.*?^\};', keyinfo) + '\n'
     subject += extract(r'^struct fscrypt_ce_scope \{.*?^\};', keyinfo) + '\n'

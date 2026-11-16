@@ -89,6 +89,10 @@ static void setup(unsigned int size)
 	tfm_live = 0;
 	skcipher_live = 0;
 	requests = 0;
+	registry_sb = NULL;
+	registry_mk = NULL;
+	registry_error = -ENOENT;
+	registry_lookups = 0;
 	memset(&saved, 0, sizeof(saved));
 	ino.i_crypt_info = NULL;
 	child.i_crypt_info = NULL;
@@ -173,6 +177,7 @@ static void primary_only(struct inode *inode,
 
 static void preload_child(void)
 {
+	setup(32);
 	prepare_parent_context();
 	CHECK(!fscrypt_get_encryption_info(&ino));
 	CHECK(ino.i_crypt_info != NULL);
@@ -196,6 +201,8 @@ static void test_scope(void)
 	u8 cipher[80] = { 0 };
 	u8 output[80] = { 0 };
 	u8 iv[16] = { 0 };
+
+	setup(32);
 
 	CHECK(!fscrypt_ce_scope_open(&ino, desc, FILE_UNWRAP, &scope));
 	CHECK(scope);

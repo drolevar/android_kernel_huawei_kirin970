@@ -100,8 +100,11 @@ for n, (path, occurrence) in enumerate([(paths[0], 0), (paths[0], 1),
 (out / 'construct.h').write_text('\n'.join(constructors))
 # Exact generic production publication/out path: attachment is intentionally
 # done by the harness before it, never spliced into production source.
-(out / 'publish.h').write_text(region(paths[0],
-    '\tif (cmpxchg(&inode->i_crypt_info, NULL, crypt_info) == NULL)', '\n\treturn res;'))
+publication = region(paths[0],
+    '\t} else if (cmpxchg(&inode->i_crypt_info, NULL, crypt_info) == NULL)',
+    '\n\treturn res;')
+publication = publication.replace('\t} else if', '\tif', 1)
+(out / 'publish.h').write_text(publication)
 version = subprocess.check_output([a.cc, '--version'], text=True)
 assert 'clang version 22.' in version
 cmd = [a.cc, '-std=gnu11', '-O1', '-g', '-Wall', '-Wextra', '-Werror',

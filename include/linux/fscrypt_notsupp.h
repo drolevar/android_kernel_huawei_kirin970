@@ -138,7 +138,6 @@ static inline int hwdps_inherit_context(struct inode *dir, struct inode *inode,
 }
 #endif
 
-/* keyinfo.c */
 static inline int fscrypt_get_encryption_info(struct inode *inode)
 {
 	return -EOPNOTSUPP;
