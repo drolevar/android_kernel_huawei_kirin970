@@ -750,6 +750,20 @@ next:
  * For other inodes, search forward from the parent directory's block
  * group to find a free inode.
  */
+static int ext4_inherit_context(struct inode *dir, struct inode *inode,
+				handle_t *handle)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	int err;
+
+	err = fscrypt_ce_scope_open_cached(dir, CHILD_WRAP, &scope);
+	if (err)
+		return err;
+	err = fscrypt_inherit_context_prepared(dir, inode, handle, scope, true);
+	fscrypt_ce_scope_put(scope);
+	return err;
+}
+
 struct inode *__ext4_new_inode(handle_t *handle, struct inode *dir,
 			       umode_t mode, const struct qstr *qstr,
 			       __u32 goal, uid_t *owner, __u32 i_flags,
@@ -1158,7 +1172,7 @@ got:
 	 * prevent its deduplication.
 	 */
 	if (encrypt) {
-		err = fscrypt_inherit_context(dir, inode, handle, true);
+		err = ext4_inherit_context(dir, inode, handle);
 		if (err)
 			goto fail_free_drop;
 	}

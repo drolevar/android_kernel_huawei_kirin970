@@ -44,13 +44,14 @@ static int create_encryption_context_from_policy(struct inode *inode,
 				const struct fscrypt_policy *policy)
 {
 	struct fscrypt_context ctx;
+	const struct fscrypt_operations *cops = inode->i_sb->s_cop;
+	struct fscrypt_context_op *op;
+	int retries = 0;
+	bool retry;
 	int res;
 	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
-	struct key *keyring_key = NULL;
-	struct fscrypt_key *master_key;
-	const struct user_key_payload *ukp;
-	struct crypto_aead *tfm = NULL;
+	struct fscrypt_ce_scope *scope = NULL;
 
 	ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
 	memcpy(ctx.master_key_descriptor, policy->master_key_descriptor,
@@ -75,74 +76,36 @@ static int create_encryption_context_from_policy(struct inode *inode,
 	get_random_bytes(ctx.iv, FS_KEY_DERIVATION_IV_SIZE);
 	memcpy(plain_text, nonce, FS_KEY_DERIVATION_NONCE_SIZE);
 
-	/* get DEK */
-	keyring_key = fscrypt_request_key(ctx.master_key_descriptor,
-				FS_KEY_DESC_PREFIX, FS_KEY_DESC_PREFIX_SIZE);
-	if (IS_ERR(keyring_key)) {
-		if (inode->i_sb->s_cop->key_prefix) {
-			const u8 *prefix = inode->i_sb->s_cop->key_prefix;
-			int prefix_size;
+	res = fscrypt_ce_scope_open(inode, ctx.master_key_descriptor,
+			POLICY_WRAP, &scope);
+	if (!res)
+		res = fscrypt_ce_scope_crypt(scope, plain_text, ctx.nonce,
+					    ctx.iv, true);
+	fscrypt_ce_scope_put(scope);
+	memzero_explicit(nonce, sizeof(nonce));
+	memzero_explicit(plain_text, sizeof(plain_text));
+	if (res)
+		return res;
 
-			prefix_size = strlen(prefix);
-			keyring_key = fscrypt_request_key(ctx.master_key_descriptor,
-						prefix, prefix_size);
-			if (!IS_ERR(keyring_key))
-				goto got_key;
+	if (!cops->prepare_context || !cops->set_context_prepared ||
+	    !cops->finish_context)
+		return cops->set_context(inode, &ctx, sizeof(ctx), NULL);
+
+	do {
+		op = NULL;
+		retry = false;
+		res = cops->prepare_context(inode, FSCRYPT_CTX_OWNED_POLICY,
+					    NULL, &op);
+		if (res) {
+			WARN_ON_ONCE(op);
+			return res;
 		}
-		return PTR_ERR(keyring_key);
-	}
-
-got_key:
-	if (keyring_key->type != &key_type_logon) {
-		printk_once(KERN_WARNING
-				"%s: key type must be logon\n", __func__);
-		res = -ENOKEY;
-		goto out;
-	}
-
-	down_read(&keyring_key->sem);
-
-	ukp = user_key_payload_rcu(keyring_key);
-	if (ukp->datalen != sizeof(struct fscrypt_key)) {
-		res = -EINVAL;
-		up_read(&keyring_key->sem);
-		goto out;
-	}
-
-	master_key = (struct fscrypt_key *)ukp->data;
-	//force the size equal to FS_AES_256_GCM_KEY_SIZE since user space might pass FS_AES_256_XTS_KEY_SIZE
-	master_key->size = FS_AES_256_GCM_KEY_SIZE;
-	if (master_key->size != FS_AES_256_GCM_KEY_SIZE) {
-		printk_once(KERN_WARNING
-				"%s: key size incorrect: %d\n",
-				__func__, master_key->size);
-		res = -ENOKEY;
-		up_read(&keyring_key->sem);
-		goto out;
-	}
-	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
-	if (IS_ERR(tfm)) {
-		up_read(&keyring_key->sem);
-		res = PTR_ERR(tfm);
-		tfm = NULL;
-		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
-		goto out;
-	}
-	res = fscrypt_set_gcm_key(tfm, master_key->raw);
-
-	up_read(&keyring_key->sem);
-	if (res)
-		goto out;
-
-	res = fscrypt_derive_gcm_key(tfm, plain_text, ctx.nonce, ctx.iv, 1);
-	if (res)
-		goto out;
-
-	res = inode->i_sb->s_cop->set_context(inode, &ctx, sizeof(ctx), NULL);
-out:
-	if (tfm)
-		crypto_free_aead(tfm);
-	key_put(keyring_key);
+		if (WARN_ON_ONCE(!op))
+			return -EINVAL;
+		op->retry_count = &retries;
+		res = cops->set_context_prepared(inode, &ctx, sizeof(ctx), op);
+		res = cops->finish_context(inode, op, res, &retry);
+	} while (retry);
 	return res;
 }
 
@@ -342,22 +305,38 @@ EXPORT_SYMBOL(fscrypt_has_permitted_context);
  *
  * Return: 0 on success, -errno on failure
  */
-int fscrypt_inherit_context(struct inode *parent, struct inode *child,
-						void *fs_data, bool preload)
+int fscrypt_inherit_context_prepared(struct inode *parent, struct inode *child,
+			void *fs_data, struct fscrypt_ce_scope *borrowed_scope,
+			bool preload)
 {
+	const struct fscrypt_operations *cops = parent->i_sb->s_cop;
 	struct fscrypt_context ctx;
 	struct fscrypt_info *ci;
+	struct fscrypt_ce_scope *scope = borrowed_scope;
+	struct fscrypt_context_op *op = NULL;
+	bool retry = false;
 	int res;
 	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
 
-	res = fscrypt_get_encryption_info(parent);
-	if (res < 0)
-		return res;
+	if (!scope) {
+		res = fscrypt_get_encryption_info(parent);
+		if (res < 0)
+			return res;
+	}
 
-	ci = parent->i_crypt_info;
+	ci = READ_ONCE(parent->i_crypt_info);
 	if (ci == NULL)
 		return -ENOKEY;
+	if (scope) {
+		if (!fscrypt_ce_scope_matches(scope, parent, ci->ci_master_key,
+					     CHILD_WRAP))
+			return -EINVAL;
+	} else {
+		res = fscrypt_ce_scope_open_cached(parent, CHILD_WRAP, &scope);
+		if (res)
+			return res;
+	}
 
 	ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
 	ctx.contents_encryption_mode = ci->ci_data_mode;
@@ -374,14 +353,48 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 	get_random_bytes(ctx.iv, FS_KEY_DERIVATION_IV_SIZE);
 	memcpy(plain_text, nonce, FS_KEY_DERIVATION_NONCE_SIZE);
 
-	res = fscrypt_derive_gcm_key(ci->ci_gtfm, plain_text, ctx.nonce, ctx.iv, 1);
+	res = fscrypt_ce_scope_crypt(scope, plain_text, ctx.nonce, ctx.iv,
+				    true);
 	if (res)
-		return res;
+		goto out;
 	BUILD_BUG_ON(sizeof(ctx) != FSCRYPT_SET_CONTEXT_MAX_SIZE);
-	res = parent->i_sb->s_cop->set_context(child, &ctx,
-						sizeof(ctx), fs_data);
-	if (res)
-		return res;
-	return preload ? fscrypt_get_encryption_info(child) : 0;
+	if (cops->prepare_context && cops->set_context_prepared &&
+	    cops->finish_context) {
+		res = cops->prepare_context(child, FSCRYPT_CTX_BORROWED_INHERIT,
+					    fs_data, &op);
+		if (res) {
+			WARN_ON_ONCE(op);
+			goto out;
+		}
+		if (WARN_ON_ONCE(!op)) {
+			res = -EINVAL;
+			goto out;
+		}
+		res = cops->set_context_prepared(child, &ctx, sizeof(ctx), op);
+		if (!res && preload)
+			res = fscrypt_get_encryption_info_with_scope(
+						child, &ctx, scope);
+		res = cops->finish_context(child, op, res, &retry);
+		WARN_ON_ONCE(retry);
+	} else {
+		res = cops->set_context(child, &ctx, sizeof(ctx), fs_data);
+		if (!res && preload)
+			res = fscrypt_get_encryption_info_with_scope(
+						child, &ctx, scope);
+	}
+out:
+	if (!borrowed_scope)
+		fscrypt_ce_scope_put(scope);
+	memzero_explicit(nonce, sizeof(nonce));
+	memzero_explicit(plain_text, sizeof(plain_text));
+	return res;
+}
+EXPORT_SYMBOL(fscrypt_inherit_context_prepared);
+
+int fscrypt_inherit_context(struct inode *parent, struct inode *child,
+						void *fs_data, bool preload)
+{
+	return fscrypt_inherit_context_prepared(parent, child, fs_data, NULL,
+						preload);
 }
 EXPORT_SYMBOL(fscrypt_inherit_context);

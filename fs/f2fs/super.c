@@ -1091,6 +1091,8 @@ static int f2fs_drop_inode(struct inode *inode)
 		return 0;
 	}
 	ret = generic_drop_inode(inode);
+	if (!ret)
+		ret = fscrypt_drop_inode(inode);
 	trace_f2fs_drop_inode(inode, ret);
 	return ret;
 }
@@ -2479,10 +2481,32 @@ static int f2fs_get_context(struct inode *inode, void *ctx, size_t len)
 
 }
 
-static int f2fs_set_context(struct inode *inode, const void *ctx, size_t len,
-							void *fs_data)
+struct f2fs_fscrypt_context_op {
+	struct fscrypt_context_op op;
+	struct f2fs_sb_info *sbi;
+	struct page *ipage;
+};
+
+static struct f2fs_fscrypt_context_op *
+f2fs_context_op(struct inode *inode, struct fscrypt_context_op *op)
+{
+	if (!op || op->cop != inode->i_sb->s_cop || op->inode != inode ||
+	    op->phase == FSCRYPT_CTX_FINISHED)
+		return NULL;
+	return container_of(op, struct f2fs_fscrypt_context_op, op);
+}
+
+static int f2fs_prepare_context(struct inode *inode,
+		enum fscrypt_context_origin origin, void *borrowed_fs_data,
+		struct fscrypt_context_op **out)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+	struct f2fs_fscrypt_context_op *ctxop;
+	int err;
+
+	if (!out)
+		return -EINVAL;
+	*out = NULL;
 
 	/*
 	 * Encrypting the root directory is not allowed because fsck
@@ -2493,10 +2517,81 @@ static int f2fs_set_context(struct inode *inode, const void *ctx, size_t len,
 	if (f2fs_sb_has_lost_found(sbi->sb) &&
 			inode->i_ino == F2FS_ROOT_INO(sbi))
 		return -EPERM;
+	if (origin != FSCRYPT_CTX_OWNED_POLICY &&
+	    origin != FSCRYPT_CTX_BORROWED_INHERIT)
+		return -EINVAL;
+	if (origin == FSCRYPT_CTX_BORROWED_INHERIT && !borrowed_fs_data)
+		return -EINVAL;
 
-	return f2fs_setxattr(inode, F2FS_XATTR_INDEX_ENCRYPTION,
-				F2FS_XATTR_NAME_ENCRYPTION_CONTEXT,
-				ctx, len, fs_data, XATTR_CREATE);
+	ctxop = kzalloc(sizeof(*ctxop), GFP_NOFS);
+	if (!ctxop)
+		return -ENOMEM;
+	ctxop->op.cop = inode->i_sb->s_cop;
+	ctxop->op.inode = inode;
+	ctxop->op.origin = origin;
+	ctxop->op.phase = FSCRYPT_CTX_PREPARED;
+	ctxop->op.fs_data = borrowed_fs_data;
+	ctxop->op.owns_fs_data = origin == FSCRYPT_CTX_OWNED_POLICY;
+	ctxop->sbi = sbi;
+	ctxop->ipage = borrowed_fs_data;
+
+	if (origin == FSCRYPT_CTX_OWNED_POLICY) {
+		err = f2fs_dquot_initialize(inode);
+		if (err) {
+			kfree(ctxop);
+			return err;
+		}
+		f2fs_balance_fs(sbi, true);
+		f2fs_lock_op(sbi);
+	}
+	*out = &ctxop->op;
+	return 0;
+}
+
+static int f2fs_set_context_prepared(struct inode *inode, const void *ctx,
+				     size_t len,
+				     struct fscrypt_context_op *op)
+{
+	struct f2fs_fscrypt_context_op *ctxop = f2fs_context_op(inode, op);
+	int err;
+
+	if (!ctxop || op->phase != FSCRYPT_CTX_PREPARED)
+		return -EINVAL;
+	if (op->origin == FSCRYPT_CTX_OWNED_POLICY) {
+		down_write(&F2FS_I(inode)->i_sem);
+		down_write(&F2FS_I(inode)->i_xattr_sem);
+		err = __f2fs_setxattr(inode, F2FS_XATTR_INDEX_ENCRYPTION,
+				F2FS_XATTR_NAME_ENCRYPTION_CONTEXT, ctx, len,
+				NULL, XATTR_CREATE);
+		up_write(&F2FS_I(inode)->i_xattr_sem);
+		up_write(&F2FS_I(inode)->i_sem);
+	} else {
+		err = __f2fs_setxattr(inode, F2FS_XATTR_INDEX_ENCRYPTION,
+				F2FS_XATTR_NAME_ENCRYPTION_CONTEXT, ctx, len,
+				ctxop->ipage, XATTR_CREATE);
+	}
+	op->phase = FSCRYPT_CTX_INSTALLED;
+	return err;
+}
+
+static int f2fs_finish_context(struct inode *inode,
+		struct fscrypt_context_op *op, int install_error, bool *retry)
+{
+	struct f2fs_fscrypt_context_op *ctxop = f2fs_context_op(inode, op);
+	bool dummy_retry;
+
+	if (!retry)
+		retry = &dummy_retry;
+	*retry = false;
+	if (!ctxop)
+		return -EINVAL;
+	op->phase = FSCRYPT_CTX_FINISHED;
+	if (op->origin == FSCRYPT_CTX_OWNED_POLICY) {
+		f2fs_unlock_op(ctxop->sbi);
+		f2fs_update_time(ctxop->sbi, REQ_TIME);
+	}
+	kfree(ctxop);
+	return install_error;
 }
 
 static bool f2fs_dummy_context(struct inode *inode)
@@ -2507,7 +2602,9 @@ static bool f2fs_dummy_context(struct inode *inode)
 static const struct fscrypt_operations f2fs_cryptops = {
 	.key_prefix		= "f2fs:",
 	.get_context		= f2fs_get_context,
-	.set_context		= f2fs_set_context,
+	.prepare_context	= f2fs_prepare_context,
+	.set_context_prepared	= f2fs_set_context_prepared,
+	.finish_context		= f2fs_finish_context,
 	.dummy_context		= f2fs_dummy_context,
 	.empty_dir		= f2fs_empty_dir,
 	.is_inline_encrypted	= f2fs_inline_encrypted_inode,
@@ -2515,6 +2612,7 @@ static const struct fscrypt_operations f2fs_cryptops = {
 #if F2FS_FS_SDP_ENCRYPTION
 	.get_keyinfo		= f2fs_get_crypt_keyinfo,
 	.is_file_sdp_encrypted 	= f2fs_is_file_sdp_encrypted,
+	.publish_crypt_info	= f2fs_publish_crypt_info,
 #else
 	.get_keyinfo          	= NULL,
 	.is_file_sdp_encrypted 	= NULL,

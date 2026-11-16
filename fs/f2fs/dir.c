@@ -360,7 +360,7 @@ static int make_empty_dir(struct inode *inode,
 struct page *f2fs_init_inode_metadata(struct inode *inode, struct dentry *dentry,
 			struct inode *dir,
 			const struct qstr *new_name, const struct qstr *orig_name,
-			struct page *dpage)
+			struct page *dpage, struct fscrypt_ce_scope *scope)
 {
 	struct page *page;
 	int dummy_encrypt = DUMMY_ENCRYPTION_ENABLED(F2FS_I_SB(dir));
@@ -392,7 +392,8 @@ struct page *f2fs_init_inode_metadata(struct inode *inode, struct dentry *dentry
 
 		if ((f2fs_encrypted_inode(dir) || dummy_encrypt) &&
 		    f2fs_may_encrypt(inode)) {
-			err = fscrypt_inherit_context(dir, inode, page, false);
+			err = fscrypt_inherit_context_prepared(dir, inode, page,
+							 scope, false);
 			if (err)
 				goto put_error;
 #ifdef CONFIG_HWDPS
@@ -512,7 +513,8 @@ void f2fs_update_dentry(nid_t ino, umode_t mode, struct f2fs_dentry_ptr *d,
 int f2fs_add_regular_entry(struct inode *dir, const struct qstr *new_name,
 				const struct qstr *orig_name,
 				struct dentry *dentry, struct inode *inode,
-				nid_t ino, umode_t mode)
+				nid_t ino, umode_t mode,
+				struct fscrypt_ce_scope *scope)
 {
 	unsigned int bit_pos;
 	unsigned int level;
@@ -578,7 +580,7 @@ add_dentry:
 	if (inode) {
 		down_write(&F2FS_I(inode)->i_sem);
 		page = f2fs_init_inode_metadata(inode, dentry, dir, new_name,
-						orig_name, NULL);
+						orig_name, NULL, scope);
 		if (IS_ERR(page)) {
 			err = PTR_ERR(page);
 			goto fail;
@@ -610,18 +612,37 @@ int f2fs_add_dentry(struct inode *dir, struct fscrypt_name *fname,
 			nid_t ino, umode_t mode)
 {
 	struct qstr new_name;
+	struct fscrypt_ce_scope *scope = NULL;
 	int err = -EAGAIN;
 
 	new_name.name = fname_name(fname);
 	new_name.len = fname_len(fname);
+	if (inode && is_inode_flag_set(inode, FI_NEW_INODE) &&
+	    (f2fs_encrypted_inode(dir) ||
+	     DUMMY_ENCRYPTION_ENABLED(F2FS_I_SB(dir))) &&
+	    f2fs_may_encrypt(inode)) {
+		if (!fscrypt_has_encryption_key(dir)) {
+			err = fscrypt_get_encryption_info(dir);
+			if (err)
+				goto out;
+		}
+		err = fscrypt_ce_scope_open_cached(dir, CHILD_WRAP, &scope);
+		if (err)
+			goto out;
+		err = -EAGAIN;
+	}
 
 	if (f2fs_has_inline_dentry(dir))
-		err = f2fs_add_inline_entry(dir, &new_name, fname->usr_fname,
-						dentry, inode, ino, mode);
+		err = f2fs_add_inline_entry(dir, &new_name,
+				fname->usr_fname, dentry, inode, ino, mode,
+				scope);
 	if (err == -EAGAIN)
-		err = f2fs_add_regular_entry(dir, &new_name, fname->usr_fname,
-						dentry, inode, ino, mode);
+		err = f2fs_add_regular_entry(dir, &new_name,
+				fname->usr_fname, dentry, inode, ino, mode,
+				scope);
 
+out:
+	fscrypt_ce_scope_put(scope);
 	f2fs_update_time(F2FS_I_SB(dir), REQ_TIME);
 	return err;
 }
@@ -667,13 +688,14 @@ int f2fs_do_add_link(struct inode *dir, struct dentry *dentry,
 }
 
 int f2fs_do_tmpfile(struct inode *inode, struct dentry *dentry,
-			struct inode *dir)
+			struct inode *dir, struct fscrypt_ce_scope *scope)
 {
 	struct page *page;
 	int err = 0;
 
 	down_write(&F2FS_I(inode)->i_sem);
-	page = f2fs_init_inode_metadata(inode, dentry, dir, NULL, NULL, NULL);
+	page = f2fs_init_inode_metadata(inode, dentry, dir, NULL, NULL, NULL,
+						scope);
 	if (IS_ERR(page)) {
 		err = PTR_ERR(page);
 		goto fail;

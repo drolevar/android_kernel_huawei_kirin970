@@ -85,6 +85,7 @@ int f2fs_sdp_crypt_inherit(struct inode *parent, struct inode *child,
  * keyinfo.c
  */
 int f2fs_get_crypt_keyinfo(struct inode *inode, void *fs_data, int *flag);
+int f2fs_publish_crypt_info(struct inode *inode, struct fscrypt_info *ci);
 
 /*
  * sdp_context.c

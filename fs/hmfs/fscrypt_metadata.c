@@ -77,7 +77,8 @@ bool hmfs_encrypt_file_check(struct inode *inode)
 	if ((sb->encryption_ver > 2) && ci_info) {
 		if ((ci_info->ci_hw_enc_flag ==
 		     F2FS_XATTR_SDP_ECE_ENABLE_FLAG) &&
-		    hmfs_inode_check_sdp_keyring(ci_info->ci_master_key, 0,
+		    hmfs_inode_check_sdp_keyring(inode->i_sb,
+						ci_info->ci_master_key, 0,
 						 sb->encryption_ver)) {
 			pr_err("%s: ECE file check sdp keyring failed! \n",
 			       __func__);

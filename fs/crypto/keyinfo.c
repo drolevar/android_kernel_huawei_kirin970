@@ -12,6 +12,7 @@
 #include <keys/user-type.h>
 #include <linux/scatterlist.h>
 #include <linux/ratelimit.h>
+#include <linux/refcount.h>
 #include <crypto/aes.h>
 #include <crypto/sha.h>
 #include <crypto/skcipher.h>
@@ -23,6 +24,7 @@
 #include <huawei_platform/hwdps/hwdps_fs_hooks.h>
 #define HWDPS_KEY_DESC_STANDARD_FLAG 0x42
 #endif
+#include "registry.h"
 
 static struct crypto_shash *essiv_hash_tfm;
 
@@ -171,112 +173,448 @@ struct key *fscrypt_request_key(const u8 *descriptor, const u8 *prefix,
 	return keyring_key;
 }
 
-/*
- * Search the current task's subscribed keyrings for a "logon" key with
- * description prefix:descriptor, and if found acquire a read lock on it and
- * return a pointer to its validated payload in *payload_ret.
- */
-static struct key *
-find_and_lock_process_key(const struct fscrypt_context *ctx,
-			  const char *prefix,
-			  const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
-			  unsigned int min_keysize,
-			  const struct fscrypt_key **payload_ret)
+int fscrypt_check_unmanaged_descriptor(
+		struct super_block *sb,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE])
 {
-	struct key *key;
-	const struct user_key_payload *ukp;
-	int prefix_size = strlen(prefix);
-	struct fscrypt_key *payload;
+	struct fscrypt_master_key *mk;
+	int err;
 
-	key = fscrypt_request_key(ctx->master_key_descriptor,
-				prefix, prefix_size);
-	if (IS_ERR(key))
-		return key;
+	if (!sb || !descriptor)
+		return -EINVAL;
+	mk = fscrypt_registry_lookup(sb, descriptor);
+	if (!IS_ERR(mk)) {
+		fscrypt_mk_put(mk);
+		return -EOPNOTSUPP;
+	}
+	err = PTR_ERR(mk);
+	if (err == -ENOENT)
+		return 0;
+	return err;
+}
+EXPORT_SYMBOL_GPL(fscrypt_check_unmanaged_descriptor);
+
+/*
+ * Explicit legacy-prefix policy: only request_key's -ENOKEY permits trying
+ * the alternate filesystem prefix.  This result is ambiguous (e.g. negative
+ * or expired keys), NOT evidence of absence.  Once a key is returned, failed
+ * validation never falls back.  No modern filesystem-keyring state is used.
+ */
+int fscrypt_acquire_ce_key(const u8 *descriptor, const char *alternate,
+			   struct fscrypt_ce_key *lease)
+{
+	const struct user_key_payload *ukp;
+	const struct fscrypt_key *payload;
+	struct key *key;
+	int err;
+
+	memset(lease, 0, sizeof(*lease));
+	key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
+				  FS_KEY_DESC_PREFIX_SIZE);
+	if (key == ERR_PTR(-ENOKEY) && alternate) {
+		key = fscrypt_request_key(descriptor, alternate, strlen(alternate));
+		lease->alternate_prefix = true;
+	}
+	if (IS_ERR(key)) {
+		err = PTR_ERR(key);
+		goto wipe;
+	}
 
 	down_read(&key->sem);
+	err = key_validate(key);
+	if (err)
+		goto unlock;
+	if (key->type != &key_type_logon) {
+		err = -EKEYREJECTED;
+		goto unlock;
+	}
 	ukp = user_key_payload_locked(key);
-
-	if (!ukp) /* was the key revoked before we acquired its semaphore? */
-		goto invalid;
-
-	payload = (struct fscrypt_key *)ukp->data;
-
-	if (ukp->datalen != sizeof(struct fscrypt_key) ||
-	    payload->size < 1 || payload->size > FS_MAX_KEY_SIZE) {
-		fscrypt_warn(NULL,
-			     "key with description '%s' has invalid payload",
-			     key->description);
-		goto invalid;
+	if (!ukp) {
+		err = -EKEYREVOKED;
+		goto unlock;
 	}
-	//force the size equal to FS_AES_256_GCM_KEY_SIZE since user space might pass FS_AES_256_XTS_KEY_SIZE
-	payload->size = FS_AES_256_GCM_KEY_SIZE;
-	if (payload->size != FS_AES_256_GCM_KEY_SIZE) {
-		fscrypt_warn(NULL,
-			     "key with description '%s' is too short (got %u bytes, need %u+ bytes)",
-			     key->description, payload->size, min_keysize);
-		goto invalid;
+	if (ukp->datalen != sizeof(*payload)) {
+		err = -EINVAL;
+		goto unlock;
 	}
+	payload = (const struct fscrypt_key *)ukp->data;
+	/* Both existing userspace representations carry a 32-byte GCM key.
+	 * Never normalize the shared payload, nor discard raw[32..63].
+	 */
+	if (payload->size != FS_AES_256_GCM_KEY_SIZE &&
+	    payload->size != FS_MAX_KEY_SIZE) {
+		err = -EINVAL;
+		goto unlock;
+	}
+	memcpy(&lease->material, payload, sizeof(*payload));
+	lease->key = key;
+	return 0;
 
-	*payload_ret = payload;
-	return key;
-
-invalid:
+unlock:
 	up_read(&key->sem);
 	key_put(key);
-	return ERR_PTR(-ENOKEY);
+wipe:
+	memzero_explicit(lease, sizeof(*lease));
+	return err;
+}
+EXPORT_SYMBOL(fscrypt_acquire_ce_key);
+
+void fscrypt_release_ce_key(struct fscrypt_ce_key *lease)
+{
+	if (lease->key) {
+		up_read(&lease->key->sem);
+		key_put(lease->key);
+	}
+	memzero_explicit(lease, sizeof(*lease));
+}
+EXPORT_SYMBOL(fscrypt_release_ce_key);
+
+struct fscrypt_ce_tfm {
+	refcount_t refs;
+	struct crypto_aead *tfm;
+	u8 descriptor[FS_KEY_DESCRIPTOR_SIZE];
+	u8 legacy_slot;
+	bool managed;
+	bool has_legacy_slot;
+};
+
+struct fscrypt_ce_scope {
+	struct super_block *sb;
+	u8 descriptor[FS_KEY_DESCRIPTOR_SIZE];
+	enum fscrypt_ce_purpose purpose;
+	struct fscrypt_ce_tfm *owner;
+	struct fscrypt_mk_owner mk_owner;
+};
+
+static void fscrypt_ce_tfm_get(struct fscrypt_ce_tfm *owner)
+{
+	refcount_inc(&owner->refs);
 }
 
+void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner)
+{
+	if (!owner || !refcount_dec_and_test(&owner->refs))
+		return;
+	crypto_free_aead(owner->tfm);
+	memzero_explicit(owner, sizeof(*owner));
+	kfree(owner);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_tfm_put);
+
+int fscrypt_ce_scope_open(struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose, struct fscrypt_ce_scope **out)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	struct fscrypt_ce_tfm *owner = NULL;
+	struct fscrypt_ce_key lease = { };
+	struct fscrypt_mk_lease mk_lease = { };
+	struct fscrypt_master_key *mk;
+	struct fscrypt_key material = { };
+	u8 secret[FS_AES_256_GCM_KEY_SIZE] = { };
+	const char *alternate;
+	const u8 *deriving_key;
+	int err;
+
+	if (!out) {
+		err = -EINVAL;
+		goto out;
+	}
+	*out = NULL;
+	if (!inode || !inode->i_sb || !inode->i_sb->s_cop || !descriptor) {
+		err = -EINVAL;
+		goto out;
+	}
+	if (purpose != POLICY_WRAP && purpose != FILE_UNWRAP &&
+	    purpose != SDP_CE_SOURCE) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	scope = kzalloc(sizeof(*scope), GFP_NOFS);
+	if (!scope) {
+		err = -ENOMEM;
+		goto out;
+	}
+	fscrypt_mk_init_owner(&scope->mk_owner);
+	owner = kzalloc(sizeof(*owner), GFP_NOFS);
+	if (!owner) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	mk = fscrypt_registry_lookup(inode->i_sb, descriptor);
+	if (!IS_ERR(mk)) {
+		if (purpose == SDP_CE_SOURCE) {
+			fscrypt_mk_put(mk);
+			err = -EOPNOTSUPP;
+			goto out;
+		}
+		err = fscrypt_mk_acquire(mk, 0, &mk_lease);
+		fscrypt_mk_put(mk);
+		if (err)
+			goto out;
+		if (purpose == FILE_UNWRAP) {
+			err = fscrypt_mk_enroll(&mk_lease, &scope->mk_owner);
+			if (err)
+				goto out;
+		}
+		memcpy(secret, fscrypt_mk_secret(&mk_lease), sizeof(secret));
+		fscrypt_mk_release(&mk_lease);
+		owner->managed = true;
+		owner->has_legacy_slot = false;
+		owner->legacy_slot = 0;
+		deriving_key = secret;
+	} else {
+		err = PTR_ERR(mk);
+		if (err != -ENOENT)
+			goto out;
+		alternate = purpose == SDP_CE_SOURCE ? NULL :
+			inode->i_sb->s_cop->key_prefix;
+		err = fscrypt_acquire_ce_key(descriptor, alternate, &lease);
+		if (err)
+			goto out;
+		memcpy(&material, &lease.material, sizeof(material));
+		fscrypt_release_ce_key(&lease);
+		owner->managed = false;
+		owner->has_legacy_slot =
+			material.size == FS_AES_256_GCM_KEY_SIZE;
+		owner->legacy_slot = owner->has_legacy_slot ?
+			material.raw[63] : 0;
+		deriving_key = material.raw;
+	}
+
+	owner->tfm = crypto_alloc_aead("gcm(aes)", 0, 0);
+	if (IS_ERR(owner->tfm)) {
+		err = PTR_ERR(owner->tfm);
+		owner->tfm = NULL;
+		goto out;
+	}
+	err = fscrypt_set_gcm_key(owner->tfm, deriving_key);
+	if (err)
+		goto out;
+	refcount_set(&owner->refs, 1);
+	memcpy(owner->descriptor, descriptor, sizeof(owner->descriptor));
+	scope->sb = inode->i_sb;
+	memcpy(scope->descriptor, descriptor, sizeof(scope->descriptor));
+	scope->purpose = purpose;
+	scope->owner = owner;
+	*out = scope;
+	scope = NULL;
+	owner = NULL;
+	err = 0;
+
+out:
+	fscrypt_mk_release(&mk_lease);
+	fscrypt_release_ce_key(&lease);
+	if (owner) {
+		crypto_free_aead(owner->tfm);
+		memzero_explicit(owner, sizeof(*owner));
+		kfree(owner);
+	}
+	if (scope) {
+		fscrypt_mk_drop_owner(&scope->mk_owner);
+		memzero_explicit(scope, sizeof(*scope));
+		kfree(scope);
+	}
+	memzero_explicit(secret, sizeof(secret));
+	memzero_explicit(&material, sizeof(material));
+	return err;
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_open);
+
+int fscrypt_ce_scope_open_cached(struct inode *inode,
+		enum fscrypt_ce_purpose purpose, struct fscrypt_ce_scope **out)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	struct fscrypt_info *ci;
+	struct fscrypt_mk_lease mk_lease = { };
+	int err;
+
+	if (!out)
+		return -EINVAL;
+	*out = NULL;
+	if (!inode || purpose != CHILD_WRAP)
+		return -EINVAL;
+	ci = READ_ONCE(inode->i_crypt_info);
+	if (!ci || ci->ci_hw_enc_flag || !ci->ci_gtfm_owner ||
+	    ci->ci_gtfm != ci->ci_gtfm_owner->tfm ||
+	    memcmp(ci->ci_master_key, ci->ci_gtfm_owner->descriptor,
+		   FS_KEY_DESCRIPTOR_SIZE))
+		return -ENOKEY;
+	if (fscrypt_ci_is_managed(ci) != ci->ci_gtfm_owner->managed)
+		return -EINVAL;
+	if (fscrypt_ci_is_managed(ci) && !ci->ci_owner.generation)
+		return -EINVAL;
+	scope = kzalloc(sizeof(*scope), GFP_NOFS);
+	if (!scope)
+		return -ENOMEM;
+	fscrypt_mk_init_owner(&scope->mk_owner);
+	if (fscrypt_ci_is_managed(ci)) {
+		err = fscrypt_mk_acquire(ci->ci_owner.key,
+					ci->ci_owner.generation, &mk_lease);
+		if (err)
+			goto out;
+		err = fscrypt_mk_enroll(&mk_lease, &scope->mk_owner);
+		fscrypt_mk_release(&mk_lease);
+		if (err)
+			goto out;
+	}
+	fscrypt_ce_tfm_get(ci->ci_gtfm_owner);
+	scope->sb = inode->i_sb;
+	memcpy(scope->descriptor, ci->ci_gtfm_owner->descriptor,
+	       sizeof(scope->descriptor));
+	scope->purpose = purpose;
+	scope->owner = ci->ci_gtfm_owner;
+	*out = scope;
+	return 0;
+
+out:
+	fscrypt_mk_release(&mk_lease);
+	fscrypt_mk_drop_owner(&scope->mk_owner);
+	memzero_explicit(scope, sizeof(*scope));
+	kfree(scope);
+	return err;
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_open_cached);
+
+bool fscrypt_ce_scope_matches(const struct fscrypt_ce_scope *scope,
+		const struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose)
+{
+	return scope && inode && descriptor && scope->owner &&
+		scope->sb == inode->i_sb && scope->purpose == purpose &&
+		!memcmp(scope->descriptor, descriptor,
+			FS_KEY_DESCRIPTOR_SIZE);
+}
+
+int fscrypt_ce_scope_crypt(struct fscrypt_ce_scope *scope, const u8 *src,
+		u8 *dst, const u8 iv[FS_KEY_DERIVATION_IV_SIZE], bool encrypt)
+{
+	if (!scope || !scope->owner || !scope->owner->tfm ||
+	    !src || !dst || !iv)
+		return -EINVAL;
+	return fscrypt_derive_gcm_key(scope->owner->tfm, src, dst, (u8 *)iv,
+			encrypt ? 1 : 0);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_crypt);
+
+int fscrypt_ce_scope_legacy_slot(const struct fscrypt_ce_scope *scope,
+		u8 *slot)
+{
+	if (!scope || !scope->owner || !slot)
+		return -EINVAL;
+	if (!scope->owner->has_legacy_slot)
+		return -EOPNOTSUPP;
+	*slot = scope->owner->legacy_slot;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_legacy_slot);
+
+static int fscrypt_ce_scope_attach_legacy_tfm(struct fscrypt_ce_scope *scope,
+		struct fscrypt_info *ci)
+{
+	if (!scope || !scope->owner || !ci || ci->ci_gtfm_owner || ci->ci_gtfm)
+		return -EINVAL;
+	if (scope->purpose != FILE_UNWRAP && scope->purpose != CHILD_WRAP)
+		return -EINVAL;
+	if (ci->ci_owner.key)
+		return -EINVAL;
+	if (scope->owner->managed) {
+		if (WARN_ON_ONCE(!scope->mk_owner.key))
+			return -EINVAL;
+		ci->ci_owner = scope->mk_owner;
+		fscrypt_mk_init_owner(&scope->mk_owner);
+	}
+	fscrypt_ce_tfm_get(scope->owner);
+	ci->ci_gtfm_owner = scope->owner;
+	ci->ci_gtfm = scope->owner->tfm;
+	return 0;
+}
+
+void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope)
+{
+	if (!scope)
+		return;
+	fscrypt_mk_drop_owner(&scope->mk_owner);
+	fscrypt_ce_tfm_put(scope->owner);
+	memzero_explicit(scope, sizeof(*scope));
+	kfree(scope);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_put);
+
 /* Find the master key, then derive the inode's actual encryption key */
+static int find_and_derive_key_with_scope(const struct inode *inode,
+			       struct fscrypt_info *crypt_info,
+			       const struct fscrypt_context *ctx,
+			       u8 *derived_key, unsigned int derived_keysize,
+			       struct fscrypt_ce_scope *borrowed,
+			       bool dummy_ctx)
+{
+	struct fscrypt_ce_scope *scope = borrowed;
+	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
+	u8 slot;
+	int err;
+
+	if (derived_keysize > FS_KEY_DERIVATION_NONCE_SIZE)
+		return -EINVAL;
+	if (scope) {
+		if (!fscrypt_ce_scope_matches(scope, inode,
+				ctx->master_key_descriptor, CHILD_WRAP))
+			return -EINVAL;
+	} else {
+		err = fscrypt_ce_scope_open((struct inode *)inode,
+				ctx->master_key_descriptor, FILE_UNWRAP,
+				&scope);
+		if (err)
+			return err;
+	}
+
+	if (scope->owner->has_legacy_slot) {
+		err = fscrypt_ce_scope_legacy_slot(scope, &slot);
+		if (err)
+			goto out;
+		crypt_info->ci_key_index = slot;
+	}
+	if (dummy_ctx) {
+		u8 dummy_plain[FS_KEY_DERIVATION_CIPHER_SIZE] = { 0 };
+		u8 dummy_cipher[FS_KEY_DERIVATION_CIPHER_SIZE];
+		u8 dummy_iv[FS_KEY_DERIVATION_IV_SIZE] = { 0 };
+
+		memset(dummy_plain, 0x42, FS_KEY_DERIVATION_NONCE_SIZE);
+		err = fscrypt_ce_scope_crypt(scope, dummy_plain, dummy_cipher,
+				dummy_iv, true);
+		if (!err) {
+			memset(dummy_iv, 0, sizeof(dummy_iv));
+			err = fscrypt_ce_scope_crypt(scope, dummy_cipher,
+					plain_text, dummy_iv, false);
+		}
+		memzero_explicit(dummy_plain, sizeof(dummy_plain));
+		memzero_explicit(dummy_cipher, sizeof(dummy_cipher));
+	} else {
+		err = fscrypt_ce_scope_crypt(scope, ctx->nonce, plain_text,
+				ctx->iv, false);
+	}
+	if (err)
+		goto out;
+	memcpy(derived_key, plain_text, derived_keysize);
+	err = fscrypt_ce_scope_attach_legacy_tfm(scope, crypt_info);
+
+out:
+	if (!borrowed)
+		fscrypt_ce_scope_put(scope);
+	memzero_explicit(plain_text, sizeof(plain_text));
+	return err;
+}
+
 static int find_and_derive_key(const struct inode *inode,
 			       struct fscrypt_info *crypt_info,
 			       const struct fscrypt_context *ctx,
 			       u8 *derived_key, unsigned int derived_keysize)
 {
-	struct key *key;
-	const struct fscrypt_key *payload;
-	struct crypto_aead *tfm = NULL;
-	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
-	int err;
-
-	key = find_and_lock_process_key(ctx, FS_KEY_DESC_PREFIX,
-					ctx->master_key_descriptor,
-					derived_keysize, &payload);
-	if (key == ERR_PTR(-ENOKEY) && inode->i_sb->s_cop->key_prefix) {
-		key = find_and_lock_process_key(ctx, inode->i_sb->s_cop->key_prefix,
-						ctx->master_key_descriptor,
-						derived_keysize, &payload);
-	}
-	if (IS_ERR(key))
-		return PTR_ERR(key);
-
-	crypt_info->ci_key_index = (int) *(payload->raw + 63) & 0xff;
-
-	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
-	if (IS_ERR(tfm)) {
-		up_read(&key->sem);
-		err = (int)PTR_ERR(tfm);
-		tfm = NULL;
-		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
-		goto out;
-	}
-	err = fscrypt_set_gcm_key(tfm, payload->raw);
-	if (err)
-		goto out;
-	err = fscrypt_derive_gcm_key(tfm, ctx->nonce, plain_text, (u8 *)ctx->iv, 0);
-	if (err)
-		goto out;
-	memcpy(derived_key, plain_text, derived_keysize);
-	crypt_info->ci_gtfm = tfm;
-	up_read(&key->sem);
-	key_put(key);
-	return 0;
-
-out:
-	if (tfm)
-		crypto_free_aead(tfm);
-	up_read(&key->sem);
-	key_put(key);
-	return err;
+	return find_and_derive_key_with_scope(inode, crypt_info, ctx,
+			derived_key, derived_keysize, NULL, false);
 }
 
 static struct fscrypt_mode {
@@ -374,10 +712,13 @@ static void put_crypt_info(struct fscrypt_info *ci)
 		ci->ci_key_len = 0;
 		ci->ci_key_index = -1;
 	}
-	if (ci->ci_gtfm)
+	if (ci->ci_gtfm_owner)
+		fscrypt_ce_tfm_put(ci->ci_gtfm_owner);
+	else if (ci->ci_gtfm)
 		crypto_free_aead(ci->ci_gtfm);
 	crypto_free_skcipher(ci->ci_ctfm);
 	crypto_free_cipher(ci->ci_essiv_tfm);
+	fscrypt_mk_drop_owner(&ci->ci_owner);
 	kmem_cache_free(fscrypt_info_cachep, ci);
 }
 
@@ -448,13 +789,16 @@ void __exit fscrypt_essiv_cleanup(void)
 	crypto_free_shash(essiv_hash_tfm);
 }
 
-int fscrypt_get_encryption_info(struct inode *inode)
+static int fscrypt_get_encryption_info_internal(struct inode *inode,
+		const struct fscrypt_context *supplied_ctx,
+		struct fscrypt_ce_scope *scope)
 {
 	struct fscrypt_info *crypt_info;
 	struct fscrypt_context ctx;
 	struct crypto_skcipher *ctfm;
 	struct fscrypt_mode *mode;
 	u8 *raw_key = NULL;
+	bool dummy_ctx = false;
 	int res;
 	int flag = 0;
 
@@ -471,7 +815,8 @@ int fscrypt_get_encryption_info(struct inode *inode)
 
 	/* TicketNo:AR000B5MB3 -- For HWDPS protection */
 	/* TicketNo:AR0009DF3P -- For SDP protection */
-	if (inode->i_sb->s_cop && inode->i_sb->s_cop->get_keyinfo) {
+	if (!supplied_ctx && inode->i_sb->s_cop &&
+	    inode->i_sb->s_cop->get_keyinfo) {
 		res = inode->i_sb->s_cop->get_keyinfo(inode, NULL, &flag);
 		if (res) { /* err case */
 			pr_err("f2fs_sdp: get_keyinfo failed res:%d", res);
@@ -483,21 +828,30 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	/* TicketNo:AR0009DF3P END */
 	/* TicketNo:AR000B5MB3 END */
 
-	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-	if (res < 0) {
-		if (!fscrypt_dummy_context_enabled(inode) ||
-		    IS_ENCRYPTED(inode))
-			return res;
-		/* Fake up a context for an unencrypted directory */
-		memset(&ctx, 0, sizeof(ctx));
-		ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
-		ctx.contents_encryption_mode = FS_ENCRYPTION_MODE_AES_256_XTS;
-		ctx.filenames_encryption_mode = FS_ENCRYPTION_MODE_AES_256_CTS;
-		memset(ctx.master_key_descriptor, 0x42, FS_KEY_DESCRIPTOR_SIZE);
-	} else if (res != sizeof(ctx)) {
-		pr_err("%s: inode %lu incorrect ctx size [%u : %lu]\n",
-			inode->i_sb->s_type->name, inode->i_ino, res, sizeof(ctx));
-		return -EINVAL;
+	if (supplied_ctx) {
+		ctx = *supplied_ctx;
+	} else {
+		res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+		if (res < 0) {
+			if (!fscrypt_dummy_context_enabled(inode) ||
+			    IS_ENCRYPTED(inode))
+				return res;
+			/* Fake up a context for an unencrypted directory */
+			memset(&ctx, 0, sizeof(ctx));
+			ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
+			ctx.contents_encryption_mode =
+				FS_ENCRYPTION_MODE_AES_256_XTS;
+			ctx.filenames_encryption_mode =
+				FS_ENCRYPTION_MODE_AES_256_CTS;
+			memset(ctx.master_key_descriptor, 0x42,
+			       FS_KEY_DESCRIPTOR_SIZE);
+			dummy_ctx = true;
+		} else if (res != sizeof(ctx)) {
+			pr_err("%s: inode %lu incorrect ctx size [%u : %lu]\n",
+				inode->i_sb->s_type->name, inode->i_ino, res,
+				sizeof(ctx));
+			return -EINVAL;
+		}
 	}
 
 	if (ctx.format != FS_ENCRYPTION_CONTEXT_FORMAT_V2)
@@ -509,12 +863,14 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = ctx.flags;
 	crypt_info->ci_data_mode = ctx.contents_encryption_mode;
 	crypt_info->ci_filename_mode = ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -538,7 +894,8 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	if (!raw_key)
 		goto out;
 
-	res = find_and_derive_key(inode, crypt_info, &ctx, raw_key, mode->keysize);
+	res = find_and_derive_key_with_scope(inode, crypt_info, &ctx, raw_key,
+			mode->keysize, scope, dummy_ctx);
 	if (res)
 		goto out;
 
@@ -581,6 +938,16 @@ int fscrypt_get_encryption_info(struct inode *inode)
 		/*lint -save -e732 -e747*/
 		memcpy(crypt_info->ci_key, raw_key, crypt_info->ci_key_len);
 		/*lint -restore*/
+#ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2
+		if (crypt_info->ci_key_index < 0) {
+			res = -EOPNOTSUPP;
+			goto out;
+		}
+		if (crypt_info->ci_key_index > 31) {
+			res = -EINVAL;
+			goto out;
+		}
+#endif
 		res = fscrypt_get_metadata(inode, crypt_info);
 		if (res && res != -EOPNOTSUPP)
 			goto out;
@@ -598,14 +965,39 @@ int fscrypt_get_encryption_info(struct inode *inode)
 			goto out;
 		}
 	}
-	if (cmpxchg(&inode->i_crypt_info, NULL, crypt_info) == NULL)
+	if (!supplied_ctx && inode->i_sb->s_cop &&
+	    inode->i_sb->s_cop->publish_crypt_info) {
+		res = inode->i_sb->s_cop->publish_crypt_info(inode, crypt_info);
+		if (!res)
+			crypt_info = NULL;
+		else if (res == -EEXIST)
+			res = 0;
+		else
+			goto out;
+	} else if (cmpxchg(&inode->i_crypt_info, NULL, crypt_info) == NULL) {
 		crypt_info = NULL;
+	}
 out:
 	if (res == -ENOKEY)
 		res = 0;
 	put_crypt_info(crypt_info);
 	kzfree(raw_key);
 	return res;
+}
+
+int fscrypt_get_encryption_info_with_scope(struct inode *inode,
+		const struct fscrypt_context *ctx,
+		struct fscrypt_ce_scope *scope)
+{
+	if (!ctx || !fscrypt_ce_scope_matches(scope, inode,
+			ctx->master_key_descriptor, CHILD_WRAP))
+		return -EINVAL;
+	return fscrypt_get_encryption_info_internal(inode, ctx, scope);
+}
+
+int fscrypt_get_encryption_info(struct inode *inode)
+{
+	return fscrypt_get_encryption_info_internal(inode, NULL, NULL);
 }
 EXPORT_SYMBOL(fscrypt_get_encryption_info);
 
@@ -616,17 +1008,48 @@ void fscrypt_put_encryption_info(struct inode *inode)
 }
 EXPORT_SYMBOL(fscrypt_put_encryption_info);
 
+/**
+ * fscrypt_drop_inode() - check whether the inode's master key has been removed
+ * @inode: an inode being considered for eviction
+ *
+ * Return: 1 if fscrypt wants the inode to be evicted now, otherwise 0
+ */
+int fscrypt_drop_inode(struct inode *inode)
+{
+	const struct fscrypt_info *ci;
+	const struct fscrypt_master_key *mk;
+
+	/*
+	 * Pairs with cmpxchg(&inode->i_crypt_info, NULL, ci) release barrier
+	 * when publishing ci_owner.
+	 */
+	ci = smp_load_acquire(&inode->i_crypt_info);
+	if (!fscrypt_ci_is_managed(ci))
+		return 0;
+
+	if (inode->i_state & I_DIRTY_ALL)
+		return 0;
+
+	mk = ci->ci_owner.key;
+	return !READ_ONCE(mk->present) ||
+	       READ_ONCE(mk->generation) != ci->ci_owner.generation;
+}
+EXPORT_SYMBOL_GPL(fscrypt_drop_inode);
+
 #ifdef CONFIG_HWDPS
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2
 #define MAX_HISI_KEY_INDEX 31
 #define FS_KEY_INDEX_OFFSET 63
-static int hwdps_get_key_index(u8 *descriptor)
+static int hwdps_get_key_index(struct super_block *sb, u8 *descriptor)
 {
 	struct key *keyring_key;
 	const struct user_key_payload *ukp;
 	struct fscrypt_key *primary_key;
 	int res;
 
+	res = fscrypt_check_unmanaged_descriptor(sb, descriptor);
+	if (res)
+		return res;
 	keyring_key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
 		FS_KEY_DESC_PREFIX_SIZE);
 	if (IS_ERR(keyring_key)) {
@@ -635,6 +1058,9 @@ static int hwdps_get_key_index(u8 *descriptor)
 	}
 
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res)
+		goto out;
 	if (keyring_key->type != &key_type_logon) {
 		pr_err("hwdps key type must be logon\n");
 		res = -ENOKEY;
@@ -715,6 +1141,10 @@ static int hwdps_do_get_context(struct inode *inode,
 	}
 	if (ctx->flags & ~FS_POLICY_FLAGS_VALID)
 		return -EINVAL;
+	err = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		ctx->master_key_descriptor);
+	if (err != 0)
+		return err;
 
 	return 0;
 }
@@ -733,6 +1163,8 @@ int hwdps_update_context(struct inode *inode, uid_t new_uid)
 
 	if (hwdps_check_support(inode, &flags) != 0)
 		return 0;
+	if (fscrypt_ci_is_managed(READ_ONCE(inode->i_crypt_info)))
+		return -EOPNOTSUPP;
 	encoded_wfek = hwdps_do_get_attr(inode, HWDPS_ENCODED_WFEK_SIZE, flags);
 	if (!encoded_wfek) {
 		pr_err("hwdps_do_get_attr failed\n");
@@ -785,11 +1217,13 @@ static struct fscrypt_info *hwdps_get_fscrypt_info(struct fscrypt_context *ctx,
 	ci = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!ci)
 		return ERR_PTR(-ENOMEM);
+	fscrypt_mk_init_owner(&ci->ci_owner);
 	ci->ci_flags = ctx->flags;
 	ci->ci_data_mode = ctx->contents_encryption_mode;
 	ci->ci_filename_mode = ctx->filenames_encryption_mode;
 	ci->ci_ctfm = NULL;
 	ci->ci_gtfm = NULL;
+	ci->ci_gtfm_owner = NULL;
 	ci->ci_essiv_tfm = NULL;
 	ci->ci_key = NULL;
 	ci->ci_key_len = 0;
@@ -855,7 +1289,8 @@ static int hwdps_do_set_cipher(struct inode *inode, const char *cipher_str,
 	    	(inode->i_crypt_info->ci_key_index <= MAX_HISI_KEY_INDEX))
 		ci->ci_key_index = inode->i_crypt_info->ci_key_index;
 	else
-		ci->ci_key_index = hwdps_get_key_index(ci->ci_master_key);
+		ci->ci_key_index = hwdps_get_key_index(inode->i_sb,
+						ci->ci_master_key);
 	if ((ci->ci_key_index < 0) || (ci->ci_key_index > MAX_HISI_KEY_INDEX)) {
 		pr_err("ci_key_index: %d\n", ci->ci_key_index);
 		return -EINVAL;
@@ -902,6 +1337,7 @@ int hwdps_get_context(struct inode *inode)
 	int keysize;
 	struct fscrypt_context ctx;
 	struct fscrypt_info *ci = NULL;
+	struct fscrypt_info *ci_existing;
 	const char *cipher_str = NULL;
 	buffer_t encoded_wfek = { NULL, 0 };
 	uint8_t *fek = NULL;
@@ -912,13 +1348,20 @@ int hwdps_get_context(struct inode *inode)
 	err = hwdps_check_support_and_get_attr(inode, &flags, &encoded_wfek);
 	if (err != 0)
 		return err;
-	if (inode->i_crypt_info) {
-		err = hwdps_has_access(inode, &encoded_wfek, flags);
+	ci_existing = READ_ONCE(inode->i_crypt_info);
+	if (ci_existing) {
+		if (fscrypt_ci_is_managed(ci_existing))
+			err = -EKEYREJECTED;
+		else
+			err = hwdps_has_access(inode, &encoded_wfek, flags);
 		goto free_encoded_wfek; // return anyway
 	}
 	err = hwdps_do_get_context(inode, &ctx);
-	if (err != 0)
+	if (err != 0) {
+		if (err == -EOPNOTSUPP)
+			err = -EKEYREJECTED;
 		goto free_encoded_wfek;
+	}
 	ci = hwdps_get_fscrypt_info(&ctx, inode, &cipher_str, &keysize);
 	if (IS_ERR(ci)) {
 		err = PTR_ERR(ci);

@@ -95,8 +95,8 @@ int hmfs_inode_get_sdp_encrypt_flags(struct inode *inode, void *fs_data,
 									 u32 *flag);
 int hmfs_inode_set_sdp_encryption_flags(struct inode *inode, void *fs_data,
 										u32 sdp_enc_flag);
-int hmfs_inode_check_sdp_keyring(u8 *descriptor, int enforce,
-					unsigned char ver);
+int hmfs_inode_check_sdp_keyring(struct super_block *sb, u8 *descriptor,
+				 int enforce, unsigned char ver);
 
 /*
  * keyinfo.c internal functions

@@ -90,10 +90,59 @@ static inline int fscrypt_ioctl_get_policy(struct file *filp, void __user *arg)
 	return -EOPNOTSUPP;
 }
 
+static inline int fscrypt_ioctl_add_key(struct file *filp, void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_remove_key(struct file *filp, void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_remove_key_all_users(struct file *filp,
+						     void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_get_key_status(struct file *filp,
+					       void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
 static inline int fscrypt_has_permitted_context(struct inode *parent,
 						struct inode *child)
 {
 	return 0;
+}
+
+struct fscrypt_ce_scope;
+enum fscrypt_ce_purpose {
+	POLICY_WRAP,
+	FILE_UNWRAP,
+	SDP_CE_SOURCE,
+	CHILD_WRAP,
+};
+
+static inline int fscrypt_ce_scope_open_cached(
+		struct inode *inode, enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **scope)
+{
+	*scope = NULL;
+	return -EOPNOTSUPP;
+}
+
+static inline void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope)
+{
+}
+
+static inline int fscrypt_inherit_context_prepared(
+		struct inode *parent, struct inode *child, void *fs_data,
+		struct fscrypt_ce_scope *scope, bool preload)
+{
+	return -EOPNOTSUPP;
 }
 
 static inline int fscrypt_inherit_context(struct inode *parent,
@@ -111,7 +160,6 @@ static inline int hwdps_inherit_context(struct inode *dir, struct inode *inode,
 }
 #endif
 
-/* keyinfo.c */
 static inline int fscrypt_get_encryption_info(struct inode *inode)
 {
 	return -EOPNOTSUPP;
@@ -120,6 +168,11 @@ static inline int fscrypt_get_encryption_info(struct inode *inode)
 static inline void fscrypt_put_encryption_info(struct inode *inode)
 {
 	return;
+}
+
+static inline int fscrypt_drop_inode(struct inode *inode)
+{
+	return 0;
 }
 
 #ifdef CONFIG_HWDPS

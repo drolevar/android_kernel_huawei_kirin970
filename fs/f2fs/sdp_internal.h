@@ -96,13 +96,15 @@ int f2fs_inode_get_sdp_encrypt_flags(struct inode *inode, void *fs_data,
 									 u32 *flag);
 int f2fs_inode_set_sdp_encryption_flags(struct inode *inode, void *fs_data,
 										u32 sdp_enc_flag);
-int f2fs_inode_check_sdp_keyring(u8 *descriptor, int enforce);
+int f2fs_inode_check_sdp_keyring(struct super_block *sb, u8 *descriptor,
+				 int enforce);
 
 /*
  * keyinfo.c internal functions
  */
 int f2fs_change_to_sdp_crypto(struct inode *inode, void *fs_data);
-int f2fs_do_get_keyindex(u8 *descriptor, int *keyindex);
+int f2fs_do_get_keyindex(struct super_block *sb, u8 *descriptor,
+			 int *keyindex);
 
 /*
  * ecdh.c internal functions

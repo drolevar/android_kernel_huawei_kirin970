@@ -50,74 +50,100 @@ static void f2fs_put_crypt_info(struct fscrypt_info *ci)
 	}
 
 	crypto_free_skcipher(ci->ci_ctfm);
-	if (ci->ci_gtfm)
+	if (ci->ci_gtfm_owner)
+		fscrypt_ce_tfm_put(ci->ci_gtfm_owner);
+	else if (ci->ci_gtfm)
 		crypto_free_aead(ci->ci_gtfm);
 	if (ci->ci_essiv_tfm)
 		crypto_free_cipher(ci->ci_essiv_tfm);
+	fscrypt_mk_drop_owner(&ci->ci_owner);
 	kmem_cache_free(fscrypt_info_cachep, ci);
 }
 
+/* expected_class == 0 denotes CE, never an SDP-shaped payload. */
 static int
-f2fs_do_get_keyring_payload(u8 *descriptor, u8 *raw, int *size, bool filepubkey)
+f2fs_do_get_keyring_payload(struct super_block *sb, u8 *descriptor, u8 *raw,
+			   size_t capacity,
+			   int *size, bool filepubkey, u32 expected_class)
 {
-	int res = -EKEYREVOKED;
-	struct key *keyring_key = NULL;
-	const struct user_key_payload *ukp = NULL;
-	struct fscrypt_key *mst_key = NULL;
-	struct fscrypt_sdp_key *mst_sdp = NULL;
+	int res;
+	struct key *keyring_key;
+	const struct user_key_payload *ukp;
+	const struct fscrypt_sdp_key *mst_sdp;
+	struct fscrypt_ce_key lease;
+	size_t private_size, public_size;
+
+	*size = 0;
+	if (!expected_class) {
+		if (capacity < FS_AES_256_GCM_KEY_SIZE)
+			return -EOVERFLOW;
+		res = fscrypt_acquire_ce_key(descriptor, NULL, &lease);
+		if (res)
+			return res;
+		memcpy(raw, lease.material.raw, FS_AES_256_GCM_KEY_SIZE);
+		*size = FS_AES_256_GCM_KEY_SIZE;
+		fscrypt_release_ce_key(&lease);
+		return 0;
+	}
+	if (expected_class != FSCRYPT_SDP_ECE_CLASS &&
+	    expected_class != FSCRYPT_SDP_SECE_CLASS)
+		return -EINVAL;
+	res = fscrypt_check_unmanaged_descriptor(sb, descriptor);
+	if (res)
+		return res;
 
 	keyring_key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
-			FS_KEY_DESC_PREFIX_SIZE);
+					 FS_KEY_DESC_PREFIX_SIZE);
 	if (IS_ERR(keyring_key))
 		return PTR_ERR(keyring_key);
-
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res)
+		goto out;
+	res = -EKEYREVOKED;
 	if (keyring_key->type != &key_type_logon)
 		goto out;
-
 	ukp = user_key_payload_locked(keyring_key);
-	if (!ukp) {
-		/* key was revoked before we acquired its semaphore */
-		res = -EKEYREVOKED;
+	if (!ukp)
 		goto out;
-	}
+	res = -EINVAL;
+	if (ukp->datalen != sizeof(*mst_sdp))
+		goto out;
+	mst_sdp = (const struct fscrypt_sdp_key *)ukp->data;
+	if (mst_sdp->sdpclass != expected_class)
+		goto out;
 
-	if (ukp->datalen == sizeof(struct fscrypt_key)) {
-		mst_key = (struct fscrypt_key *)ukp->data;
-		if (mst_key->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_key->size;
-			memcpy(raw, mst_key->raw, mst_key->size);
-			res = 0;
-		}
-	} else if (ukp->datalen == sizeof(struct fscrypt_sdp_key)) {
-		mst_sdp = (struct fscrypt_sdp_key *)ukp->data;
+	private_size = mst_sdp->size;
+	public_size = 0;
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-		if ((mst_sdp->sdpclass == FSCRYPT_SDP_ECE_CLASS
-			|| mst_sdp->sdpclass == FSCRYPT_SDP_SECE_CLASS)
-			&& mst_sdp->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			res = 0;
-		}
+	if (private_size != FS_AES_256_GCM_KEY_SIZE)
+		goto out;
 #else
-		if (mst_sdp->sdpclass == FSCRYPT_SDP_ECE_CLASS
-			&& mst_sdp->size == FS_AES_256_GCM_KEY_SIZE) {
-			*size = mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			res = 0;
-		} else if (mst_sdp->sdpclass == FSCRYPT_SDP_SECE_CLASS
-			/* if filepubkey is ture, class private key doesn't need exist.
-			 * if filepubkey is false, class private key must exist.*/
-			&& (!filepubkey || mst_sdp->size == FS_SDP_ECC_PRIV_KEY_SIZE)
-			&& mst_sdp->pubkeysize == FS_SDP_ECC_PUB_KEY_SIZE) {
-			*size = mst_sdp->pubkeysize + mst_sdp->size;
-			memcpy(raw, mst_sdp->raw, mst_sdp->size);
-			memcpy(raw + mst_sdp->size, mst_sdp->pubkey,
-					mst_sdp->pubkeysize);
-			res = 0;
-		}
-#endif
+	if (expected_class == FSCRYPT_SDP_ECE_CLASS) {
+		if (private_size != FS_AES_256_GCM_KEY_SIZE)
+			goto out;
+	} else {
+		/* has-file-public-key/unwrap needs the private key.  Creating
+		 * a file key may use a public-only class key (size == 0).
+		 */
+		if (private_size != FS_SDP_ECC_PRIV_KEY_SIZE &&
+		    (filepubkey || private_size != 0))
+			goto out;
+		public_size = mst_sdp->pubkeysize;
+		if (public_size != FS_SDP_ECC_PUB_KEY_SIZE)
+			goto out;
 	}
+#endif
+	if (private_size > sizeof(mst_sdp->raw) ||
+	    public_size > sizeof(mst_sdp->pubkey))
+		goto out;
+	res = -EOVERFLOW;
+	if (private_size > capacity || public_size > capacity - private_size)
+		goto out;
+	memcpy(raw, mst_sdp->raw, private_size);
+	memcpy(raw + private_size, mst_sdp->pubkey, public_size);
+	*size = private_size + public_size;
+	res = 0;
 out:
 	up_read(&keyring_key->sem);
 	key_put(keyring_key);
@@ -125,7 +151,8 @@ out:
 }
 
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2
-int f2fs_do_get_keyindex(u8 *descriptor, int *keyindex)
+int f2fs_do_get_keyindex(struct super_block *sb, u8 *descriptor,
+			 int *keyindex)
 {
 	int res = -EKEYREVOKED;
 	struct key *keyring_key = NULL;
@@ -136,12 +163,18 @@ int f2fs_do_get_keyindex(u8 *descriptor, int *keyindex)
 	struct fscrypt_key *master_key = NULL;
 #endif
 
+	res = fscrypt_check_unmanaged_descriptor(sb, descriptor);
+	if (res)
+		return res;
 	keyring_key = fscrypt_request_key(descriptor, FS_KEY_DESC_PREFIX,
 			FS_KEY_DESC_PREFIX_SIZE);
 	if (IS_ERR(keyring_key))
 		return PTR_ERR(keyring_key);
 
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res)
+		goto out;
 	if (keyring_key->type != &key_type_logon)
 		goto out;
 
@@ -236,18 +269,43 @@ out:
 	return res;
 }
 
-static int f2fs_do_get_fek(u8 *descriptor, u8 *nonce, u8 *fek, u8 *iv, int enc)
+static int f2fs_do_get_ce_fek(struct inode *inode, u8 *descriptor, u8 *nonce,
+		u8 *fek, u8 *iv, int enc)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	int res;
+
+	res = fscrypt_ce_scope_open(inode, descriptor,
+			SDP_CE_SOURCE, &scope); /* F2FS */
+	if (res)
+		return res;
+	if (enc)
+		res = fscrypt_ce_scope_crypt(scope, fek, nonce, iv, true);
+	else
+		res = fscrypt_ce_scope_crypt(scope, nonce, fek, iv, false);
+	fscrypt_ce_scope_put(scope);
+	return res;
+}
+
+static int f2fs_do_get_fek(struct inode *inode, u8 *descriptor, u8 *nonce,
+		u8 *fek, u8 *iv, int enc, u32 expected_class)
 {
 	int res = 0;
 	struct crypto_aead *tfm = NULL;
 	u8 raw[FS_MAX_KEY_SIZE];
 	int size;
 
+	if (!expected_class)
+		return f2fs_do_get_ce_fek(inode, descriptor, nonce, fek, iv,
+					  enc);
+
 	tfm = crypto_alloc_aead("gcm(aes)", 0, 0);
 	if (IS_ERR(tfm))
 		return (int)PTR_ERR(tfm);
 
-	res = f2fs_do_get_keyring_payload(descriptor, raw, &size, false);
+	res = f2fs_do_get_keyring_payload(inode->i_sb, descriptor, raw,
+					  sizeof(raw),
+					  &size, false, expected_class);
 	if (res)
 		goto out;
 
@@ -282,8 +340,8 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 		return -EINVAL;
 #else
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce, fek,
-							  ctx->iv, 0);
+		res = f2fs_do_get_fek(inode, ctx->master_key_descriptor,
+				      ctx->nonce, fek, ctx->iv, 0, 0);
 		if (res)
 			return res;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -293,8 +351,10 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 		if (res)
 			return res;
 		if (F2FS_INODE_IS_ENABLED_SDP_ECE_ENCRYPTION(flag)) {
-			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0);
+			res = f2fs_do_get_fek(inode,
+					sdp_ctx->master_key_descriptor,
+					sdp_ctx->nonce, fek, sdp_ctx->iv, 0,
+					FSCRYPT_SDP_ECE_CLASS);
 			if (res)
 				return res;
 		} else {
@@ -305,9 +365,11 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-	res = f2fs_do_get_keyindex(sdp_ctx->master_key_descriptor, &keyindex);
+	res = f2fs_do_get_keyindex(inode->i_sb,
+			sdp_ctx->master_key_descriptor, &keyindex);
 #else
-	res = f2fs_do_get_keyindex(ctx->master_key_descriptor, &keyindex);
+	res = f2fs_do_get_keyindex(inode->i_sb,
+			ctx->master_key_descriptor, &keyindex);
 #endif
 	if (res)
 		return res;
@@ -329,8 +391,9 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 		return 0;
 
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
-	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor, sdp_ctx->nonce,
-			      fek, sdp_ctx->iv, 1);
+	res = f2fs_do_get_fek(inode, sdp_ctx->master_key_descriptor,
+			      sdp_ctx->nonce, fek, sdp_ctx->iv, 1,
+			      FSCRYPT_SDP_ECE_CLASS);
 	if (res) {
 		pr_err("f2fs_sdp %s: error %d (inode %lu) encrypt ece key failed!\n",
 				__func__, res, inode->i_ino);
@@ -358,16 +421,26 @@ static int f2fs_get_sdp_ece_crypt_info(struct inode *inode, void *fs_data)
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (res != sizeof(ctx))
 		return -EINVAL;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		ctx.master_key_descriptor);
+	if (res)
+		return res;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		sdp_ctx.master_key_descriptor);
+	if (res)
+		return res;
 
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = sdp_ctx.flags;
 	crypt_info->ci_data_mode = sdp_ctx.contents_encryption_mode;
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -442,8 +515,9 @@ out:
 }
 
 static int
-f2fs_do_get_sece_fek(struct f2fs_sdp_fscrypt_context *ctx, u8 *fek,
-					 u8 haspubkey)
+f2fs_do_get_sece_fek(struct super_block *sb,
+			 struct f2fs_sdp_fscrypt_context *ctx, u8 *fek,
+			 u8 haspubkey)
 {
 	int res = -ENOKEY;
 	struct crypto_aead *tfm = NULL;
@@ -456,8 +530,9 @@ f2fs_do_get_sece_fek(struct f2fs_sdp_fscrypt_context *ctx, u8 *fek,
 	if (IS_ERR(tfm))
 		return (int)PTR_ERR(tfm);
 
-	res = f2fs_do_get_keyring_payload(ctx->master_key_descriptor, raw, &size,
-									  haspubkey==1);
+	res = f2fs_do_get_keyring_payload(sb, ctx->master_key_descriptor, raw,
+				  sizeof(raw), &size, haspubkey == 1,
+				  FSCRYPT_SDP_SECE_CLASS);
 	if (res)
 		goto out;
 
@@ -493,8 +568,10 @@ out:
 }
 
 static inline int
-f2fs_do_set_sece_fek(struct f2fs_sdp_fscrypt_context *sdp_ctx, u8 *fek) {
-	return f2fs_do_get_sece_fek(sdp_ctx, fek, 0);
+f2fs_do_set_sece_fek(struct super_block *sb,
+			     struct f2fs_sdp_fscrypt_context *sdp_ctx, u8 *fek)
+{
+	return f2fs_do_get_sece_fek(sb, sdp_ctx, fek, 0);
 }
 
 static int f2fs_get_sece_crypt_info_from_context(
@@ -513,8 +590,8 @@ static int f2fs_get_sece_crypt_info_from_context(
 		pr_err("f2fs_sdp:The file has content in crypt v3");
 		return -EINVAL;
 #else
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce,
-				      fek, ctx->iv, 0);
+		res = f2fs_do_get_fek(inode, ctx->master_key_descriptor,
+				      ctx->nonce, fek, ctx->iv, 0, 0);
 		if (res)
 			goto out;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -527,10 +604,13 @@ static int f2fs_get_sece_crypt_info_from_context(
 		}
 		if (F2FS_INODE_IS_ENABLED_SDP_SECE_ENCRYPTION(flag)) {
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0);
+			res = f2fs_do_get_fek(inode,
+					sdp_ctx->master_key_descriptor,
+					sdp_ctx->nonce, fek, sdp_ctx->iv, 0,
+					FSCRYPT_SDP_SECE_CLASS);
 #else
-			res = f2fs_do_get_sece_fek(sdp_ctx, fek, 1);
+			res = f2fs_do_get_sece_fek(inode->i_sb, sdp_ctx,
+						       fek, 1);
 #endif
 			if (res) {
 				pr_err("f2fs_sdp:get key failed res: %d", res);
@@ -544,9 +624,11 @@ static int f2fs_get_sece_crypt_info_from_context(
 
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-	res = f2fs_do_get_keyindex(sdp_ctx->master_key_descriptor, &keyindex);
+	res = f2fs_do_get_keyindex(inode->i_sb,
+			sdp_ctx->master_key_descriptor, &keyindex);
 #else
-	res = f2fs_do_get_keyindex(ctx->master_key_descriptor, &keyindex);
+	res = f2fs_do_get_keyindex(inode->i_sb,
+			ctx->master_key_descriptor, &keyindex);
 #endif
 	if (res) {
 		pr_err("f2fs_sdp:get index failed res: %d", res);
@@ -573,10 +655,10 @@ static int f2fs_get_sece_crypt_info_from_context(
 
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 1);
+	res = f2fs_do_get_fek(inode, sdp_ctx->master_key_descriptor,
+					      sdp_ctx->nonce, fek, sdp_ctx->iv, 1, FSCRYPT_SDP_SECE_CLASS);
 #else
-	res = f2fs_do_set_sece_fek(sdp_ctx, fek);
+	res = f2fs_do_set_sece_fek(inode->i_sb, sdp_ctx, fek);
 #endif
 	if (res)
 		pr_err("f2fs_sdp %s: error %d (inode %lu) encrypt sece key failed\n",
@@ -605,16 +687,26 @@ static int f2fs_get_sdp_sece_crypt_info(struct inode *inode, void *fs_data)
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (res != sizeof(ctx))
 		return -EINVAL;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		ctx.master_key_descriptor);
+	if (res)
+		return res;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		sdp_ctx.master_key_descriptor);
+	if (res)
+		return res;
 
 	crypt_info = kmem_cache_alloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
+	fscrypt_mk_init_owner(&crypt_info->ci_owner);
 
 	crypt_info->ci_flags = sdp_ctx.flags;
 	crypt_info->ci_data_mode = sdp_ctx.contents_encryption_mode;
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -699,6 +791,8 @@ int f2fs_change_to_sdp_crypto(struct inode *inode, void *fs_data)
 		pr_err("f2fs_sdp %s: ci_info failed.", __func__);
 		return -EINVAL;
 	}
+	if (fscrypt_ci_is_managed(ci_info))
+		return -EOPNOTSUPP;
 
 	res = sb->s_sdp_cop->get_sdp_context(inode, &sdp_ctx,
 			sizeof(sdp_ctx), fs_data);
@@ -713,6 +807,14 @@ int f2fs_change_to_sdp_crypto(struct inode *inode, void *fs_data)
 		pr_err("f2fs_sdp %s: get sdp_ctx size failed res:%d.", __func__, res);
 		return -EINVAL;
 	}
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+			ctx.master_key_descriptor);
+	if (res)
+		return res;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+			sdp_ctx.master_key_descriptor);
+	if (res)
+		return res;
 
 	/* file is not null, ece should inherit ce nonece iv,
 	 * sece also support
@@ -803,6 +905,8 @@ static int f2fs_get_sdp_crypt_info(struct inode *inode, void *fs_data)
 		return res;
 
 	if (ci_info && F2FS_INODE_IS_ENABLED_SDP_ENCRYPTION(flag)) {
+		if (fscrypt_ci_is_managed(ci_info))
+			return -EOPNOTSUPP;
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 		/* already enabled, open will be blocked when screen locked */
 		res = fscrypt_open_sece_metadata_config(inode, ci_info,
@@ -813,7 +917,8 @@ static int f2fs_get_sdp_crypt_info(struct inode *inode, void *fs_data)
 			return res;
 		}
 #endif
-		return f2fs_inode_check_sdp_keyring(ci_info->ci_master_key, 1);
+		return f2fs_inode_check_sdp_keyring(inode->i_sb,
+						    ci_info->ci_master_key, 1);
 	}
 
 	/* means should change from ce to sdp crypto */
@@ -831,12 +936,14 @@ int f2fs_get_crypt_keyinfo(struct inode *inode, void *fs_data, int *flag)
 	int res;
 	u32 sdpflag;
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+#ifdef CONFIG_HWDPS
+	struct fscrypt_info *ci;
+#endif
 	/* 0 for getting original ce crypt info, otherwise be 1 */
 	*flag = 0;
 #ifdef CONFIG_HWDPS
-	if (!inode->i_crypt_info || (inode->i_crypt_info &&
-		((inode->i_crypt_info->ci_hw_enc_flag &
-		HWDPS_ENABLE_FLAG) != 0))) {
+	ci = READ_ONCE(inode->i_crypt_info);
+	if (!ci || ((ci->ci_hw_enc_flag & HWDPS_ENABLE_FLAG) != 0)) {
 		res = hwdps_get_context(inode);
 		if (res == -EOPNOTSUPP)
 			goto get_sdp_encryption_info;
@@ -880,6 +987,41 @@ get_sdp_encryption_info:
 	}
 unlock:
 	up_write(&F2FS_I(inode)->i_sdp_sem);
+	return res;
+}
+
+int f2fs_publish_crypt_info(struct inode *inode, struct fscrypt_info *ci)
+{
+	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+	u32 sdpflag;
+	int res = 0;
+
+	if (!S_ISREG(inode->i_mode) || !fscrypt_ci_is_managed(ci))
+		return cmpxchg(&inode->i_crypt_info, NULL, ci) ? -EEXIST : 0;
+
+	down_read(&F2FS_I(inode)->i_sdp_sem);
+	if (!sbi->s_sdp_cop ||
+	    !sbi->s_sdp_cop->get_sdp_encrypt_flags) {
+		res = -EOPNOTSUPP;
+		goto out;
+	}
+	res = sbi->s_sdp_cop->get_sdp_encrypt_flags(inode, NULL, &sdpflag);
+	if (res)
+		goto out;
+	if (F2FS_INODE_IS_SDP_ENCRYPTED(sdpflag)) {
+		res = -EOPNOTSUPP;
+		goto out;
+	}
+#ifdef CONFIG_HWDPS
+	if (sdpflag & HWDPS_ENABLE_FLAG) {
+		res = -EOPNOTSUPP;
+		goto out;
+	}
+#endif
+	if (cmpxchg(&inode->i_crypt_info, NULL, ci) != NULL)
+		res = -EEXIST;
+out:
+	up_read(&F2FS_I(inode)->i_sdp_sem);
 	return res;
 }
 

@@ -22,6 +22,7 @@
  */
 
 #include <linux/export.h>
+#include <linux/fscrypt_registry.h>
 #include <linux/slab.h>
 #include <linux/blkdev.h>
 #include <linux/mount.h>
@@ -176,6 +177,7 @@ static void destroy_super(struct super_block *s)
 	list_lru_destroy(&s->s_dentry_lru);
 	list_lru_destroy(&s->s_inode_lru);
 	security_sb_free(s);
+	fscrypt_registry_sb_free(s);
 	WARN_ON(!list_empty(&s->s_mounts));
 	put_user_ns(s->s_user_ns);
 	kfree(s->s_subtype);

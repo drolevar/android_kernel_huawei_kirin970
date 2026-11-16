@@ -30,6 +30,7 @@
 #include <crypto/aes.h>
 #include <crypto/skcipher.h>
 #include "fscrypt_private.h"
+#include "registry.h"
 
 static unsigned int num_prealloc_crypto_pages = 32;
 static unsigned int num_prealloc_crypto_ctxs = 128;
@@ -514,6 +515,8 @@ void fscrypt_msg(struct super_block *sb, const char *level,
  */
 static int __init fscrypt_init(void)
 {
+	int err = -ENOMEM;
+
 	fscrypt_read_workqueue = alloc_workqueue("fscrypt_read_queue",
 							WQ_HIGHPRI, 0);
 	if (!fscrypt_read_workqueue)
@@ -527,14 +530,19 @@ static int __init fscrypt_init(void)
 	if (!fscrypt_info_cachep)
 		goto fail_free_ctx;
 
+	err = fscrypt_registry_init();
+	if (err)
+		goto fail_free_info;
 	return 0;
 
+fail_free_info:
+	kmem_cache_destroy(fscrypt_info_cachep);
 fail_free_ctx:
 	kmem_cache_destroy(fscrypt_ctx_cachep);
 fail_free_queue:
 	destroy_workqueue(fscrypt_read_workqueue);
 fail:
-	return -ENOMEM;
+	return err;
 }
 module_init(fscrypt_init)
 
@@ -543,6 +551,8 @@ module_init(fscrypt_init)
  */
 static void __exit fscrypt_exit(void)
 {
+	fscrypt_registry_exit();
+
 	fscrypt_destroy();
 
 	if (fscrypt_read_workqueue)

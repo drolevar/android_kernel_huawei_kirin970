@@ -42,6 +42,9 @@ s32 hwdps_get_key(const u8 *descriptor, buffer_t *aes_key, uid_t uid)
 	}
 
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res != 0)
+		goto out;
 	if (keyring_key->type != &key_type_logon) {
 		hwdps_pr_err("hwdps key type must be logon\n");
 		res = -ENOKEY;

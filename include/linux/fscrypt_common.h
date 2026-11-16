@@ -11,6 +11,7 @@
 #define _LINUX_FSCRYPT_COMMON_H
 
 #include <linux/key.h>
+#include <linux/fscrypt_owner.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/bio.h>
@@ -52,16 +53,20 @@ struct fscrypt_context {
         u8 iv[FS_KEY_DERIVATION_IV_SIZE];
 } __packed;
 
+struct fscrypt_ce_tfm;
+
 /*
  * A pointer to this structure is stored in the file system's in-core
  * representation of an inode.
  */
 struct fscrypt_info {
+	struct fscrypt_mk_owner ci_owner;
 	u8 ci_data_mode;
 	u8 ci_filename_mode;
 	u8 ci_flags;
 	struct crypto_skcipher *ci_ctfm;
 	struct crypto_aead *ci_gtfm;
+	struct fscrypt_ce_tfm *ci_gtfm_owner;
 	struct crypto_cipher *ci_essiv_tfm;
 	u8 ci_master_key[FS_KEY_DESCRIPTOR_SIZE];
 	void *ci_key;
@@ -70,6 +75,24 @@ struct fscrypt_info {
 	u8 ci_metadata[METADATA_BYTE_IN_KDF];
 	u8 ci_hw_enc_flag;
 };
+
+static inline bool fscrypt_ci_is_managed(const struct fscrypt_info *ci)
+{
+	return ci && ci->ci_owner.key != NULL;
+}
+
+#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
+extern int fscrypt_check_unmanaged_descriptor(
+		struct super_block *sb,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE]);
+#else
+static inline int fscrypt_check_unmanaged_descriptor(
+		struct super_block *sb,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE])
+{
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_HWDPS
 #define HWDPS_XATTR_NAME "hwdps"
@@ -163,11 +186,40 @@ struct fscrypt_name {
 /*
  * crypto opertions for filesystems
  */
+enum fscrypt_context_origin {
+	FSCRYPT_CTX_OWNED_POLICY = 0,
+	FSCRYPT_CTX_BORROWED_INHERIT = 1,
+};
+
+enum fscrypt_context_phase {
+	FSCRYPT_CTX_PREPARED = 0,
+	FSCRYPT_CTX_INSTALLED,
+	FSCRYPT_CTX_FINISHED,
+};
+
+struct fscrypt_operations;
+struct fscrypt_context_op {
+	const struct fscrypt_operations *cop;
+	struct inode *inode;
+	enum fscrypt_context_origin origin;
+	enum fscrypt_context_phase phase;
+	void *fs_data;
+	bool owns_fs_data;
+	int *retry_count;
+};
+
 struct fscrypt_operations {
 	unsigned int flags;
 	const char *key_prefix;
 	int (*get_context)(struct inode *, void *, size_t);
 	int (*set_context)(struct inode *, const void *, size_t, void *);
+	int (*publish_crypt_info)(struct inode *, struct fscrypt_info *);
+	int (*prepare_context)(struct inode *, enum fscrypt_context_origin,
+			       void *, struct fscrypt_context_op **);
+	int (*set_context_prepared)(struct inode *, const void *, size_t,
+				    struct fscrypt_context_op *);
+	int (*finish_context)(struct inode *, struct fscrypt_context_op *, int,
+			      bool *);
 	bool (*dummy_context)(struct inode *);
 	bool (*is_encrypted)(struct inode *);
 	bool (*is_inline_encrypted)(struct inode *);

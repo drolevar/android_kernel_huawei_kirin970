@@ -103,6 +103,19 @@ struct ext4_xattr_info {
 	int in_inode;
 };
 
+/*
+ * A block contains at most block_size / EXT4_XATTR_LEN(0) entries.  The
+ * prepared setter can hold two complete entry sets at once (clone cleanup or
+ * old/new block replacement), plus a bounded number of direct-path inodes.
+ */
+#define EXT4_XATTR_MAX_DEFERRED_IPUTS \
+	(2 * (EXT4_MAX_BLOCK_SIZE / EXT4_XATTR_LEN(0)) + 16)
+
+struct ext4_xattr_deferred_iputs {
+	unsigned int count;
+	struct inode *inodes[EXT4_XATTR_MAX_DEFERRED_IPUTS];
+};
+
 struct ext4_xattr_search {
 	struct ext4_xattr_entry *first;
 	void *base;
@@ -164,6 +177,15 @@ extern ssize_t ext4_listxattr(struct dentry *, char *, size_t);
 extern int ext4_xattr_get(struct inode *, int, const char *, void *, size_t);
 extern int ext4_xattr_set(struct inode *, int, const char *, const void *, size_t, int);
 extern int ext4_xattr_set_handle(handle_t *, struct inode *, int, const char *, const void *, size_t, int);
+extern int ext4_xattr_set_handle_prepared(
+		handle_t *handle, struct inode *inode, int name_index,
+		const char *name, const void *value, size_t value_len,
+		int flags, struct ext4_xattr_deferred_iputs *deferred);
+extern void ext4_xattr_defer_iput(
+		struct ext4_xattr_deferred_iputs *deferred,
+		struct inode *inode);
+extern void ext4_xattr_drain_deferred_iputs(
+		struct ext4_xattr_deferred_iputs *deferred);
 extern int ext4_xattr_set_credits(struct inode *inode, size_t value_len,
 				  bool is_create, int *credits);
 extern int __ext4_xattr_set_credits(struct super_block *sb, struct inode *inode,

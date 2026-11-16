@@ -351,6 +351,8 @@ struct fscrypt_key {
 	__u32 size;
 };
 
+#include "fscrypt.h"
+
 /*
  * Inode flags (FS_IOC_GETFLAGS / FS_IOC_SETFLAGS)
  *

@@ -78,6 +78,7 @@ static int f2fs_create_sdp_encryption_context_from_policy(struct inode *inode,
 					const struct fscrypt_sdp_policy *policy)
 {
 	int res = 0;
+	struct fscrypt_context ce_ctx;
 	struct f2fs_sdp_fscrypt_context sdp_ctx = { 0 };
 	struct f2fs_sb_info *sb = F2FS_I_SB(inode);
 	u8 master_key_descriptor_tmp[FS_KEY_DESCRIPTOR_SIZE];
@@ -95,6 +96,19 @@ static int f2fs_create_sdp_encryption_context_from_policy(struct inode *inode,
 
 	if (policy->flags & ~FS_POLICY_FLAGS_VALID)
 		return -EINVAL;
+	if (fscrypt_ci_is_managed(READ_ONCE(inode->i_crypt_info)))
+		return -EOPNOTSUPP;
+	res = inode->i_sb->s_cop->get_context(inode, &ce_ctx, sizeof(ce_ctx));
+	if (res != sizeof(ce_ctx))
+		return -EINVAL;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		ce_ctx.master_key_descriptor);
+	if (res)
+		return res;
+	res = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+		policy->master_key_descriptor);
+	if (res)
+		return res;
 
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 	if (S_ISREG(inode->i_mode) && (inode->i_crypt_info) &&
@@ -107,7 +121,8 @@ static int f2fs_create_sdp_encryption_context_from_policy(struct inode *inode,
 	if (S_ISREG(inode->i_mode)) {
 		memcpy(master_key_descriptor_tmp, policy->master_key_descriptor,
 			FS_KEY_DESCRIPTOR_SIZE);
-		res = f2fs_inode_check_sdp_keyring(master_key_descriptor_tmp, 0);
+		res = f2fs_inode_check_sdp_keyring(
+			inode->i_sb, master_key_descriptor_tmp, 0);
 		if (res)
 			return res;
 	}
@@ -325,6 +340,8 @@ err:
 static int set_dps_policy_inner(struct file *filp, struct inode *inode)
 {
 	int ret;
+	struct fscrypt_context ce_ctx;
+	struct fscrypt_info *ci;
 
 	ret = mnt_want_write_file(filp);
 	if (ret != 0) {
@@ -333,6 +350,37 @@ static int set_dps_policy_inner(struct file *filp, struct inode *inode)
 	}
 
 	inode_lock(inode);
+	ci = READ_ONCE(inode->i_crypt_info);
+	if (fscrypt_ci_is_managed(ci)) {
+		ret = -EOPNOTSUPP;
+		goto err;
+	}
+	if (!inode->i_sb || !inode->i_sb->s_cop ||
+	    !inode->i_sb->s_cop->get_context) {
+		ret = -EOPNOTSUPP;
+		goto err;
+	}
+	ret = inode->i_sb->s_cop->get_context(inode, &ce_ctx, sizeof(ce_ctx));
+	if (ret == sizeof(ce_ctx)) {
+		ret = fscrypt_check_unmanaged_descriptor(inode->i_sb,
+						 ce_ctx.master_key_descriptor);
+		if (ret != 0)
+			goto err;
+	} else if (ret < 0) {
+		if (!fscrypt_dummy_context_enabled(inode) ||
+		    !inode->i_sb->s_cop->is_encrypted ||
+		    inode->i_sb->s_cop->is_encrypted(inode)) {
+			ret = (ret == -ENODATA) ? -EINVAL : ret;
+			goto err;
+		}
+	} else {
+		ret = -EINVAL;
+		goto err;
+	}
+	if (S_ISREG(inode->i_mode) && !ci) {
+		ret = -ENOKEY;
+		goto err;
+	}
 	ret = check_inode_flag(inode);
 	if (ret == -EEXIST) {
 		ret = 0;
@@ -463,19 +511,27 @@ int f2fs_ioc_get_encryption_policy_type(struct file *filp, unsigned long arg)
 	return f2fs_fscrypt_ioctl_get_policy_type(filp, (void __user *)arg);
 }
 
-int f2fs_inode_check_sdp_keyring(u8 *descriptor, int enforce)
+int f2fs_inode_check_sdp_keyring(struct super_block *sb, u8 *descriptor,
+				 int enforce)
 {
 	int res = -EKEYREVOKED;
 	struct key *keyring_key = NULL;
 	const struct user_key_payload *ukp = NULL;
 	struct fscrypt_sdp_key *master_sdp_key = NULL;
 
+	res = fscrypt_check_unmanaged_descriptor(sb, descriptor);
+	if (res)
+		return res;
 	keyring_key = fscrypt_request_key(descriptor,
 			FS_KEY_DESC_PREFIX, FS_KEY_DESC_PREFIX_SIZE);
 	if (IS_ERR(keyring_key))
 		return PTR_ERR(keyring_key);
 
 	down_read(&keyring_key->sem);
+	res = key_validate(keyring_key);
+	if (res)
+		goto out;
+	res = -EKEYREVOKED;
 	if (keyring_key->type != &key_type_logon) {
 		pr_err("f2fs_sdp %s: key type must be logon\n", __func__);
 		goto out;
@@ -527,6 +583,7 @@ int f2fs_sdp_crypt_inherit(struct inode *parent, struct inode *child,
 			   void *dpage, void *fs_data)
 {
 	int res = 0;
+	struct fscrypt_context ce_ctx;
 	struct f2fs_sb_info *sb = F2FS_I_SB(parent);
 	struct f2fs_sdp_fscrypt_context sdp_ctx;
 	char *sdp_mkey_desc = NULL;
@@ -538,10 +595,28 @@ int f2fs_sdp_crypt_inherit(struct inode *parent, struct inode *child,
 					     dpage);
 	if (res != sizeof(sdp_ctx))
 		return 0;
+	if (fscrypt_ci_is_managed(READ_ONCE(parent->i_crypt_info)))
+		return -EOPNOTSUPP;
+	res = fscrypt_check_unmanaged_descriptor(parent->i_sb,
+			sdp_ctx.master_key_descriptor);
+	if (res)
+		return res;
+	if (!READ_ONCE(parent->i_crypt_info) &&
+	    f2fs_inode_is_config_encryption(parent)) {
+		res = parent->i_sb->s_cop->get_context(parent, &ce_ctx,
+						 sizeof(ce_ctx));
+		if (res != sizeof(ce_ctx))
+			return -EINVAL;
+		res = fscrypt_check_unmanaged_descriptor(parent->i_sb,
+				ce_ctx.master_key_descriptor);
+		if (res)
+			return res;
+	}
 
 	if (S_ISREG(child->i_mode)) {
 		sdp_mkey_desc = sdp_ctx.master_key_descriptor;
-		res = f2fs_inode_check_sdp_keyring(sdp_mkey_desc, 0);
+		res = f2fs_inode_check_sdp_keyring(parent->i_sb,
+						    sdp_mkey_desc, 0);
 		if (res)
 			return res;
 	}

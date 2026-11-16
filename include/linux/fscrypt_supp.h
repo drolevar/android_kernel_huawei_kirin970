@@ -66,9 +66,18 @@ static inline struct page *fscrypt_control_page(struct page *page)
 extern void fscrypt_restore_control_page(struct page *);
 
 /* policy.c */
+struct fscrypt_ce_scope;
 extern int fscrypt_ioctl_set_policy(struct file *, const void __user *);
 extern int fscrypt_ioctl_get_policy(struct file *, void __user *);
+extern int fscrypt_ioctl_add_key(struct file *filp, void __user *uarg);
+extern int fscrypt_ioctl_remove_key(struct file *filp, void __user *uarg);
+extern int fscrypt_ioctl_remove_key_all_users(struct file *filp,
+					      void __user *uarg);
+extern int fscrypt_ioctl_get_key_status(struct file *filp, void __user *uarg);
 extern int fscrypt_has_permitted_context(struct inode *, struct inode *);
+extern int fscrypt_inherit_context_prepared(
+		struct inode *parent, struct inode *child, void *fs_data,
+		struct fscrypt_ce_scope *borrowed_scope, bool preload);
 extern int fscrypt_inherit_context(struct inode *, struct inode *,
 					void *, bool);
 
@@ -77,8 +86,45 @@ extern int fscrypt_set_gcm_key(struct crypto_aead *, const u8 *);
 extern int fscrypt_derive_gcm_key(struct crypto_aead *,
 				const u8 *, u8 *, u8 *, int);
 extern struct key *fscrypt_request_key(const u8 *, const u8 *, int);
+/* Legacy logon acquisition only: not a filesystem-keyring/REMOVE token.
+ * material retains the original size and all 64 bytes, including vendor tail.
+ * A successful acquisition owns exactly one read lock and key reference.
+ * The token must not be copied, reused live, or shared between threads.
+ */
+struct fscrypt_ce_key {
+	struct key *key;
+	struct fscrypt_key material;
+	bool alternate_prefix;
+};
+extern int fscrypt_acquire_ce_key(const u8 *descriptor, const char *alternate,
+				 struct fscrypt_ce_key *lease);
+extern void fscrypt_release_ce_key(struct fscrypt_ce_key *lease);
+
+enum fscrypt_ce_purpose {
+	POLICY_WRAP,
+	FILE_UNWRAP,
+	SDP_CE_SOURCE,
+	CHILD_WRAP,
+};
+
+extern void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner);
+extern int fscrypt_ce_scope_open(struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **out);
+extern int fscrypt_ce_scope_open_cached(
+		struct inode *inode, enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **out);
+extern int fscrypt_ce_scope_crypt(struct fscrypt_ce_scope *scope,
+		const u8 *src, u8 *dst,
+		const u8 iv[FS_KEY_DERIVATION_IV_SIZE], bool encrypt);
+extern int fscrypt_ce_scope_legacy_slot(const struct fscrypt_ce_scope *scope,
+		u8 *slot);
+extern void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope);
+
 extern int fscrypt_get_encryption_info(struct inode *);
 extern void fscrypt_put_encryption_info(struct inode *);
+extern int fscrypt_drop_inode(struct inode *inode);
 #ifdef CONFIG_HWDPS
 extern int hwdps_update_context(struct inode *, uid_t);
 extern int hwdps_get_context(struct inode *);

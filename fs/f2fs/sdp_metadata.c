@@ -376,7 +376,8 @@ bool f2fs_encrypt_file_check(struct inode *inode)
 	if (ci_info) {
 		if ((ci_info->ci_hw_enc_flag ==
 		     F2FS_XATTR_SDP_ECE_ENABLE_FLAG) &&
-		    f2fs_inode_check_sdp_keyring(ci_info->ci_master_key, 0)) {
+		    f2fs_inode_check_sdp_keyring(inode->i_sb,
+						ci_info->ci_master_key, 0)) {
 			pr_err("%s: ECE file check sdp keyring failed! \n",
 			       __func__);
 			return true;

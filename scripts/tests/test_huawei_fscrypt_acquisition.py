@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0
+"""Extract current production acquisition/consumers; simulate only kernel services.
+
+The historical contract runner supplies declarations and unchanged GCM functions
+from its pinned source. No device, keyctl, mounts or kernel syscalls are used.
+"""
+import argparse, hashlib, json, re, subprocess
+from pathlib import Path
+from test_huawei_fscrypt_contract import function, extract
+
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('--cc',required=True)
+p.add_argument('--keep-output',type=Path,required=True)
+p.add_argument('--historical-output',type=Path,required=True)
+p.add_argument('--mutation',choices=('payload-write','double-unlock','skip-validation','fallback','capacity','class','size','wipe','sece-offset','sece-private','postlookup-fallback'))
+a=p.parse_args()
+k=Path(__file__).resolve().parents[2]; here=k/'scripts/tests'; out=a.keep_output.resolve(); out.mkdir(parents=True,exist_ok=False)
+inputs={name:(k/name).read_text() for name in ('fs/crypto/keyinfo.c','fs/crypto/policy.c','fs/f2fs/keyinfo.c','include/linux/fscrypt_supp.h','fs/f2fs/sdp_internal.h','include/crypto/ecdh.h')}
+
+def whole(text, name):
+ match=re.search(r'^(?:static\s+)?[^\n]*\b'+re.escape(name)+r'\s*\(',text,re.M)
+ if not match: raise ValueError('function not found: '+name)
+ start=match.start()
+ previous=text[text.rfind('\n',0,max(0,start-1))+1:start].strip()
+ if previous in ('static int','int','static void','void','static bool','bool'):
+  start=text.rfind('\n',0,max(0,start-1))+1
+ brace=text.index('{',match.start()); depth=0
+ for pos in range(brace,len(text)):
+  if text[pos]=='{': depth+=1
+  elif text[pos]=='}':
+   depth-=1
+   if depth==0: return text[start:pos+1]
+ raise ValueError('unterminated function: '+name)
+(out/'declarations.h').write_text((a.historical_output/'declarations.h').read_text() + '\n' + extract(r'^struct f2fs_sdp_fscrypt_context \{.*?^\}[^;]*;',inputs['fs/f2fs/sdp_internal.h']) + '\n' + extract(r'^#define ECC_CURVE_NIST_P256[^\n]*',inputs['include/crypto/ecdh.h']) + '\n')
+(out/'crypto-subject.h').write_text('\n'.join(function(inputs['fs/crypto/keyinfo.c'],n) for n in ('derive_crypt_complete','fscrypt_set_gcm_key','fscrypt_derive_gcm_key')))
+(out/'lease.h').write_text(extract(r'^struct fscrypt_ce_key \{.*?^\};',inputs['include/linux/fscrypt_supp.h'])+'\n'+extract(r'^enum fscrypt_ce_purpose \{.*?^\};',inputs['include/linux/fscrypt_supp.h']))
+subject='\n'.join((
+ extract(r'^struct fscrypt_ce_tfm \{.*?^\};',inputs['fs/crypto/keyinfo.c']),
+ extract(r'^struct fscrypt_ce_scope \{.*?^\};',inputs['fs/crypto/keyinfo.c']),
+)+tuple(whole(inputs[path],n) for path,names in (
+ ('fs/crypto/keyinfo.c',('fscrypt_acquire_ce_key','fscrypt_release_ce_key','fscrypt_ce_tfm_get','fscrypt_ce_tfm_put','fscrypt_ce_scope_open','fscrypt_ce_scope_matches','fscrypt_ce_scope_crypt','fscrypt_ce_scope_legacy_slot','fscrypt_ce_scope_attach_legacy_tfm','fscrypt_ce_scope_put')),
+ ('fs/crypto/policy.c',('create_encryption_context_from_policy',)),
+ ('fs/crypto/keyinfo.c',('find_and_derive_key_with_scope','find_and_derive_key')),
+ ('fs/f2fs/keyinfo.c',('f2fs_do_get_keyring_payload','f2fs_do_get_ce_fek','f2fs_do_get_fek','f2fs_do_get_sece_fek'))) for n in names))
+mutations={
+ 'sece-offset':('raw + offset_len, FS_SDP_ECC_PUB_KEY_SIZE','raw, FS_SDP_ECC_PUB_KEY_SIZE'),
+ 'sece-private':('raw, FS_SDP_ECC_PRIV_KEY_SIZE,','raw + FS_SDP_ECC_PRIV_KEY_SIZE, FS_SDP_ECC_PRIV_KEY_SIZE,'),
+ 'postlookup-fallback':('err = key_validate(key);','err = key_validate(key); if (err == -ENOKEY && alternate) { struct key *retry = fscrypt_request_key(descriptor, alternate, strlen(alternate)); if (!IS_ERR(retry)) key_put(retry); }'),
+ 'payload-write':('memcpy(&lease->material, payload, sizeof(*payload));','((struct fscrypt_key *)payload)->size = 32; memcpy(&lease->material, payload, sizeof(*payload));'),
+ 'double-unlock':('if (lease->key) {','if (lease->key) { up_read(&lease->key->sem);'),
+ 'skip-validation':('err = key_validate(key);','err = 0;'),
+ 'fallback':('key == ERR_PTR(-ENOKEY) && alternate','IS_ERR(key) && alternate'),
+ 'capacity':('if (private_size > capacity || public_size > capacity - private_size)','if (false)'),
+ 'class':('if (mst_sdp->sdpclass != expected_class)','if (false)'),
+ 'size':('if (payload->size != FS_AES_256_GCM_KEY_SIZE &&','if (false && payload->size != FS_AES_256_GCM_KEY_SIZE &&'),
+ 'wipe':('memzero_explicit(lease, sizeof(*lease));\n}', '/* missing wipe */\n}')}
+if a.mutation:
+ before,after=mutations[a.mutation]; assert subject.count(before)==1,(a.mutation,subject.count(before));subject=subject.replace(before,after)
+(out/'subject.h').write_text(subject)
+version=subprocess.check_output([a.cc,'--version'],text=True);assert 'clang version 22.' in version
+results=[];commands=[]
+for variant in ('baseline','v3'):
+ binary=out/variant
+ cmd=[a.cc,'-std=gnu11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-pointer-sign','-Wno-unused-function','-Wno-unused-parameter','-Wno-sign-compare','-Wno-unused-but-set-variable','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(out),'-I'+str(here),str(here/'huawei_fscrypt_acquisition.c'),'-lcrypto','-o',str(binary)]
+ if variant=='v3':cmd+=['-DCONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3']
+ commands.append(cmd);subprocess.run(cmd,check=True,timeout=60)
+ cases=('immutable','tails','revocation','prefix','lookup-errors','sizes','errors','policy-errors','f2fs-ce','f2fs-errors','sdp-bounds')
+ if variant=='baseline': cases+=('sece-callers',)
+ for case in cases:
+  r=subprocess.run([str(binary),case],capture_output=True,text=True,timeout=10)
+  (out/(variant+'-'+case+'.log')).write_text(r.stdout+r.stderr)
+  results.append({'variant':variant,'case':case,'exit':r.returncode})
+  print(variant,case,'PASS' if r.returncode==0 else 'FAIL',flush=True)
+receipt={'source_commit':subprocess.check_output(['git','-C',str(k),'rev-parse','HEAD'],text=True).strip(),'dirty':bool(subprocess.check_output(['git','-C',str(k),'status','--porcelain'],text=True)), 'compiler':version,'mutation':a.mutation,'commands':commands,'results':results,'production_sha256':{p:hashlib.sha256(t.encode()).hexdigest() for p,t in inputs.items()},'test_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in here.glob('*fscrypt_acquisition*')},'execution':'current extracted production functions; modeled key lookup/read locks/revocation and allocation; OpenSSL AES-GCM behind kernel crypto API; ECC calls modeled to inspect exact caller pointers/lengths/bytes, not ECDH; no actual keyrings/concurrency/kernel/device'}
+(out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+raise SystemExit(int(any(r['exit'] for r in results)))
