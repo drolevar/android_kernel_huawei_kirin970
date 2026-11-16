@@ -155,6 +155,8 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 
 #else
 
+#define cgroup_bpf_enabled (0)
+
 struct cgroup_bpf {};
 static inline void cgroup_bpf_put(struct cgroup *cgrp) {}
 static inline int cgroup_bpf_inherit(struct cgroup *cgrp) { return 0; }
@@ -169,5 +171,7 @@ static inline int cgroup_bpf_inherit(struct cgroup *cgrp) { return 0; }
 #define BPF_CGROUP_RUN_PROG_SOCK_OPS(sock_ops) ({ 0; })
 
 #endif /* CONFIG_CGROUP_BPF */
+
+#include <linux/bpf_sockaddr_hooks.h>
 
 #endif /* _BPF_CGROUP_H */

@@ -142,6 +142,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_LWT_XMIT,
 	BPF_PROG_TYPE_SOCK_OPS,
 	BPF_PROG_TYPE_SK_SKB,
+	BPF_PROG_TYPE_CGROUP_SOCK_ADDR = 18,
 	BPF_PROG_TYPE_CGROUP_SOCKOPT = 25,
 };
 
@@ -152,6 +153,14 @@ enum bpf_attach_type {
 	BPF_CGROUP_SOCK_OPS,
 	BPF_SK_SKB_STREAM_PARSER,
 	BPF_SK_SKB_STREAM_VERDICT,
+	BPF_CGROUP_INET4_BIND = 8,
+	BPF_CGROUP_INET6_BIND = 9,
+	BPF_CGROUP_INET4_CONNECT = 10,
+	BPF_CGROUP_INET6_CONNECT = 11,
+	BPF_CGROUP_UDP4_SENDMSG = 14,
+	BPF_CGROUP_UDP6_SENDMSG = 15,
+	BPF_CGROUP_UDP4_RECVMSG = 19,
+	BPF_CGROUP_UDP6_RECVMSG = 20,
 	BPF_CGROUP_GETSOCKOPT = 21,
 	BPF_CGROUP_SETSOCKOPT = 22,
 	__MAX_BPF_ATTACH_TYPE
@@ -1124,6 +1133,32 @@ enum {
 #define TCP_BPF_SNDCWND_CLAMP	1002	/* Set sndcwnd_clamp */
 
 /* Canonical sockopt context, including pointer slots on 32-bit hosts. */
+struct bpf_sock_addr {
+	__u32 user_family;	/* Allows 4-byte read, but no write. */
+	__u32 user_ip4;		/* Allows 1,2,4-byte read and 4-byte write.
+				 * Stored in network byte order.
+				 */
+	__u32 user_ip6[4];	/* Allows 1,2,4,8-byte read and 4,8-byte write.
+				 * Stored in network byte order.
+				 */
+	__u32 user_port;	/* Allows 1,2,4-byte read and 4-byte write.
+				 * Stored in network byte order
+				 */
+	__u32 family;		/* Allows 4-byte read, but no write */
+	__u32 type;		/* Allows 4-byte read, but no write */
+	__u32 protocol;		/* Allows 4-byte read, but no write */
+	__u32 msg_src_ip4;	/* Allows 1,2,4-byte read and 4-byte write.
+				 * Stored in network byte order.
+				 */
+	__u32 msg_src_ip6[4];	/* Allows 1,2,4,8-byte read and 4,8-byte write.
+				 * Stored in network byte order.
+				 */
+	union {
+		struct bpf_sock *sk;
+		__u64 :64;
+	} __attribute__((aligned(8)));
+};
+
 struct bpf_sockopt {
 	union { struct bpf_sock *sk; __u64 :64; } __attribute__((aligned(8)));
 	union { void *optval; __u64 :64; } __attribute__((aligned(8)));

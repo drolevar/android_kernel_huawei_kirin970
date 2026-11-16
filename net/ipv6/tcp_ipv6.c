@@ -25,6 +25,7 @@
 
 #include <linux/bottom_half.h>
 #include <linux/module.h>
+#include <linux/bpf-cgroup.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/socket.h>
@@ -2232,10 +2233,26 @@ void tcp6_proc_exit(struct net *net)
 }
 #endif
 
+static int tcp_v6_pre_connect(struct sock *sk, struct sockaddr *uaddr,
+			      int addr_len)
+{
+	/* This check is replicated from tcp_v6_connect() and intended to
+	 * prevent BPF program called below from accessing bytes that are out
+	 * of the bound specified by user in addr_len.
+	 */
+	if (addr_len < SIN6_LEN_RFC2133)
+		return -EINVAL;
+
+	sock_owned_by_me(sk);
+
+	return BPF_CGROUP_RUN_PROG_INET6_CONNECT(sk, uaddr);
+}
+
 struct proto tcpv6_prot = {
 	.name			= "TCPv6",
 	.owner			= THIS_MODULE,
 	.close			= tcp_close,
+	.pre_connect = tcp_v6_pre_connect,
 	.connect		= tcp_v6_connect,
 	.disconnect		= tcp_disconnect,
 	.accept			= inet_csk_accept,

@@ -526,4 +526,5 @@ EXPORT_SYMBOL(__cgroup_bpf_run_filter_sock_ops);
 
 #ifdef CONFIG_NET
 #include "cgroup_sockopt.inc"
+#include "cgroup_sockaddr.inc"
 #endif

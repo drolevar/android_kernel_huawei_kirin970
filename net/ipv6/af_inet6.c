@@ -346,6 +346,11 @@ int inet6_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	if (addr_len < SIN6_LEN_RFC2133)
 		return -EINVAL;
 
+	/* Run before address/capability checks; rewrites are revalidated below. */
+	err = BPF_CGROUP_RUN_PROG_INET6_BIND(sk, uaddr);
+	if (err)
+		return err;
+
 	if (addr->sin6_family != AF_INET6)
 		return -EAFNOSUPPORT;
 

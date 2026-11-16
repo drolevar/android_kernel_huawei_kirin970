@@ -479,6 +479,17 @@ struct bpf_binary_header {
 	u8 image[];
 };
 
+struct bpf_sock_addr_kern {
+	struct sock *sk;
+	struct sockaddr *uaddr;
+	/* Temporary "register" to make indirect stores to nested structures
+	 * defined above. We need three registers to make such a store, but
+	 * only two (src and dst) are available at convert_ctx_access time
+	 */
+	u64 tmp_reg;
+	void *t_ctx;	/* Attach type specific context. */
+};
+
 struct bpf_sockopt_kern {
 	struct sock	*sk;
 	u8		*optval;

@@ -56,6 +56,7 @@
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/module.h>
+#include <linux/bpf-cgroup.h>
 #include <linux/random.h>
 #include <linux/cache.h>
 #include <linux/jhash.h>
@@ -2699,10 +2700,26 @@ void tcp4_proc_exit(void)
 }
 #endif /* CONFIG_PROC_FS */
 
+static int tcp_v4_pre_connect(struct sock *sk, struct sockaddr *uaddr,
+			      int addr_len)
+{
+	/* This check is replicated from tcp_v4_connect() and intended to
+	 * prevent BPF program called below from accessing bytes that are out
+	 * of the bound specified by user in addr_len.
+	 */
+	if (addr_len < sizeof(struct sockaddr_in))
+		return -EINVAL;
+
+	sock_owned_by_me(sk);
+
+	return BPF_CGROUP_RUN_PROG_INET4_CONNECT(sk, uaddr);
+}
+
 struct proto tcp_prot = {
 	.name			= "TCP",
 	.owner			= THIS_MODULE,
 	.close			= tcp_close,
+	.pre_connect = tcp_v4_pre_connect,
 	.connect		= tcp_v4_connect,
 	.disconnect		= tcp_disconnect,
 	.accept			= inet_csk_accept,
