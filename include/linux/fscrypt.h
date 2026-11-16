@@ -171,6 +171,7 @@ static inline int fscrypt_prepare_setattr(struct dentry *dentry,
 					  struct iattr *attr)
 {
 	if (attr->ia_valid & ATTR_SIZE) {
+#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
 		struct inode *inode = d_inode(dentry);
 		if (IS_ENCRYPTED(inode)) {
 			if (inode->i_crypt_info &&
@@ -178,6 +179,7 @@ static inline int fscrypt_prepare_setattr(struct dentry *dentry,
 				return 0; // the sece file will success when i_crypt_info is exist for ftruncate
 			}
 		}
+#endif
 		return fscrypt_require_key(d_inode(dentry));
 	}
 	return 0;
