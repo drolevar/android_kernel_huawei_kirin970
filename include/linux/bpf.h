@@ -227,6 +227,12 @@ struct bpf_prog_aux {
 	u32 func_info_cnt;
 	struct bpf_line_info *linfo;
 	u32 nr_linfo;
+	/* Constant blinding adjusts line offsets and may expand the charged
+	 * image before the JIT decides which program survives.
+	 */
+	struct bpf_line_info *linfo_blind_backup;
+	struct bpf_prog *blind_prog;
+	u32 blind_orig_pages;
 	atomic_t refcnt;
 	u32 used_map_cnt;
 	u32 max_ctx_offset;

@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import resource
@@ -20,6 +21,19 @@ def function(text, name):
         depth += (text[end] == "{") - (text[end] == "}")
         end += 1
     return text[match.start():end]
+
+
+def add_blinding_state_to_aux_model(text):
+    old = ("struct bpf_prog_aux {int refcnt;u32 id,used_map_cnt;"
+           "struct bpf_map**used_maps;struct user_struct*user;u64 load_time;"
+           "char name[16];struct bpf_prog*prog;struct btf*btf;"
+           "struct bpf_func_info*func_info;u32 func_info_cnt;"
+           "struct bpf_line_info*linfo;u32 nr_linfo;"
+           "union {struct rcu_head rcu;struct work_struct work;};};")
+    new = old[:-2] + ("struct bpf_line_info*linfo_blind_backup;"
+                      "struct bpf_prog*blind_prog;u32 blind_orig_pages;};")
+    assert old in text
+    return text.replace(old, new)
 
 
 def main():
@@ -70,8 +84,11 @@ int main(void) {
     receipt = {"boundary": __doc__, "command": command, "compile_exit": result.returncode,
                "compile_output": result.stdout + result.stderr,
                "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    run_env = os.environ.copy()
+    run_env["ASAN_OPTIONS"] = "detect_leaks=0"
     if not result.returncode:
-        result = subprocess.run([str(args.output / "attr")], capture_output=True, text=True)
+        result = subprocess.run([str(args.output / "attr")], capture_output=True,
+                                text=True, env=run_env)
         receipt.update(run_exit=result.returncode, output=result.stdout + result.stderr)
     (args.output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     results = {"attr": receipt}
@@ -86,7 +103,15 @@ int main(void) {
         subjects.append("static int check_btf_info(struct bpf_verifier_env*e,const union bpf_attr*a,union bpf_attr*u){return -EOPNOTSUPP;}")
     else:
         subjects += [(root / ("kernel/bpf/"+n)).read_text() for n in ["prog_btf_func.inc", "prog_btf_line.inc", "prog_btf_info.inc"]]
-    subjects += [function(core,n) for n in ["__bpf_prog_free", "bpf_prog_alloc", "bpf_prog_realloc", "bpf_prog_clone_free", "bpf_jit_prog_release_other", "bpf_prog_free_deferred", "bpf_prog_free", "bpf_is_jmp_and_has_target", "bpf_adj_delta_to_off", "bpf_adj_branches"]]
+    subjects += [function(core,n) for n in ["__bpf_prog_free", "bpf_prog_alloc",
+                                            "bpf_prog_realloc", "bpf_prog_clone_free"]]
+    if "bpf_prog_blind_finish" in core:
+        subjects += [function(core, n) for n in ["bpf_prog_blind_begin",
+                                                 "bpf_prog_blind_finish"]]
+    subjects += [function(core,n) for n in ["bpf_jit_prog_release_other",
+                                            "bpf_prog_free_deferred", "bpf_prog_free",
+                                            "bpf_is_jmp_and_has_target",
+                                            "bpf_adj_delta_to_off", "bpf_adj_branches"]]
     if "static void bpf_adj_linfo" in core:
         subjects.append(function(core,"bpf_adj_linfo"))
     subjects.append(function(core,"bpf_patch_insn_single"))
@@ -94,7 +119,10 @@ int main(void) {
     if "static int set_info_rec_size" in syscall:
         subjects.append(function(syscall,"set_info_rec_size"))
     subjects.append(function(syscall,"bpf_prog_get_info_by_fd"))
-    host = (root / "scripts/tests/program_btf_host.c").read_text().replace("/* FIXTURES */",c_fixture(fixture)).replace("/* SUBJECT */", "\n\n".join(subjects))
+    host = add_blinding_state_to_aux_model(
+        (root / "scripts/tests/program_btf_host.c").read_text())
+    host = host.replace("/* FIXTURES */", c_fixture(fixture)).replace(
+        "/* SUBJECT */", "\n\n".join(subjects))
     hp = args.output / "host.c"
     hp.write_text(host)
     cmd = command[:]
@@ -105,7 +133,8 @@ int main(void) {
     h = {"command":cmd,"compile_exit":run.returncode,"compile_output":run.stdout+run.stderr,"source_sha256":hashlib.sha256(hp.read_bytes()).hexdigest(),"red_stub":args.red_stub,"cases":[]}
     if not run.returncode:
         for case in range(24):
-            r = subprocess.run([str(args.output / "host"),str(case)],capture_output=True,text=True)
+            r = subprocess.run([str(args.output / "host"),str(case)],
+                               capture_output=True, text=True, env=run_env)
             h["cases"].append({"case":case,"exit":r.returncode,"output":r.stdout+r.stderr})
     results["host"] = h
     (args.output / "receipt.json").write_text(json.dumps(results,indent=2)+"\n")

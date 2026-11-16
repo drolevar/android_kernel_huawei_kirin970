@@ -186,6 +186,7 @@ void __bpf_prog_free(struct bpf_prog *fp)
 		btf_put(fp->aux->btf);
 #endif
 		kfree(fp->aux->func_info);
+		kvfree(fp->aux->linfo_blind_backup);
 		kvfree(fp->aux->linfo);
 	}
 	kfree(fp->aux);
@@ -343,6 +344,56 @@ static void bpf_adj_linfo(struct bpf_prog *prog, u32 off, u32 delta)
 	for (; i < nr_linfo; i++)
 		linfo[i].insn_off += delta;
 }
+
+#ifdef CONFIG_BPF_JIT
+static int bpf_prog_blind_begin(struct bpf_prog *prog,
+				struct bpf_prog *clone)
+{
+	struct bpf_prog_aux *aux = prog->aux;
+	struct bpf_line_info *linfo = NULL;
+
+	if (aux->nr_linfo) {
+		linfo = kvmalloc_array(aux->nr_linfo, sizeof(*linfo), GFP_USER);
+		if (!linfo)
+			return -ENOMEM;
+		memcpy(linfo, aux->linfo, aux->nr_linfo * sizeof(*linfo));
+	}
+
+	aux->linfo_blind_backup = linfo ? aux->linfo : NULL;
+	aux->blind_prog = clone;
+	aux->blind_orig_pages = prog->pages;
+	if (linfo)
+		aux->linfo = linfo;
+	return 0;
+}
+
+static void bpf_prog_blind_finish(struct bpf_prog *prog,
+				  struct bpf_prog *discarded)
+{
+	struct bpf_prog_aux *aux = prog->aux;
+	struct bpf_line_info *backup = aux->linfo_blind_backup;
+
+	if (!aux->blind_prog)
+		return;
+
+	if (discarded == aux->blind_prog) {
+		if (backup) {
+			kvfree(aux->linfo);
+			aux->linfo = backup;
+		}
+		if (discarded->pages > aux->blind_orig_pages) {
+			u32 delta = discarded->pages - aux->blind_orig_pages;
+
+			__bpf_prog_uncharge(aux->user, delta);
+		}
+	} else {
+		kvfree(backup);
+	}
+	aux->linfo_blind_backup = NULL;
+	aux->blind_prog = NULL;
+	aux->blind_orig_pages = 0;
+}
+#endif
 
 struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 				       const struct bpf_insn *patch, u32 len)
@@ -897,6 +948,7 @@ static void bpf_prog_clone_free(struct bpf_prog *fp)
 
 void bpf_jit_prog_release_other(struct bpf_prog *fp, struct bpf_prog *fp_other)
 {
+	bpf_prog_blind_finish(fp, fp_other);
 	/* We have to repoint aux->prog to self, as we don't
 	 * know whether fp here is the clone or the original.
 	 */
@@ -918,6 +970,10 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_prog *prog)
 	clone = bpf_prog_clone_create(prog, GFP_USER);
 	if (!clone)
 		return ERR_PTR(-ENOMEM);
+	if (bpf_prog_blind_begin(prog, clone)) {
+		bpf_prog_clone_free(clone);
+		return ERR_PTR(-ENOMEM);
+	}
 
 	insn_cnt = clone->len;
 	insn = clone->insnsi;
@@ -946,6 +1002,7 @@ struct bpf_prog *bpf_jit_blind_constants(struct bpf_prog *prog)
 		}
 
 		clone = tmp;
+		clone->aux->blind_prog = clone;
 		insn_delta = rewritten - 1;
 
 		/* Walk new program and skip insns we just inserted. */
