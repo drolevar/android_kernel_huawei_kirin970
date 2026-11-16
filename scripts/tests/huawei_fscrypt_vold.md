@@ -76,3 +76,50 @@ legacy fallback. Retained file FEKs and permission to wrap new child contexts
 must remain separate. Production concurrency, inode/I/O lifetime, real ioctl
 routing, filesystem teardown, vendor integration and CE-to-SDP durable conversion
 and crash recovery remain unresolved. These host tests do not prove any of them.
+
+## Consumer connected to the ownership model
+
+`test_huawei_fscrypt_vold_model.py` accepts the same `--android`, `--cc` and
+`--keep-output` arguments. It first runs the17-case consumer fixture and existing
+historical model suite, then links the unchanged selected vold functions to
+`huawei_fscrypt_model.h` through `huawei_fscrypt_vold_model.c`. The C bridge and
+C++ consumer are both built with ASan/UBSan; extraction, commands, input hashes,
+logs and results are retained. The original scripted suite remains available.
+
+This backend handles one synthetic descriptor and64-byte raw keys. It is not a
+keyring implementation: caller credentials, key quota, multiple descriptors,
+wrapped/v2 keys, filesystem mount lifetime and production inode objects are not
+implemented. Descriptor ADD while present leaves the current secret/generation
+unchanged, following the reference's idempotent path. First ADD also constructs
+an existing synthetic Huawei GCM file context as test setup; context construction
+is not an actual ADD ioctl side effect. No production key bytes are used.
+
+Eleven schedules now drive actual vold code using model state:
+
+| Case | Connected behavior |
+| --- | --- |
+| clean | ADD, REMOVE, wiped secret, ABSENT and tombstone blocking a valid legacy duplicate |
+| busy-retry | Dirty/busy owner retained; cleanup retries; external clean/close permits final removal |
+| readd | ADD during worker sleep advances generation; PRESENT stops old cleanup; old/new owners remain separately accounted |
+| admission | An in-flight unwrap pins admission; after abort, removal succeeds with balanced references |
+| publication | Two candidates contend for one inode; losing publication releases its lease |
+| errors | Allocation, setkey, unwrap and crypto-request failures leave no admission references |
+| inheritance | Admission holds a master lease; removal disables new wraps; re-add does not authorize an old cached generation |
+| duplicate-add | Existing secret and inode generation remain intact |
+| scope | Wrapped/v2 requests are explicitly rejected by the fixture backend |
+| dirty-only / busy-only | Each condition independently prevents teardown and preserves references until explicitly cleared |
+
+`--mutation` accepts `tombstone`, `generation`, `busy-flag`, `owner-release`,
+`readd-status`, `admission`, `master-retirement`, `dirty-owner`, and `busy-owner`.
+Each must compile and fail
+its relevant assertion. Mutation applies only to generated host inputs, never
+production source. The unmutated model itself remains unchanged.
+
+**Limits:** `fs_remove()` returns EAGAIN when a modeled reader is active. This is
+an observable model scheduling boundary, not the proposed production ioctl ABI;
+the production semaphore/wait protocol is still required. Worker execution is
+sequential; no races, IRQ behavior or kernel locks execute. Cached access is a
+model permission check, not I/O through a real retained FEK. Inheritance uses a
+held model lease plus host GCM, not an actual cached Huawei `ci_gtfm`. These tests
+do not implement or prove production transform retirement, managed registry
+admission, inode teardown, CE-to-SDP persistence or crash recovery.

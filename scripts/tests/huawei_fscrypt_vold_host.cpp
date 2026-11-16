@@ -18,6 +18,9 @@
 #include <openssl/sha.h>
 #include "selected-fscrypt-uapi.h"
 #include <fscrypt/fscrypt.h>
+#ifdef VOLD_MANAGED_MODEL
+#include "huawei_fscrypt_vold_model.h"
+#endif
 using android::fscrypt::EncryptionOptions;
 using android::fscrypt::EncryptionPolicy;
 using android::fscrypt::KeyType;
@@ -35,6 +38,10 @@ static int opens, closes, live_fds, failed_opens;
 static bool fail_open;
 static fscrypt_key_specifier expected_spec;
 static bool check_spec;
+#ifdef VOLD_MANAGED_MODEL
+static bool use_model;
+static fscrypt_key_specifier model_spec;
+#endif
 static fscrypt_add_key_arg last_add;
 static std::vector<unsigned char> last_raw;
 static std::mutex fscrypt_keyring_mutex;
@@ -81,7 +88,43 @@ static void validate_spec(const fscrypt_key_specifier& spec) {
     if (check_spec) CHECK(std::memcmp(&spec,&expected_spec,sizeof(spec))==0);
 }
 static int host_ioctl(int fd, unsigned long request, void* arg) {
-    CHECK(fd==123 && live_fds>0); CHECK(!replies.empty());
+    CHECK(fd==123 && live_fds>0);
+#ifdef VOLD_MANAGED_MODEL
+    if (use_model) {
+        calls.push_back(request);
+        auto* spec=static_cast<fscrypt_key_specifier*>(arg);
+        validate_spec(*spec);
+        int err=0;
+        if (request==FS_IOC_ADD_ENCRYPTION_KEY) {
+            auto* a=static_cast<fscrypt_add_key_arg*>(arg);
+            CHECK(a->key_id==0 && zeros(a->__reserved,sizeof(a->__reserved)));
+            if (a->key_spec.type!=FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR || a->flags || a->__flags)
+                err=-EOPNOTSUPP;
+            else if (model_get_stats().managed && std::memcmp(spec,&model_spec,sizeof(*spec)))
+                err=-EOPNOTSUPP; // This fixture has one descriptor, not a keyring.
+            else {
+                err=model_add(a->raw,a->raw_size);
+                if (!err) model_spec=*spec;
+            }
+        } else {
+            CHECK(std::memcmp(spec,&model_spec,sizeof(*spec))==0);
+            if (request==FS_IOC_REMOVE_ENCRYPTION_KEY) {
+                auto* a=static_cast<fscrypt_remove_key_arg*>(arg);
+                CHECK(a->removal_status_flags==0 && zeros(a->__reserved,sizeof(a->__reserved)));
+                err=model_remove();
+                if (err>=0) { a->removal_status_flags=static_cast<unsigned>(err); err=0; }
+            } else if (request==FS_IOC_GET_ENCRYPTION_KEY_STATUS) {
+                auto* a=static_cast<fscrypt_get_key_status_arg*>(arg);
+                CHECK(zeros(a->__reserved,sizeof(a->__reserved)) && a->status==0 &&
+                      a->status_flags==0 && a->user_count==0 && zeros(a->__out_reserved,sizeof(a->__out_reserved)));
+                a->status=model_status();
+            } else CHECK(false);
+        }
+        if (err) { errno=-err; return -1; }
+        return 0;
+    }
+#endif
+    CHECK(!replies.empty());
     auto reply=replies.front(); replies.pop_front(); CHECK(reply.request==request);
     calls.push_back(request);
     if (request==FS_IOC_REMOVE_ENCRYPTION_KEY) {
@@ -233,4 +276,13 @@ static void run(const std::string& name) {
     } else CHECK(false);
     balanced(); std::cout<<name<<": PASS\n";
 }
-int main(int argc,char**argv) { CHECK(argc==2);run(argv[1]); }
+#ifdef VOLD_MANAGED_MODEL
+#include "huawei_fscrypt_vold_model_cases.inc"
+#endif
+int main(int argc,char**argv) {
+    CHECK(argc==2);
+#ifdef VOLD_MANAGED_MODEL
+    if (std::string(argv[1]).starts_with("managed-")) { run_model(argv[1]); return 0; }
+#endif
+    run(argv[1]);
+}
