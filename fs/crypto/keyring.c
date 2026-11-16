@@ -55,7 +55,7 @@ static void fscrypt_key_describe(const struct key *key, struct seq_file *m)
 }
 
 /* The leading dot prohibits userspace add_key(). No update, read or revoke
- * callback, and no WRITE/LINK/SETATTR permissions are granted to userspace.
+ * callback, and no SEARCH/WRITE/LINK/SETATTR permissions are granted to userspace.
  */
 static struct key_type key_type_fscrypt = {
 	.name			= "._fscrypt",
@@ -129,16 +129,20 @@ static int allocate_filesystem_keyring(struct super_block *sb)
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
 	snprintf(description, sizeof(description), "fscrypt-%s", sb->s_id);
+	/* Allocation publishes the serial/name before we can set KEEP. Grant
+	 * SEARCH only to possessed kernel lookups from the outset; userspace
+	 * must not invalidate this ring during that publication window.
+	 */
 	keyring = keyring_alloc(description, GLOBAL_ROOT_UID, GLOBAL_ROOT_GID,
-				current_cred(), KEY_POS_SEARCH | KEY_USR_SEARCH |
+				current_cred(), KEY_POS_SEARCH |
 				KEY_USR_READ | KEY_USR_VIEW,
 				KEY_ALLOC_NOT_IN_QUOTA, NULL, NULL);
 	if (IS_ERR(keyring)) {
 		module_put(THIS_MODULE);
 		return PTR_ERR(keyring);
 	}
-	/* SEARCH permission otherwise permits KEYCTL_INVALIDATE by serial.
-	 * KEEP also propagates to entries in key_instantiate_and_link().
+	/* Defense in depth once published; allocation-time permissions protect
+	 * the earlier window. KEEP propagates to entries during instantiation.
 	 */
 	set_bit(KEY_FLAG_KEEP, &keyring->flags);
 	sb->s_fscrypt_keys_owner = THIS_MODULE;
@@ -159,11 +163,13 @@ static int add_new_master_key(struct key *keyring, const u8 *descriptor,
 		return PTR_ERR(mk);
 	*bin2hex(description, descriptor, FS_KEY_DESCRIPTOR_SIZE) = '\0';
 	/* Donor v1 policy: only initial-namespace CAP_SYS_ADMIN can add these
-	 * keys. No per-user claims or custom quota is introduced.
+	 * keys. No per-user claims or custom quota is introduced. As for the
+	 * ring, withhold user SEARCH at allocation: positive state is published
+	 * before key_instantiate_and_link() copies KEEP from the ring.
 	 */
 	key = key_alloc(&key_type_fscrypt, description,
 			GLOBAL_ROOT_UID, GLOBAL_ROOT_GID, current_cred(),
-			KEY_POS_SEARCH | KEY_USR_SEARCH | KEY_USR_VIEW,
+			KEY_POS_SEARCH | KEY_USR_VIEW,
 			KEY_ALLOC_NOT_IN_QUOTA, NULL);
 	if (IS_ERR(key)) {
 		err = PTR_ERR(key);

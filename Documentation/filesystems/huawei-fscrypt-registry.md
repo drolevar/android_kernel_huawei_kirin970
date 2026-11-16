@@ -37,12 +37,21 @@ private key type is registered at fscrypt initialization.
   There is no custom quota/tree implementation. Root can consume resources by
   adding descriptors; there is deliberately no claim of unprivileged quota
   accounting or a resource cap for privileged callers.
-- A leading-dot key type prohibits userspace `add_key()`. Keys/rings grant no
-  WRITE/LINK/SETATTR permissions. SEARCH permission alone would nevertheless
-  permit `KEYCTL_INVALIDATE`: the ring has `KEY_FLAG_KEEP` before publication,
-  and Linux `key_instantiate_and_link()` propagates KEEP to its entries. This
-  also blocks keyctl revoke, clear, unlink-from-kept-ring and timeout paths
-  where applicable. It does not prevent ordinary reference-based key GC.
+- A leading-dot key type prohibits userspace `add_key()`. Both ring and entry
+  allocation masks grant SEARCH **only to possessors**, never to user/group/
+  other classes; WRITE/LINK/SETATTR are also withheld. Internal search supplies
+  a possessed ring reference, which the key service propagates to the entry,
+  with LSM checks retained. The private ring is not linked into process
+  keyrings, and merely knowing its serial/name does not confer possession.
+  Initial-namespace root does not bypass the permission check here: neither
+  object has `KEY_FLAG_ROOT_CAN_INVAL`.
+- This allocation-time protection is required: `keyring_alloc()` publishes its
+  ring before returning, and entry instantiation publishes positive state
+  before inheriting `KEY_FLAG_KEEP`. Setting KEEP afterward cannot undo an
+  invalidation in either window. User SEARCH remains absent permanently.
+  KEEP is retained as defense in depth and propagates to entries; it blocks
+  invalidation even for a hypothetical possessed caller. It does not prevent
+  ordinary reference-based key GC. No key-subsystem changes are needed.
 - Registry APIs require a live caller-owned superblock reference; they do not
   race `destroy_super()`. Lookup's acquire load pairs with release publication
   of a fully initialized ring. ADD must not be called while holding a master
@@ -93,24 +102,36 @@ Run `scripts/tests/test_huawei_fscrypt_registry.py --cc /path/to/clang22
 core, release helper and selected init/exit functions with synthetic Linux key
 services, credentials, module references and deferred GC; POSIX locks/atomics
 and OpenSSL provide host primitives. It also executes the exact selected
-`keyctl_invalidate_key()` function against synthetic key lookup. Input values
+`key_task_permission()`, `keyctl_invalidate_key()` and `key_invalidate()`
+functions against synthetic credentials, LSM and key lookup services. Input values
 and expected errno/generation/reference results are independently specified.
 
-Seventeen ASan/UBSan cases and fifteen compile-valid semantic mutations cover
+Twenty ASan/UBSan cases and eighteen compile-valid semantic mutations cover
 namespace isolation, eight concurrent first ADDs, duplicate ADD,
 privilege/format checks, exact errors, tombstones/re-add, reference lifetime,
 allocation/hash/link failures, module pins, registration/init failures and
 invalidation rejection. Semantic mutations and receipts live in the ignored
 workspace `logs/lineage-24.0/fscrypt-registry-20261116/` directory. Initial stub
 RED and the real missing-KEEP RED are retained separately from compile setup
-failures. Narrow kernel builds use isolated source/output and the existing
+failures. Independent review then identified the earlier publication windows:
+two deterministic interleavings execute invalidation after ring publication
+and after entry positive publication, each before KEEP. On e292de776 both ADDs
+returned zero, but subsequent lookup was ENOENT/EKEYREVOKED respectively. The
+correction makes both invalidations fail with EACCES while ADD, internal lookup
+and removed-tombstone lookup succeed. Separate mutations restore user SEARCH
+on only the ring or only the entry; each fails its matching interleaving. A
+third mutation removes internal possession and fails lookup. These callbacks
+model concurrent scheduling boundaries; they are not real kernel race tests. Narrow kernel builds use isolated source/output and the existing
 container runner. Normal (exact baseline config), REFCOUNT_FULL=n and encryption-
 disabled narrow builds passed for VFS teardown and the fscrypt directory.
 FS_ENCRYPTION=m compiled registry/core/crypto and VFS objects but the aggregate
 failed in unchanged `fscrypt_extra_ctrl.c:444`, whose `fs_initcall` is not valid
 in its module compilation. No claim of a linkable/loadable fscrypto module is
 made; fixing vendor extra-control initialization/teardown is separate work.
-No full kernel build was run for this candidate.
+The publication correction additionally rebuilds the changed registry TU in
+normal/refcount-off/module configurations with isolated source/output; it does
+not claim the unchanged module aggregate failure is fixed. No full kernel
+build was run for this candidate.
 
 These tests do not execute the real Linux key service, LSM, RCU, module loader,
 mount/unmount or kernel scheduling. They do not establish kernel race safety,
