@@ -581,6 +581,7 @@ static int map_create(union bpf_attr *attr)
 	if (err)
 		goto free_map_nouncharge;
 
+	/* A BTF fd is unused without type IDs, e.g. libbpf ringbuf creation. */
 	if (attr->btf_key_type_id || attr->btf_value_type_id) {
 		btf = btf_get_by_fd(attr->btf_fd);
 		if (IS_ERR(btf)) {
@@ -596,9 +597,6 @@ static int map_create(union bpf_attr *attr)
 		map->btf = btf;
 		map->btf_key_type_id = attr->btf_key_type_id;
 		map->btf_value_type_id = attr->btf_value_type_id;
-	} else if (attr->btf_fd) {
-		err = -EINVAL;
-		goto free_map_nouncharge;
 	}
 
 	atomic_set(&map->refcnt, 1);
