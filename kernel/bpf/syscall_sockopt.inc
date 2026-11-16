@@ -31,7 +31,8 @@ static int bpf_prog_load_check_attach(enum bpf_prog_type type,
 		return expected == BPF_CGROUP_GETSOCKOPT ||
 		       expected == BPF_CGROUP_SETSOCKOPT ? 0 : -EINVAL;
 	case BPF_PROG_TYPE_CGROUP_SOCK:
-		return expected == BPF_CGROUP_INET_SOCK_CREATE ? 0 : -EINVAL;
+		return expected == BPF_CGROUP_INET_SOCK_CREATE ||
+		       expected == BPF_CGROUP_INET_SOCK_RELEASE ? 0 : -EINVAL;
 	case BPF_PROG_TYPE_CGROUP_SKB:
 		return expected == BPF_CGROUP_INET_INGRESS ||
 		       expected == BPF_CGROUP_INET_EGRESS ? 0 : -EINVAL;

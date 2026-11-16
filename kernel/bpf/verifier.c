@@ -4452,7 +4452,9 @@ static int check_sockopt_return(struct bpf_verifier_env *env)
 	const struct bpf_reg_state *reg = &env->cur_state->regs[BPF_REG_0];
 
 	if (env->prog->type != BPF_PROG_TYPE_CGROUP_SOCKOPT &&
-	    env->prog->type != BPF_PROG_TYPE_CGROUP_SOCK_ADDR)
+	    env->prog->type != BPF_PROG_TYPE_CGROUP_SOCK_ADDR &&
+	    !(env->prog->type == BPF_PROG_TYPE_CGROUP_SOCK &&
+	      env->prog->expected_attach_type == BPF_CGROUP_INET_SOCK_RELEASE))
 		return 0;
 	/* recvmsg hooks rewrite an address; their return value is ignored. */
 	if (env->prog->type == BPF_PROG_TYPE_CGROUP_SOCK_ADDR &&
@@ -5385,6 +5387,11 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	/* 'struct bpf_verifier_env' can be global, but since it's not small,
 	 * allocate/free it every time bpf_check() is called
 	 */
+	if ((*prog)->type == BPF_PROG_TYPE_CGROUP_SOCK &&
+	    (*prog)->expected_attach_type != BPF_CGROUP_INET_SOCK_CREATE &&
+	    (*prog)->expected_attach_type != BPF_CGROUP_INET_SOCK_RELEASE)
+		return -EINVAL;
+
 	if ((*prog)->type == BPF_PROG_TYPE_CGROUP_SOCKOPT &&
 	    (*prog)->expected_attach_type != BPF_CGROUP_GETSOCKOPT &&
 	    (*prog)->expected_attach_type != BPF_CGROUP_SETSOCKOPT)
