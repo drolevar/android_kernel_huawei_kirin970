@@ -3832,6 +3832,12 @@ static bool tc_cls_act_is_valid_access(int off, int size,
 				       enum bpf_access_type type,
 				       struct bpf_insn_access_aux *info)
 {
+	/* Only the measured TC scalar GSO reads are admitted. Keep socket
+	 * pointer and other modern fields outside this program's contract. */
+	if (off == offsetof(struct __sk_buff, gso_segs) ||
+	    off == offsetof(struct __sk_buff, gso_size))
+		return type == BPF_READ && size == sizeof(__u32);
+
 	if (type == BPF_WRITE) {
 		switch (off) {
 		case bpf_ctx_range(struct __sk_buff, mark):
@@ -4393,6 +4399,18 @@ static u32 tc_cls_act_convert_ctx_access(enum bpf_access_type type,
 	struct bpf_insn *insn = insn_buf;
 
 	switch (si->off) {
+	case offsetof(struct __sk_buff, gso_segs):
+		insn = bpf_convert_shinfo_access(si, insn);
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct skb_shared_info, gso_segs),
+			si->dst_reg, si->dst_reg,
+			bpf_target_off(struct skb_shared_info, gso_segs, 2, target_size));
+		break;
+	case offsetof(struct __sk_buff, gso_size):
+		insn = bpf_convert_shinfo_access(si, insn);
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct skb_shared_info, gso_size),
+			si->dst_reg, si->dst_reg,
+			bpf_target_off(struct skb_shared_info, gso_size, 2, target_size));
+		break;
 	case offsetof(struct __sk_buff, ifindex):
 		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, dev),
 				      si->dst_reg, si->src_reg,

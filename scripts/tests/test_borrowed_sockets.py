@@ -98,7 +98,7 @@ static void load(int dst){state.regs[9]=(struct bpf_reg_state){.type=PTR_TO_CTX}
 static void branch(int reg){struct bpf_insn i={.code=BPF_JMP|BPF_JEQ|BPF_K,.dst_reg=reg,.off=1};int pc=0;assert(!check_cond_jmp_op(&env,&i,&pc));}
 static void owned(void){reserve(32);nonnull();state.regs[8]=state.regs[0];}
 int main(int argc,char **argv){assert(argc==2);const char *c=argv[1];
- assert(offsetof(struct __sk_buff,data_meta)==140&&offsetof(struct __sk_buff,flow_keys)==144&&offsetof(struct __sk_buff,tstamp)==152&&offsetof(struct __sk_buff,wire_len)==160&&offsetof(struct __sk_buff,gso_segs)==164&&offsetof(struct __sk_buff,sk)==168&&sizeof(struct __sk_buff)==176);
+ assert(offsetof(struct __sk_buff,data_meta)==140&&offsetof(struct __sk_buff,flow_keys)==144&&offsetof(struct __sk_buff,tstamp)==152&&offsetof(struct __sk_buff,wire_len)==160&&offsetof(struct __sk_buff,gso_segs)==164&&offsetof(struct __sk_buff,sk)==168&&offsetof(struct __sk_buff,gso_size)==176&&sizeof(struct __sk_buff)==184);
  assert(BPF_FUNC_sk_fullsock==95&&BPF_FUNC_sk_storage_get==107);
  if(!strcmp(c,"independent")){load(6);load(7);assert(state.regs[6].id!=state.regs[7].id);branch(6);assert(state.regs[6].type==PTR_TO_SOCK_COMMON&&pushed.regs[6].type==SCALAR_VALUE);assert(state.regs[7].type==PTR_TO_SOCK_COMMON_OR_NULL&&pushed.regs[7].type==PTR_TO_SOCK_COMMON_OR_NULL);}
  else if(!strcmp(c,"spill-fullsock")){load(6);spill(0,6);branch(6);assert(!check_stack_read(&state,-8,8,1));assert(state.regs[1].type==PTR_TO_SOCK_COMMON);assert(!check_call(&env,95,0));assert(state.regs[0].type==PTR_TO_SOCKET_OR_NULL&&!state.regs[0].ref_obj_id);spill(1,0);branch(0);assert(state.stack[1].spilled_ptr.type==PTR_TO_SOCKET);assert(!check_mem_access(&env,0,0,12,BPF_W,BPF_READ,7,false));}
