@@ -1425,6 +1425,9 @@ do_udp_sendmsg:
 			}
 			fl6.fl6_dport = sin6->sin6_port;
 			fl6.daddr = sin6->sin6_addr;
+			/* Preserve :: -> ::1 after an unchanged or rewritten address. */
+			if (ipv6_addr_any(&fl6.daddr))
+				fl6.daddr.s6_addr[15] = 0x1;
 		}
 	}
 

@@ -66,7 +66,7 @@ blocks, not complete transport functions. Conversion tests interpret emitted
 instructions rather than running a JIT. These are not real BPF load, syscall,
 network, concurrency or handset results.
 
-The six sockaddr host suites cover 19 bind/consumer cases, 12 UDP cases,
+The six sockaddr host suites cover 19 bind/consumer cases, 16 UDP cases,
 the four production pre-connect callbacks and complete stream/datagram dispatch,
 load/attach/query admission, context permissions/ownership/map-key checks, and
 conversion across four layout/mask variants. Stream tests include denial before
@@ -82,11 +82,20 @@ ARM32 compile-only ABI assertions preserve the 72-byte sockaddr context, socket
 pointer offset 64, canonical type/attach IDs and load attribute offsets 64/68.
 These layout checks do not establish ARM32 runtime hook behavior.
 
-The configuration matrix compiles 26 objects across normal, NET-off, CGROUP-off,
+The initial configuration matrix compiles 26 objects across normal, NET-off, CGROUP-off,
 SYSCALL-off, IPv6-off and IPv6-module configurations using the existing image and
 source tools, at most four jobs. Initial failed compiles and their diagnostics
 are retained: IPv4 destination variable scope, IPv6 early cleanup label, and the
-disabled cgroup static-key predicate. The final snapshot matches all production
-source files in this candidate. Independent exact-diff review and a coordinated
-full kernel link remain required; neither publication nor a full build is
-performed by this task.
+disabled cgroup static-key predicate.
+
+Independent review found that copying the post-hook IPv6 UDP destination could
+undo the preceding :: to ::1 normalization, including for the selected no-op
+send hook. The correction normalizes an unspecified destination after that copy,
+preserving nonzero rewrites. The expanded UDP fixture extracts the contiguous
+preceding normalization and hook, rather than testing the hook alone. Both the
+unchanged-:: and rewritten-to-:: cases failed before the correction and pass
+after it; disabled hooks and nonzero destinations are controls. Correction
+receipts are recorded separately from the original candidate evidence.
+
+A coordinated full kernel link of the corrected source remains required;
+neither publication nor a full build is performed by this task.
