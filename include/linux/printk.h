@@ -553,10 +553,7 @@ size_t print_time(u64 ts, char *buf);
 void panic_print_msg(struct printk_log *msg);
 void pr_log_store_add_time(char *pr_char, u32 sizeof_pr_char, u16 *pr_len);
 #else
-extern u64 local_clock(void);
-static inline u64 hisi_getcurtime(void) {
-	return local_clock();
-}
+u64 hisi_getcurtime(void);
 #endif
 
 #ifdef CONFIG_HISI_BB

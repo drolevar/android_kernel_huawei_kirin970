@@ -62,6 +62,14 @@
 extern void apanic_console_write(char *s, unsigned c);
 #endif
 
+#ifndef CONFIG_HISI_TIME
+u64 hisi_getcurtime(void)
+{
+	return local_clock();
+}
+EXPORT_SYMBOL_GPL(hisi_getcurtime);
+#endif
+
 int console_printk[4] = {
 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
 	MESSAGE_LOGLEVEL_DEFAULT,	/* default_message_loglevel */
