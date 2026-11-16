@@ -164,13 +164,20 @@ static void case_maps(void)
 	/* An fd without type IDs is unused, not a BTF association.  Match the
 	 * loader contract even for a stale fd; never acquire a reference here.
 	 */
-	for (int fd_case=0;fd_case<2;fd_case++) {
-		bad=a;bad.btf_key_type_id=0;bad.btf_value_type_id=0;
-		if (fd_case) bad.btf_fd=61;
-		int untyped=map_create(&bad);CHECK(untyped>=0);
-		CHECK(last_map->btf==NULL && last_map->btf_key_type_id==0 &&
-		      last_map->btf_value_type_id==0 && b->refcnt.refs==1);
-		host_close(untyped);maps_balanced();
+	for (int fd_case = 0; fd_case < 2; fd_case++) {
+		int untyped;
+
+		bad = a;
+		bad.btf_key_type_id = 0;
+		bad.btf_value_type_id = 0;
+		if (fd_case)
+			bad.btf_fd = 61;
+		untyped = map_create(&bad);
+		CHECK(untyped >= 0);
+		CHECK(!last_map->btf && last_map->btf_key_type_id == 0 &&
+		      last_map->btf_value_type_id == 0 && b->refcnt.refs == 1);
+		host_close(untyped);
+		maps_balanced();
 	}
 	bad=a;bad.btf_fd=61;CHECK(map_create(&bad)==-EBADF);
 	bad=a;bad.map_type=BPF_MAP_TYPE_ARRAY;bad.btf_key_type_id=6;bad.key_size=16;CHECK(map_create(&bad)==-EINVAL);
