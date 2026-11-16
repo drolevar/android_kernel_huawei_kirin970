@@ -192,6 +192,9 @@ static void *trie_lookup_elem(struct bpf_map *map, void *_key)
 	struct lpm_trie_node *node, *found = NULL;
 	struct bpf_lpm_trie_key *key = _key;
 
+	if (key->prefixlen > trie->max_prefixlen)
+		return NULL;
+
 	/* Start walking the trie from the root node ... */
 
 	for (node = rcu_dereference(trie->root); node;) {
@@ -218,7 +221,7 @@ static void *trie_lookup_elem(struct bpf_map *map, void *_key)
 		/* Consider this node as return candidate unless it is an
 		 * artificially added intermediate one.
 		 */
-		if (!(node->flags & LPM_TREE_NODE_FLAG_IM))
+		if (!(READ_ONCE(node->flags) & LPM_TREE_NODE_FLAG_IM))
 			found = node;
 
 		/* If the node match is fully satisfied, let's see if we can
@@ -323,6 +326,10 @@ static int trie_update_elem(struct bpf_map *map,
 	 * simply assign the @new_node to that slot and be done.
 	 */
 	if (!node) {
+		if (flags == BPF_EXIST) {
+			ret = -ENOENT;
+			goto out;
+		}
 		rcu_assign_pointer(*slot, new_node);
 		goto out;
 	}
@@ -331,15 +338,28 @@ static int trie_update_elem(struct bpf_map *map,
 	 * which already has the correct data array set.
 	 */
 	if (node->prefixlen == matchlen) {
+		if (!(node->flags & LPM_TREE_NODE_FLAG_IM)) {
+			if (flags == BPF_NOEXIST) {
+				ret = -EEXIST;
+				goto out;
+			}
+			trie->n_entries--;
+		} else if (flags == BPF_EXIST) {
+			ret = -ENOENT;
+			goto out;
+		}
+
 		new_node->child[0] = node->child[0];
 		new_node->child[1] = node->child[1];
-
-		if (!(node->flags & LPM_TREE_NODE_FLAG_IM))
-			trie->n_entries--;
 
 		rcu_assign_pointer(*slot, new_node);
 		kfree_rcu(node, rcu);
 
+		goto out;
+	}
+
+	if (flags == BPF_EXIST) {
+		ret = -ENOENT;
 		goto out;
 	}
 
@@ -389,10 +409,101 @@ out:
 	return ret;
 }
 
-static int trie_delete_elem(struct bpf_map *map, void *key)
+/* Called from syscall or from eBPF program */
+static int trie_delete_elem(struct bpf_map *map, void *_key)
 {
-	/* TODO */
-	return -ENOSYS;
+	struct lpm_trie *trie = container_of(map, struct lpm_trie, map);
+	struct bpf_lpm_trie_key *key = _key;
+	struct lpm_trie_node __rcu **trim, **trim2;
+	struct lpm_trie_node *node, *parent;
+	unsigned long irq_flags;
+	unsigned int next_bit;
+	size_t matchlen = 0;
+	int ret = 0;
+
+	if (key->prefixlen > trie->max_prefixlen)
+		return -EINVAL;
+
+	raw_spin_lock_irqsave(&trie->lock, irq_flags);
+
+	/* Walk the tree looking for an exact key/length match and keeping
+	 * track of the path we traverse.  We will need to know the node
+	 * we wish to delete, and the slot that points to the node we want
+	 * to delete.  We may also need to know the nodes parent and the
+	 * slot that contains it.
+	 */
+	trim = &trie->root;
+	trim2 = trim;
+	parent = NULL;
+	while ((node = rcu_dereference_protected(
+		       *trim, lockdep_is_held(&trie->lock)))) {
+		matchlen = longest_prefix_match(trie, node, key);
+
+		if (node->prefixlen != matchlen ||
+		    node->prefixlen == key->prefixlen)
+			break;
+
+		parent = node;
+		trim2 = trim;
+		next_bit = extract_bit(key->data, node->prefixlen);
+		trim = &node->child[next_bit];
+	}
+
+	if (!node || node->prefixlen != key->prefixlen ||
+	    node->prefixlen != matchlen ||
+	    (node->flags & LPM_TREE_NODE_FLAG_IM)) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	trie->n_entries--;
+
+	/* If the node we are removing has two children, simply mark it
+	 * as intermediate and we are done.
+	 */
+	if (rcu_access_pointer(node->child[0]) &&
+	    rcu_access_pointer(node->child[1])) {
+		WRITE_ONCE(node->flags, node->flags | LPM_TREE_NODE_FLAG_IM);
+		goto out;
+	}
+
+	/* If the parent of the node we are about to delete is an intermediate
+	 * node, and the deleted node doesn't have any children, we can delete
+	 * the intermediate parent as well and promote its other child
+	 * up the tree.  Doing this maintains the invariant that all
+	 * intermediate nodes have exactly 2 children and that there are no
+	 * unnecessary intermediate nodes in the tree.
+	 */
+	if (parent && (parent->flags & LPM_TREE_NODE_FLAG_IM) &&
+	    !rcu_access_pointer(node->child[0]) &&
+	    !rcu_access_pointer(node->child[1])) {
+		if (node == rcu_access_pointer(parent->child[0]))
+			rcu_assign_pointer(
+				*trim2, rcu_access_pointer(parent->child[1]));
+		else
+			rcu_assign_pointer(
+				*trim2, rcu_access_pointer(parent->child[0]));
+		kfree_rcu(parent, rcu);
+		kfree_rcu(node, rcu);
+		goto out;
+	}
+
+	/* The node we are removing has either zero or one child. If there
+	 * is a child, move it into the removed node's slot then delete
+	 * the node.  Otherwise just clear the slot and delete the node.
+	 */
+	if (rcu_access_pointer(node->child[0]))
+		rcu_assign_pointer(*trim, rcu_access_pointer(node->child[0]));
+	else if (rcu_access_pointer(node->child[1]))
+		rcu_assign_pointer(*trim, rcu_access_pointer(node->child[1]));
+	else
+		RCU_INIT_POINTER(*trim, NULL);
+	kfree_rcu(node, rcu);
+
+out:
+	raw_spin_unlock_irqrestore(&trie->lock, irq_flags);
+
+	return ret;
 }
 
 #define LPM_DATA_SIZE_MAX	256
@@ -509,9 +620,106 @@ out:
 	kfree(trie);
 }
 
-static int trie_get_next_key(struct bpf_map *map, void *key, void *next_key)
+static int trie_get_next_key(struct bpf_map *map, void *_key, void *_next_key)
 {
-	return -ENOTSUPP;
+	struct lpm_trie_node *node, *next_node = NULL, *parent, *search_root;
+	struct lpm_trie *trie = container_of(map, struct lpm_trie, map);
+	struct bpf_lpm_trie_key *key = _key, *next_key = _next_key;
+	struct lpm_trie_node **node_stack = NULL;
+	int err = 0, stack_ptr = -1;
+	unsigned int next_bit;
+	size_t matchlen = 0;
+
+	/* The get_next_key follows postorder. For the 4 node example in
+	 * the top of this file, the trie_get_next_key() returns the following
+	 * one after another:
+	 *   192.168.0.0/24
+	 *   192.168.1.0/24
+	 *   192.168.128.0/24
+	 *   192.168.0.0/16
+	 *
+	 * The idea is to return more specific keys before less specific ones.
+	 */
+
+	/* Empty trie */
+	search_root = rcu_dereference(trie->root);
+	if (!search_root)
+		return -ENOENT;
+
+	/* For invalid key, find the leftmost node in the trie */
+	if (!key || key->prefixlen > trie->max_prefixlen)
+		goto find_leftmost;
+
+	node_stack = kmalloc_array(trie->max_prefixlen + 1,
+				   sizeof(struct lpm_trie_node *),
+				   GFP_ATOMIC | __GFP_NOWARN);
+	if (!node_stack)
+		return -ENOMEM;
+
+	/* Try to find the exact node for the given key */
+	for (node = search_root; node;) {
+		node_stack[++stack_ptr] = node;
+		matchlen = longest_prefix_match(trie, node, key);
+		if (node->prefixlen != matchlen ||
+		    node->prefixlen == key->prefixlen)
+			break;
+
+		next_bit = extract_bit(key->data, node->prefixlen);
+		node = rcu_dereference(node->child[next_bit]);
+	}
+	if (!node || node->prefixlen != matchlen ||
+	    (READ_ONCE(node->flags) & LPM_TREE_NODE_FLAG_IM))
+		goto find_leftmost;
+
+	/* The node with the exactly-matching key has been found,
+	 * find the first node in postorder after the matched node.
+	 */
+	node = node_stack[stack_ptr];
+	while (stack_ptr > 0) {
+		parent = node_stack[stack_ptr - 1];
+		if (rcu_dereference(parent->child[0]) == node) {
+			search_root = rcu_dereference(parent->child[1]);
+			if (search_root)
+				goto find_leftmost;
+		}
+		if (!(READ_ONCE(parent->flags) & LPM_TREE_NODE_FLAG_IM)) {
+			next_node = parent;
+			goto do_copy;
+		}
+
+		node = parent;
+		stack_ptr--;
+	}
+
+	/* did not find anything */
+	err = -ENOENT;
+	goto free_stack;
+
+find_leftmost:
+	/* Find the leftmost non-intermediate node, all intermediate nodes
+	 * have exact two children, so this function will never return NULL.
+	 */
+	for (node = search_root; node;) {
+		if (READ_ONCE(node->flags) & LPM_TREE_NODE_FLAG_IM) {
+			node = rcu_dereference(node->child[0]);
+		} else {
+			next_node = node;
+			node = rcu_dereference(node->child[0]);
+			if (!node)
+				node = rcu_dereference(next_node->child[1]);
+		}
+	}
+	if (unlikely(!next_node)) {
+		err = -ENOENT;
+		goto free_stack;
+	}
+do_copy:
+	next_key->prefixlen = next_node->prefixlen;
+	memcpy((u8 *)next_key + offsetof(struct bpf_lpm_trie_key, data),
+	       next_node->data, trie->data_size);
+free_stack:
+	kfree(node_stack);
+	return err;
 }
 
 const struct bpf_map_ops trie_map_ops = {
