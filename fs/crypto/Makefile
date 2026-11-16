@@ -1,5 +1,5 @@
 obj-$(CONFIG_FS_ENCRYPTION)	+= fscrypto.o
 
-fscrypto-y := crypto.o fname.o hooks.o keyinfo.o policy.o fscrypt_extra_ctrl.o
+fscrypto-y := crypto.o fname.o hooks.o keyinfo.o policy.o fscrypt_extra_ctrl.o master_key.o
 fscrypto-$(CONFIG_BLOCK) += bio.o
 EXTRA_CFLAGS := -I$(srctree)/lib/libc_sec/securec_v2/include
