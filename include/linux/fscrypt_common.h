@@ -53,6 +53,8 @@ struct fscrypt_context {
         u8 iv[FS_KEY_DERIVATION_IV_SIZE];
 } __packed;
 
+struct fscrypt_ce_tfm;
+
 /*
  * A pointer to this structure is stored in the file system's in-core
  * representation of an inode.
@@ -64,6 +66,7 @@ struct fscrypt_info {
 	u8 ci_flags;
 	struct crypto_skcipher *ci_ctfm;
 	struct crypto_aead *ci_gtfm;
+	struct fscrypt_ce_tfm *ci_gtfm_owner;
 	struct crypto_cipher *ci_essiv_tfm;
 	u8 ci_master_key[FS_KEY_DESCRIPTOR_SIZE];
 	void *ci_key;

@@ -36,7 +36,9 @@ static void f2fs_put_crypt_info(struct fscrypt_info *ci)
 	}
 
 	crypto_free_skcipher(ci->ci_ctfm);
-	if (ci->ci_gtfm)
+	if (ci->ci_gtfm_owner)
+		fscrypt_ce_tfm_put(ci->ci_gtfm_owner);
+	else if (ci->ci_gtfm)
 		crypto_free_aead(ci->ci_gtfm);
 	if (ci->ci_essiv_tfm)
 		crypto_free_cipher(ci->ci_essiv_tfm);
@@ -262,6 +264,24 @@ out:
 	return res;
 }
 
+static int hmfs_do_get_ce_fek(struct inode *inode, u8 *descriptor, u8 *nonce,
+		u8 *fek, u8 *iv, int enc)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	int res;
+
+	res = fscrypt_ce_scope_open(inode, descriptor,
+			SDP_CE_SOURCE, &scope); /* HMFS */
+	if (res)
+		return res;
+	if (enc)
+		res = fscrypt_ce_scope_crypt(scope, fek, nonce, iv, true);
+	else
+		res = fscrypt_ce_scope_crypt(scope, nonce, fek, iv, false);
+	fscrypt_ce_scope_put(scope);
+	return res;
+}
+
 static int hmfs_sdp_keyindex_config(unsigned char ver,
 						struct fscrypt_context *ctx,
 						struct f2fs_sdp_fscrypt_context *sdp_ctx,
@@ -308,8 +328,8 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 	if (inherit_key) {
 		if (sb->encryption_ver > INLINE_CRYPTO_V2)
 			return -EINVAL;
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce,
-					fek, ctx->iv, 0, sb->encryption_ver);
+		res = hmfs_do_get_ce_fek(inode, ctx->master_key_descriptor,
+					ctx->nonce, fek, ctx->iv, 0);
 		if (res)
 			return res;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -385,6 +405,7 @@ static int f2fs_get_sdp_ece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -544,8 +565,8 @@ f2fs_get_sece_crypt_info_from_context(struct inode *inode,
 	if (inherit_key) {
 		if (ver > INLINE_CRYPTO_V2)
 			return -EINVAL;
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce,
-					fek, ctx->iv, 0, ver);
+		res = hmfs_do_get_ce_fek(inode, ctx->master_key_descriptor,
+					ctx->nonce, fek, ctx->iv, 0);
 		if (res)
 			goto out;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -622,6 +643,7 @@ static int f2fs_get_sdp_sece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;

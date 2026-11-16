@@ -50,7 +50,9 @@ static void f2fs_put_crypt_info(struct fscrypt_info *ci)
 	}
 
 	crypto_free_skcipher(ci->ci_ctfm);
-	if (ci->ci_gtfm)
+	if (ci->ci_gtfm_owner)
+		fscrypt_ce_tfm_put(ci->ci_gtfm_owner);
+	else if (ci->ci_gtfm)
 		crypto_free_aead(ci->ci_gtfm);
 	if (ci->ci_essiv_tfm)
 		crypto_free_cipher(ci->ci_essiv_tfm);
@@ -256,13 +258,35 @@ out:
 	return res;
 }
 
-static int f2fs_do_get_fek(u8 *descriptor, u8 *nonce, u8 *fek, u8 *iv, int enc,
-			   u32 expected_class)
+static int f2fs_do_get_ce_fek(struct inode *inode, u8 *descriptor, u8 *nonce,
+		u8 *fek, u8 *iv, int enc)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	int res;
+
+	res = fscrypt_ce_scope_open(inode, descriptor,
+			SDP_CE_SOURCE, &scope); /* F2FS */
+	if (res)
+		return res;
+	if (enc)
+		res = fscrypt_ce_scope_crypt(scope, fek, nonce, iv, true);
+	else
+		res = fscrypt_ce_scope_crypt(scope, nonce, fek, iv, false);
+	fscrypt_ce_scope_put(scope);
+	return res;
+}
+
+static int f2fs_do_get_fek(struct inode *inode, u8 *descriptor, u8 *nonce,
+		u8 *fek, u8 *iv, int enc, u32 expected_class)
 {
 	int res = 0;
 	struct crypto_aead *tfm = NULL;
 	u8 raw[FS_MAX_KEY_SIZE];
 	int size;
+
+	if (!expected_class)
+		return f2fs_do_get_ce_fek(inode, descriptor, nonce, fek, iv,
+					  enc);
 
 	tfm = crypto_alloc_aead("gcm(aes)", 0, 0);
 	if (IS_ERR(tfm))
@@ -304,8 +328,8 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
 		return -EINVAL;
 #else
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce, fek,
-							  ctx->iv, 0, 0);
+		res = f2fs_do_get_fek(inode, ctx->master_key_descriptor,
+				      ctx->nonce, fek, ctx->iv, 0, 0);
 		if (res)
 			return res;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -315,8 +339,10 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 		if (res)
 			return res;
 		if (F2FS_INODE_IS_ENABLED_SDP_ECE_ENCRYPTION(flag)) {
-			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0, FSCRYPT_SDP_ECE_CLASS);
+			res = f2fs_do_get_fek(inode,
+					sdp_ctx->master_key_descriptor,
+					sdp_ctx->nonce, fek, sdp_ctx->iv, 0,
+					FSCRYPT_SDP_ECE_CLASS);
 			if (res)
 				return res;
 		} else {
@@ -351,8 +377,9 @@ f2fs_get_ece_crypt_info_from_context(struct inode *inode,
 		return 0;
 
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
-	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor, sdp_ctx->nonce,
-			      fek, sdp_ctx->iv, 1, FSCRYPT_SDP_ECE_CLASS);
+	res = f2fs_do_get_fek(inode, sdp_ctx->master_key_descriptor,
+			      sdp_ctx->nonce, fek, sdp_ctx->iv, 1,
+			      FSCRYPT_SDP_ECE_CLASS);
 	if (res) {
 		pr_err("f2fs_sdp %s: error %d (inode %lu) encrypt ece key failed!\n",
 				__func__, res, inode->i_ino);
@@ -391,6 +418,7 @@ static int f2fs_get_sdp_ece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -537,8 +565,8 @@ static int f2fs_get_sece_crypt_info_from_context(
 		pr_err("f2fs_sdp:The file has content in crypt v3");
 		return -EINVAL;
 #else
-		res = f2fs_do_get_fek(ctx->master_key_descriptor, ctx->nonce,
-				      fek, ctx->iv, 0, 0);
+		res = f2fs_do_get_fek(inode, ctx->master_key_descriptor,
+				      ctx->nonce, fek, ctx->iv, 0, 0);
 		if (res)
 			goto out;
 		memcpy(iv, ctx->iv, FS_KEY_DERIVATION_IV_SIZE);
@@ -551,8 +579,10 @@ static int f2fs_get_sece_crypt_info_from_context(
 		}
 		if (F2FS_INODE_IS_ENABLED_SDP_SECE_ENCRYPTION(flag)) {
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-			res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
-					      sdp_ctx->nonce, fek, sdp_ctx->iv, 0, FSCRYPT_SDP_SECE_CLASS);
+			res = f2fs_do_get_fek(inode,
+					sdp_ctx->master_key_descriptor,
+					sdp_ctx->nonce, fek, sdp_ctx->iv, 0,
+					FSCRYPT_SDP_SECE_CLASS);
 #else
 			res = f2fs_do_get_sece_fek(sdp_ctx, fek, 1);
 #endif
@@ -597,7 +627,7 @@ static int f2fs_get_sece_crypt_info_from_context(
 
 	memcpy(sdp_ctx->iv, iv,  FS_KEY_DERIVATION_IV_SIZE);
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V3
-	res = f2fs_do_get_fek(sdp_ctx->master_key_descriptor,
+	res = f2fs_do_get_fek(inode, sdp_ctx->master_key_descriptor,
 					      sdp_ctx->nonce, fek, sdp_ctx->iv, 1, FSCRYPT_SDP_SECE_CLASS);
 #else
 	res = f2fs_do_set_sece_fek(sdp_ctx, fek);
@@ -640,6 +670,7 @@ static int f2fs_get_sdp_sece_crypt_info(struct inode *inode, void *fs_data)
 	crypt_info->ci_filename_mode = sdp_ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;

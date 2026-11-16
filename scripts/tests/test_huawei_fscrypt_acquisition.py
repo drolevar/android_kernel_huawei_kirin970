@@ -5,7 +5,7 @@
 The historical contract runner supplies declarations and unchanged GCM functions
 from its pinned source. No device, keyctl, mounts or kernel syscalls are used.
 """
-import argparse, hashlib, json, subprocess
+import argparse, hashlib, json, re, subprocess
 from pathlib import Path
 from test_huawei_fscrypt_contract import function, extract
 
@@ -17,14 +17,32 @@ p.add_argument('--mutation',choices=('payload-write','double-unlock','skip-valid
 a=p.parse_args()
 k=Path(__file__).resolve().parents[2]; here=k/'scripts/tests'; out=a.keep_output.resolve(); out.mkdir(parents=True,exist_ok=False)
 inputs={name:(k/name).read_text() for name in ('fs/crypto/keyinfo.c','fs/crypto/policy.c','fs/f2fs/keyinfo.c','include/linux/fscrypt_supp.h','fs/f2fs/sdp_internal.h','include/crypto/ecdh.h')}
+
+def whole(text, name):
+ match=re.search(r'^(?:static\s+)?[^\n]*\b'+re.escape(name)+r'\s*\(',text,re.M)
+ if not match: raise ValueError('function not found: '+name)
+ start=match.start()
+ previous=text[text.rfind('\n',0,max(0,start-1))+1:start].strip()
+ if previous in ('static int','int','static void','void','static bool','bool'):
+  start=text.rfind('\n',0,max(0,start-1))+1
+ brace=text.index('{',match.start()); depth=0
+ for pos in range(brace,len(text)):
+  if text[pos]=='{': depth+=1
+  elif text[pos]=='}':
+   depth-=1
+   if depth==0: return text[start:pos+1]
+ raise ValueError('unterminated function: '+name)
 (out/'declarations.h').write_text((a.historical_output/'declarations.h').read_text() + '\n' + extract(r'^struct f2fs_sdp_fscrypt_context \{.*?^\}[^;]*;',inputs['fs/f2fs/sdp_internal.h']) + '\n' + extract(r'^#define ECC_CURVE_NIST_P256[^\n]*',inputs['include/crypto/ecdh.h']) + '\n')
 (out/'crypto-subject.h').write_text('\n'.join(function(inputs['fs/crypto/keyinfo.c'],n) for n in ('derive_crypt_complete','fscrypt_set_gcm_key','fscrypt_derive_gcm_key')))
-(out/'lease.h').write_text(extract(r'^struct fscrypt_ce_key \{.*?^\};',inputs['include/linux/fscrypt_supp.h']))
-subject='\n'.join(function(inputs[path],n) for path,names in (
- ('fs/crypto/keyinfo.c',('fscrypt_acquire_ce_key','fscrypt_release_ce_key')),
+(out/'lease.h').write_text(extract(r'^struct fscrypt_ce_key \{.*?^\};',inputs['include/linux/fscrypt_supp.h'])+'\n'+extract(r'^enum fscrypt_ce_purpose \{.*?^\};',inputs['include/linux/fscrypt_supp.h']))
+subject='\n'.join((
+ extract(r'^struct fscrypt_ce_tfm \{.*?^\};',inputs['fs/crypto/keyinfo.c']),
+ extract(r'^struct fscrypt_ce_scope \{.*?^\};',inputs['fs/crypto/keyinfo.c']),
+)+tuple(whole(inputs[path],n) for path,names in (
+ ('fs/crypto/keyinfo.c',('fscrypt_acquire_ce_key','fscrypt_release_ce_key','fscrypt_ce_tfm_get','fscrypt_ce_tfm_put','fscrypt_ce_scope_open','fscrypt_ce_scope_matches','fscrypt_ce_scope_crypt','fscrypt_ce_scope_legacy_slot','fscrypt_ce_scope_attach_legacy_tfm','fscrypt_ce_scope_put')),
  ('fs/crypto/policy.c',('create_encryption_context_from_policy',)),
- ('fs/crypto/keyinfo.c',('find_and_derive_key',)),
- ('fs/f2fs/keyinfo.c',('f2fs_do_get_keyring_payload','f2fs_do_get_fek','f2fs_do_get_sece_fek'))) for n in names)
+ ('fs/crypto/keyinfo.c',('find_and_derive_key_with_scope','find_and_derive_key')),
+ ('fs/f2fs/keyinfo.c',('f2fs_do_get_keyring_payload','f2fs_do_get_ce_fek','f2fs_do_get_fek','f2fs_do_get_sece_fek'))) for n in names))
 mutations={
  'sece-offset':('raw + offset_len, FS_SDP_ECC_PUB_KEY_SIZE','raw, FS_SDP_ECC_PUB_KEY_SIZE'),
  'sece-private':('raw, FS_SDP_ECC_PRIV_KEY_SIZE,','raw + FS_SDP_ECC_PRIV_KEY_SIZE, FS_SDP_ECC_PRIV_KEY_SIZE,'),

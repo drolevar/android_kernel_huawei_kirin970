@@ -47,8 +47,7 @@ static int create_encryption_context_from_policy(struct inode *inode,
 	int res;
 	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
-	struct fscrypt_ce_key lease;
-	struct crypto_aead *tfm = NULL;
+	struct fscrypt_ce_scope *scope = NULL;
 
 	ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
 	memcpy(ctx.master_key_descriptor, policy->master_key_descriptor,
@@ -73,35 +72,23 @@ static int create_encryption_context_from_policy(struct inode *inode,
 	get_random_bytes(ctx.iv, FS_KEY_DERIVATION_IV_SIZE);
 	memcpy(plain_text, nonce, FS_KEY_DERIVATION_NONCE_SIZE);
 
-	res = fscrypt_acquire_ce_key(ctx.master_key_descriptor,
-			inode->i_sb->s_cop->key_prefix, &lease);
+	res = fscrypt_ce_scope_open(inode, ctx.master_key_descriptor,
+			POLICY_WRAP, &scope);
 	if (res) {
 		memzero_explicit(nonce, sizeof(nonce));
 		memzero_explicit(plain_text, sizeof(plain_text));
 		return res;
 	}
-	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
-	if (IS_ERR(tfm)) {
-		res = PTR_ERR(tfm);
-		tfm = NULL;
-		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
-		goto out;
-	}
-	res = fscrypt_set_gcm_key(tfm, lease.material.raw);
-	fscrypt_release_ce_key(&lease);
-
+	res = fscrypt_ce_scope_crypt(scope, plain_text, ctx.nonce, ctx.iv,
+			true);
 	if (res)
 		goto out;
-
-	res = fscrypt_derive_gcm_key(tfm, plain_text, ctx.nonce, ctx.iv, 1);
-	if (res)
-		goto out;
+	fscrypt_ce_scope_put(scope);
+	scope = NULL;
 
 	res = inode->i_sb->s_cop->set_context(inode, &ctx, sizeof(ctx), NULL);
 out:
-	if (tfm)
-		crypto_free_aead(tfm);
-	fscrypt_release_ce_key(&lease);
+	fscrypt_ce_scope_put(scope);
 	memzero_explicit(nonce, sizeof(nonce));
 	memzero_explicit(plain_text, sizeof(plain_text));
 	return res;
@@ -308,6 +295,7 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 {
 	struct fscrypt_context ctx;
 	struct fscrypt_info *ci;
+	struct fscrypt_ce_scope *scope = NULL;
 	int res;
 	u8 nonce[FS_KEY_DERIVATION_NONCE_SIZE];
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
@@ -319,6 +307,9 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 	ci = parent->i_crypt_info;
 	if (ci == NULL)
 		return -ENOKEY;
+	res = fscrypt_ce_scope_open_cached(parent, CHILD_WRAP, &scope);
+	if (res)
+		return res;
 
 	ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
 	ctx.contents_encryption_mode = ci->ci_data_mode;
@@ -335,14 +326,22 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 	get_random_bytes(ctx.iv, FS_KEY_DERIVATION_IV_SIZE);
 	memcpy(plain_text, nonce, FS_KEY_DERIVATION_NONCE_SIZE);
 
-	res = fscrypt_derive_gcm_key(ci->ci_gtfm, plain_text, ctx.nonce, ctx.iv, 1);
+	res = fscrypt_ce_scope_crypt(scope, plain_text, ctx.nonce, ctx.iv,
+				    true);
 	if (res)
-		return res;
+		goto out;
 	BUILD_BUG_ON(sizeof(ctx) != FSCRYPT_SET_CONTEXT_MAX_SIZE);
 	res = parent->i_sb->s_cop->set_context(child, &ctx,
 						sizeof(ctx), fs_data);
 	if (res)
-		return res;
-	return preload ? fscrypt_get_encryption_info(child) : 0;
+		goto out;
+	if (preload)
+		res = fscrypt_get_encryption_info_with_scope(child, &ctx,
+						      scope);
+out:
+	fscrypt_ce_scope_put(scope);
+	memzero_explicit(nonce, sizeof(nonce));
+	memzero_explicit(plain_text, sizeof(plain_text));
+	return res;
 }
 EXPORT_SYMBOL(fscrypt_inherit_context);

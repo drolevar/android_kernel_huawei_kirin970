@@ -82,5 +82,14 @@ extern bool fscrypt_fname_encrypted_size(const struct inode *inode,
 
 /* keyinfo.c */
 extern void __exit fscrypt_essiv_cleanup(void);
+extern int fscrypt_ce_scope_open_cached(struct inode *inode,
+		enum fscrypt_ce_purpose purpose, struct fscrypt_ce_scope **out);
+extern bool fscrypt_ce_scope_matches(const struct fscrypt_ce_scope *scope,
+		const struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose);
+extern int fscrypt_get_encryption_info_with_scope(struct inode *inode,
+		const struct fscrypt_context *ctx,
+		struct fscrypt_ce_scope *scope);
 
 #endif /* _FSCRYPT_PRIVATE_H */

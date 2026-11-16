@@ -14,6 +14,8 @@
 struct crypto_skcipher { int unused; };
 struct crypto_aead { int unused; };
 struct crypto_cipher { int unused; };
+struct fscrypt_ce_tfm { int unused; };
+static void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner) { assert(!owner); }
 #include "layout.h"
 struct inode { struct fscrypt_info *i_crypt_info; unsigned long i_ino; };
 struct fscrypt_context {

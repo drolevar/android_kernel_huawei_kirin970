@@ -29,7 +29,14 @@ typedef u32 __u32;
 #define printk_once(...) ((void)0)
 #define KERN_WARNING ""
 #define BUILD_BUG_ON(x) _Static_assert(!(x), #x)
+#define EXPORT_SYMBOL_GPL(x)
+#define kzalloc(n, flags) calloc(1, (n))
+#define kfree(p) free(p)
 static void memzero_explicit(void *p, size_t n) { OPENSSL_cleanse(p, n); }
+typedef struct { unsigned int refs; } refcount_t;
+static void refcount_set(refcount_t *r, unsigned int n) { r->refs = n; }
+static void refcount_inc(refcount_t *r) { CHECK(r->refs); r->refs++; }
+static bool refcount_dec_and_test(refcount_t *r) { CHECK(r->refs); return --r->refs == 0; }
 
 /* Failure injection is at allocation/setkey/AEAD boundaries, never an echo crypto mock. */
 static int fail_alloc, fail_setkey, fail_unwrap, fail_request;
@@ -150,7 +157,8 @@ static const struct user_key_payload *user_key_payload_locked(struct key *key)
 { CHECK(key->sem.readers == 1); return key->payload; }
 static const struct user_key_payload *user_key_payload_rcu(struct key *key)
 { return user_key_payload_locked(key); }
-struct fscrypt_info { int ci_key_index; struct crypto_aead *ci_gtfm; };
+struct fscrypt_ce_tfm;
+struct fscrypt_info { int ci_key_index; struct crypto_aead *ci_gtfm; struct fscrypt_ce_tfm *ci_gtfm_owner; };
 struct inode;
 struct operations { const char *key_prefix; int (*set_context)(struct inode *, const void *, size_t, void *); };
 struct super_block { struct operations *s_cop; };

@@ -12,6 +12,7 @@
 #include <keys/user-type.h>
 #include <linux/scatterlist.h>
 #include <linux/ratelimit.h>
+#include <linux/refcount.h>
 #include <crypto/aes.h>
 #include <crypto/sha.h>
 #include <crypto/skcipher.h>
@@ -246,54 +247,253 @@ void fscrypt_release_ce_key(struct fscrypt_ce_key *lease)
 }
 EXPORT_SYMBOL(fscrypt_release_ce_key);
 
+struct fscrypt_ce_tfm {
+	refcount_t refs;
+	struct crypto_aead *tfm;
+	u8 descriptor[FS_KEY_DESCRIPTOR_SIZE];
+	u8 legacy_slot;
+};
+
+struct fscrypt_ce_scope {
+	struct super_block *sb;
+	u8 descriptor[FS_KEY_DESCRIPTOR_SIZE];
+	enum fscrypt_ce_purpose purpose;
+	struct fscrypt_ce_tfm *owner;
+};
+
+static void fscrypt_ce_tfm_get(struct fscrypt_ce_tfm *owner)
+{
+	refcount_inc(&owner->refs);
+}
+
+void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner)
+{
+	if (!owner || !refcount_dec_and_test(&owner->refs))
+		return;
+	crypto_free_aead(owner->tfm);
+	memzero_explicit(owner, sizeof(*owner));
+	kfree(owner);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_tfm_put);
+
+int fscrypt_ce_scope_open(struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose, struct fscrypt_ce_scope **out)
+{
+	struct fscrypt_ce_scope *scope = NULL;
+	struct fscrypt_ce_tfm *owner = NULL;
+	struct fscrypt_ce_key lease = { };
+	struct fscrypt_key material = { };
+	const char *alternate;
+	int err;
+
+	if (!out) {
+		err = -EINVAL;
+		goto out;
+	}
+	*out = NULL;
+	if (!inode || !inode->i_sb || !inode->i_sb->s_cop || !descriptor) {
+		err = -EINVAL;
+		goto out;
+	}
+	if (purpose != POLICY_WRAP && purpose != FILE_UNWRAP &&
+	    purpose != SDP_CE_SOURCE) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	scope = kzalloc(sizeof(*scope), GFP_NOFS);
+	if (!scope) {
+		err = -ENOMEM;
+		goto out;
+	}
+	owner = kzalloc(sizeof(*owner), GFP_NOFS);
+	if (!owner) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	alternate = purpose == SDP_CE_SOURCE ? NULL :
+		inode->i_sb->s_cop->key_prefix;
+	err = fscrypt_acquire_ce_key(descriptor, alternate, &lease);
+	if (err)
+		goto out;
+	memcpy(&material, &lease.material, sizeof(material));
+	fscrypt_release_ce_key(&lease);
+
+	owner->tfm = crypto_alloc_aead("gcm(aes)", 0, 0);
+	if (IS_ERR(owner->tfm)) {
+		err = PTR_ERR(owner->tfm);
+		owner->tfm = NULL;
+		goto out;
+	}
+	err = fscrypt_set_gcm_key(owner->tfm, material.raw);
+	if (err)
+		goto out;
+	refcount_set(&owner->refs, 1);
+	owner->legacy_slot = material.raw[63];
+	memcpy(owner->descriptor, descriptor, sizeof(owner->descriptor));
+	scope->sb = inode->i_sb;
+	memcpy(scope->descriptor, descriptor, sizeof(scope->descriptor));
+	scope->purpose = purpose;
+	scope->owner = owner;
+	*out = scope;
+	scope = NULL;
+	owner = NULL;
+	err = 0;
+
+out:
+	fscrypt_release_ce_key(&lease);
+	if (owner) {
+		crypto_free_aead(owner->tfm);
+		memzero_explicit(owner, sizeof(*owner));
+		kfree(owner);
+	}
+	if (scope) {
+		memzero_explicit(scope, sizeof(*scope));
+		kfree(scope);
+	}
+	memzero_explicit(&material, sizeof(material));
+	return err;
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_open);
+
+int fscrypt_ce_scope_open_cached(struct inode *inode,
+		enum fscrypt_ce_purpose purpose, struct fscrypt_ce_scope **out)
+{
+	struct fscrypt_ce_scope *scope;
+	struct fscrypt_info *ci;
+
+	if (!out)
+		return -EINVAL;
+	*out = NULL;
+	if (!inode || purpose != CHILD_WRAP)
+		return -EINVAL;
+	ci = READ_ONCE(inode->i_crypt_info);
+	if (!ci || ci->ci_hw_enc_flag || !ci->ci_gtfm_owner ||
+	    ci->ci_gtfm != ci->ci_gtfm_owner->tfm ||
+	    memcmp(ci->ci_master_key, ci->ci_gtfm_owner->descriptor,
+		   FS_KEY_DESCRIPTOR_SIZE))
+		return -ENOKEY;
+	scope = kzalloc(sizeof(*scope), GFP_NOFS);
+	if (!scope)
+		return -ENOMEM;
+	fscrypt_ce_tfm_get(ci->ci_gtfm_owner);
+	scope->sb = inode->i_sb;
+	memcpy(scope->descriptor, ci->ci_gtfm_owner->descriptor,
+	       sizeof(scope->descriptor));
+	scope->purpose = purpose;
+	scope->owner = ci->ci_gtfm_owner;
+	*out = scope;
+	return 0;
+}
+
+bool fscrypt_ce_scope_matches(const struct fscrypt_ce_scope *scope,
+		const struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose)
+{
+	return scope && inode && descriptor && scope->owner &&
+		scope->sb == inode->i_sb && scope->purpose == purpose &&
+		!memcmp(scope->descriptor, descriptor,
+			FS_KEY_DESCRIPTOR_SIZE);
+}
+
+int fscrypt_ce_scope_crypt(struct fscrypt_ce_scope *scope, const u8 *src,
+		u8 *dst, const u8 iv[FS_KEY_DERIVATION_IV_SIZE], bool encrypt)
+{
+	if (!scope || !scope->owner || !scope->owner->tfm ||
+	    !src || !dst || !iv)
+		return -EINVAL;
+	return fscrypt_derive_gcm_key(scope->owner->tfm, src, dst, (u8 *)iv,
+			encrypt ? 1 : 0);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_crypt);
+
+int fscrypt_ce_scope_legacy_slot(const struct fscrypt_ce_scope *scope,
+		u8 *slot)
+{
+	if (!scope || !scope->owner || !slot)
+		return -EINVAL;
+	*slot = scope->owner->legacy_slot;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_legacy_slot);
+
+static int fscrypt_ce_scope_attach_legacy_tfm(struct fscrypt_ce_scope *scope,
+		struct fscrypt_info *ci)
+{
+	if (!scope || !scope->owner || !ci || ci->ci_gtfm_owner || ci->ci_gtfm)
+		return -EINVAL;
+	if (scope->purpose != FILE_UNWRAP && scope->purpose != CHILD_WRAP)
+		return -EINVAL;
+	fscrypt_ce_tfm_get(scope->owner);
+	ci->ci_gtfm_owner = scope->owner;
+	ci->ci_gtfm = scope->owner->tfm;
+	return 0;
+}
+
+void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope)
+{
+	if (!scope)
+		return;
+	fscrypt_ce_tfm_put(scope->owner);
+	memzero_explicit(scope, sizeof(*scope));
+	kfree(scope);
+}
+EXPORT_SYMBOL_GPL(fscrypt_ce_scope_put);
+
 /* Find the master key, then derive the inode's actual encryption key */
+static int find_and_derive_key_with_scope(const struct inode *inode,
+			       struct fscrypt_info *crypt_info,
+			       const struct fscrypt_context *ctx,
+			       u8 *derived_key, unsigned int derived_keysize,
+			       struct fscrypt_ce_scope *borrowed)
+{
+	struct fscrypt_ce_scope *scope = borrowed;
+	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
+	u8 slot;
+	int err;
+
+	if (derived_keysize > FS_KEY_DERIVATION_NONCE_SIZE)
+		return -EINVAL;
+	if (scope) {
+		if (!fscrypt_ce_scope_matches(scope, inode,
+				ctx->master_key_descriptor, CHILD_WRAP))
+			return -EINVAL;
+	} else {
+		err = fscrypt_ce_scope_open((struct inode *)inode,
+				ctx->master_key_descriptor, FILE_UNWRAP,
+				&scope);
+		if (err)
+			return err;
+	}
+
+	err = fscrypt_ce_scope_legacy_slot(scope, &slot);
+	if (err)
+		goto out;
+	crypt_info->ci_key_index = slot;
+	err = fscrypt_ce_scope_crypt(scope, ctx->nonce, plain_text, ctx->iv,
+			false);
+	if (err)
+		goto out;
+	memcpy(derived_key, plain_text, derived_keysize);
+	err = fscrypt_ce_scope_attach_legacy_tfm(scope, crypt_info);
+
+out:
+	if (!borrowed)
+		fscrypt_ce_scope_put(scope);
+	memzero_explicit(plain_text, sizeof(plain_text));
+	return err;
+}
+
 static int find_and_derive_key(const struct inode *inode,
 			       struct fscrypt_info *crypt_info,
 			       const struct fscrypt_context *ctx,
 			       u8 *derived_key, unsigned int derived_keysize)
 {
-	struct fscrypt_ce_key lease;
-	struct crypto_aead *tfm = NULL;
-	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
-	int err;
-
-	if (derived_keysize > FS_KEY_DERIVATION_NONCE_SIZE)
-		return -EINVAL;
-	err = fscrypt_acquire_ce_key(ctx->master_key_descriptor,
-			inode->i_sb->s_cop->key_prefix, &lease);
-	if (err)
-		return err;
-
-	/* Preserve the legacy raw[63] byte even for a size32 payload.  This
-	 * does not establish that arbitrary bytes are a valid hardware slot.
-	 */
-	crypt_info->ci_key_index = lease.material.raw[63];
-
-	tfm = (struct crypto_aead *)crypto_alloc_aead("gcm(aes)", 0, 0);
-	if (IS_ERR(tfm)) {
-		err = (int)PTR_ERR(tfm);
-		tfm = NULL;
-		pr_err("fscrypt %s : tfm allocation failed!\n", __func__);
-		goto out;
-	}
-	err = fscrypt_set_gcm_key(tfm, lease.material.raw);
-	if (err)
-		goto out;
-	err = fscrypt_derive_gcm_key(tfm, ctx->nonce, plain_text, (u8 *)ctx->iv, 0);
-	if (err)
-		goto out;
-	memcpy(derived_key, plain_text, derived_keysize);
-	crypt_info->ci_gtfm = tfm;
-	fscrypt_release_ce_key(&lease);
-	memzero_explicit(plain_text, sizeof(plain_text));
-	return 0;
-
-out:
-	if (tfm)
-		crypto_free_aead(tfm);
-	fscrypt_release_ce_key(&lease);
-	memzero_explicit(plain_text, sizeof(plain_text));
-	return err;
+	return find_and_derive_key_with_scope(inode, crypt_info, ctx,
+			derived_key, derived_keysize, NULL);
 }
 
 static struct fscrypt_mode {
@@ -391,7 +591,9 @@ static void put_crypt_info(struct fscrypt_info *ci)
 		ci->ci_key_len = 0;
 		ci->ci_key_index = -1;
 	}
-	if (ci->ci_gtfm)
+	if (ci->ci_gtfm_owner)
+		fscrypt_ce_tfm_put(ci->ci_gtfm_owner);
+	else if (ci->ci_gtfm)
 		crypto_free_aead(ci->ci_gtfm);
 	crypto_free_skcipher(ci->ci_ctfm);
 	crypto_free_cipher(ci->ci_essiv_tfm);
@@ -466,7 +668,9 @@ void __exit fscrypt_essiv_cleanup(void)
 	crypto_free_shash(essiv_hash_tfm);
 }
 
-int fscrypt_get_encryption_info(struct inode *inode)
+static int fscrypt_get_encryption_info_internal(struct inode *inode,
+		const struct fscrypt_context *supplied_ctx,
+		struct fscrypt_ce_scope *scope)
 {
 	struct fscrypt_info *crypt_info;
 	struct fscrypt_context ctx;
@@ -489,7 +693,8 @@ int fscrypt_get_encryption_info(struct inode *inode)
 
 	/* TicketNo:AR000B5MB3 -- For HWDPS protection */
 	/* TicketNo:AR0009DF3P -- For SDP protection */
-	if (inode->i_sb->s_cop && inode->i_sb->s_cop->get_keyinfo) {
+	if (!supplied_ctx && inode->i_sb->s_cop &&
+	    inode->i_sb->s_cop->get_keyinfo) {
 		res = inode->i_sb->s_cop->get_keyinfo(inode, NULL, &flag);
 		if (res) { /* err case */
 			pr_err("f2fs_sdp: get_keyinfo failed res:%d", res);
@@ -501,21 +706,29 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	/* TicketNo:AR0009DF3P END */
 	/* TicketNo:AR000B5MB3 END */
 
-	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-	if (res < 0) {
-		if (!fscrypt_dummy_context_enabled(inode) ||
-		    IS_ENCRYPTED(inode))
-			return res;
-		/* Fake up a context for an unencrypted directory */
-		memset(&ctx, 0, sizeof(ctx));
-		ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
-		ctx.contents_encryption_mode = FS_ENCRYPTION_MODE_AES_256_XTS;
-		ctx.filenames_encryption_mode = FS_ENCRYPTION_MODE_AES_256_CTS;
-		memset(ctx.master_key_descriptor, 0x42, FS_KEY_DESCRIPTOR_SIZE);
-	} else if (res != sizeof(ctx)) {
-		pr_err("%s: inode %lu incorrect ctx size [%u : %lu]\n",
-			inode->i_sb->s_type->name, inode->i_ino, res, sizeof(ctx));
-		return -EINVAL;
+	if (supplied_ctx) {
+		ctx = *supplied_ctx;
+	} else {
+		res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
+		if (res < 0) {
+			if (!fscrypt_dummy_context_enabled(inode) ||
+			    IS_ENCRYPTED(inode))
+				return res;
+			/* Fake up a context for an unencrypted directory */
+			memset(&ctx, 0, sizeof(ctx));
+			ctx.format = FS_ENCRYPTION_CONTEXT_FORMAT_V2;
+			ctx.contents_encryption_mode =
+				FS_ENCRYPTION_MODE_AES_256_XTS;
+			ctx.filenames_encryption_mode =
+				FS_ENCRYPTION_MODE_AES_256_CTS;
+			memset(ctx.master_key_descriptor, 0x42,
+			       FS_KEY_DESCRIPTOR_SIZE);
+		} else if (res != sizeof(ctx)) {
+			pr_err("%s: inode %lu incorrect ctx size [%u : %lu]\n",
+				inode->i_sb->s_type->name, inode->i_ino, res,
+				sizeof(ctx));
+			return -EINVAL;
+		}
 	}
 
 	if (ctx.format != FS_ENCRYPTION_CONTEXT_FORMAT_V2)
@@ -534,6 +747,7 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	crypt_info->ci_filename_mode = ctx.filenames_encryption_mode;
 	crypt_info->ci_ctfm = NULL;
 	crypt_info->ci_gtfm = NULL;
+	crypt_info->ci_gtfm_owner = NULL;
 	crypt_info->ci_essiv_tfm = NULL;
 	crypt_info->ci_key = NULL;
 	crypt_info->ci_key_len = 0;
@@ -557,7 +771,8 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	if (!raw_key)
 		goto out;
 
-	res = find_and_derive_key(inode, crypt_info, &ctx, raw_key, mode->keysize);
+	res = find_and_derive_key_with_scope(inode, crypt_info, &ctx, raw_key,
+			mode->keysize, scope);
 	if (res)
 		goto out;
 
@@ -625,6 +840,21 @@ out:
 	put_crypt_info(crypt_info);
 	kzfree(raw_key);
 	return res;
+}
+
+int fscrypt_get_encryption_info_with_scope(struct inode *inode,
+		const struct fscrypt_context *ctx,
+		struct fscrypt_ce_scope *scope)
+{
+	if (!ctx || !fscrypt_ce_scope_matches(scope, inode,
+			ctx->master_key_descriptor, CHILD_WRAP))
+		return -EINVAL;
+	return fscrypt_get_encryption_info_internal(inode, ctx, scope);
+}
+
+int fscrypt_get_encryption_info(struct inode *inode)
+{
+	return fscrypt_get_encryption_info_internal(inode, NULL, NULL);
 }
 EXPORT_SYMBOL(fscrypt_get_encryption_info);
 
@@ -810,6 +1040,7 @@ static struct fscrypt_info *hwdps_get_fscrypt_info(struct fscrypt_context *ctx,
 	ci->ci_filename_mode = ctx->filenames_encryption_mode;
 	ci->ci_ctfm = NULL;
 	ci->ci_gtfm = NULL;
+	ci->ci_gtfm_owner = NULL;
 	ci->ci_essiv_tfm = NULL;
 	ci->ci_key = NULL;
 	ci->ci_key_len = 0;

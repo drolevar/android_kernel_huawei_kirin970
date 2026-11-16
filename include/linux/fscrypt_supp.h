@@ -91,6 +91,26 @@ extern int fscrypt_acquire_ce_key(const u8 *descriptor, const char *alternate,
 				 struct fscrypt_ce_key *lease);
 extern void fscrypt_release_ce_key(struct fscrypt_ce_key *lease);
 
+enum fscrypt_ce_purpose {
+	POLICY_WRAP,
+	FILE_UNWRAP,
+	SDP_CE_SOURCE,
+	CHILD_WRAP,
+};
+
+struct fscrypt_ce_scope;
+extern void fscrypt_ce_tfm_put(struct fscrypt_ce_tfm *owner);
+extern int fscrypt_ce_scope_open(struct inode *inode,
+		const u8 descriptor[FS_KEY_DESCRIPTOR_SIZE],
+		enum fscrypt_ce_purpose purpose,
+		struct fscrypt_ce_scope **out);
+extern int fscrypt_ce_scope_crypt(struct fscrypt_ce_scope *scope,
+		const u8 *src, u8 *dst,
+		const u8 iv[FS_KEY_DERIVATION_IV_SIZE], bool encrypt);
+extern int fscrypt_ce_scope_legacy_slot(const struct fscrypt_ce_scope *scope,
+		u8 *slot);
+extern void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope);
+
 extern int fscrypt_get_encryption_info(struct inode *);
 extern void fscrypt_put_encryption_info(struct inode *);
 #ifdef CONFIG_HWDPS

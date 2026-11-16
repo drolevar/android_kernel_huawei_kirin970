@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     if (!strcmp(c, "immutable")) {
         struct fscrypt_key before = *(struct fscrypt_key *)ukp.data;
         CHECK(create_encryption_context_from_policy(&ino, &policy) == 0);
-        struct fscrypt_info ci = {0}; unwrap(&ci, 0); crypto_free_aead(ci.ci_gtfm);
+        struct fscrypt_info ci = {0}; unwrap(&ci, 0); fscrypt_ce_tfm_put(ci.ci_gtfm_owner);
         CHECK(!memcmp(&before, ukp.data, sizeof(before)));
     } else if (!strcmp(c, "tails")) {
         u8 cipher[80];
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
             fscrypt_release_ce_key(&lease);
             for (size_t i=0; i<sizeof(lease); i++) CHECK(((u8 *)&lease)[i] == 0);
             struct fscrypt_info ci = {0}; unwrap(&ci, 0);
-            CHECK(ci.ci_key_index == (n ? 19 : 7)); crypto_free_aead(ci.ci_gtfm); balanced();
+            CHECK(ci.ci_key_index == (n ? 19 : 7)); fscrypt_ce_tfm_put(ci.ci_gtfm_owner); balanced();
         }
     } else if (!strcmp(c, "revocation")) {
         revoke_on_lock = true;
@@ -131,19 +131,19 @@ int main(int argc, char **argv)
         }
     } else if (!strcmp(c, "f2fs-ce")) {
         u8 plain[80]={1},cipher[80]={0},out[80]={0},iv[16]={0},desc[8]={0};
-        CHECK(!f2fs_do_get_fek(desc,cipher,plain,iv,1,0));
-        CHECK(!f2fs_do_get_fek(desc,cipher,out,iv,0,0)); CHECK(!memcmp(out,plain,64));
+        CHECK(!f2fs_do_get_fek(&ino,desc,cipher,plain,iv,1,0));
+        CHECK(!f2fs_do_get_fek(&ino,desc,cipher,out,iv,0,0)); CHECK(!memcmp(out,plain,64));
         CHECK(((struct fscrypt_key *)ukp.data)->size==64);
         sdp(FSCRYPT_SDP_ECE_CLASS,32,0);
-        CHECK(f2fs_do_get_fek(desc,cipher,out,iv,0,0)==-EINVAL);
+        CHECK(f2fs_do_get_fek(&ino,desc,cipher,out,iv,0,0)==-EINVAL);
     } else if (!strcmp(c, "f2fs-errors")) {
         u8 plain[80]={0},cipher[80]={0},out[80]={0},iv[16]={0},desc[8]={0};
         for(int f=0;f<6;f++) {
-            setup(32); CHECK(!f2fs_do_get_fek(desc,cipher,plain,iv,1,0));
+            setup(32); CHECK(!f2fs_do_get_fek(&ino,desc,cipher,plain,iv,1,0));
             if(f==0) fail_alloc=1; if(f==1) fail_setkey=1;
             if(f==2) fail_request=1; if(f==3) fail_unwrap=1;
             if(f==4) revoke_on_lock=true; if(f==5) primary_error=-EACCES;
-            CHECK(f2fs_do_get_fek(desc,cipher,out,iv,0,0)<0); balanced();
+            CHECK(f2fs_do_get_fek(&ino,desc,cipher,out,iv,0,0)<0); balanced();
         }
     } else if (!strcmp(c, "sece-callers")) {
         struct f2fs_sdp_fscrypt_context ctx={0};
