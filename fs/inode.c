@@ -414,6 +414,7 @@ void __iget(struct inode *inode)
 {
 	atomic_inc(&inode->i_count);
 }
+EXPORT_SYMBOL_GPL(__iget);
 
 /*
  * get additional reference to inode; caller must already hold one.

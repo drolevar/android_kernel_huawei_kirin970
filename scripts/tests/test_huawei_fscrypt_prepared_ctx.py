@@ -80,6 +80,9 @@ MUTATIONS = {
     "f2fs-skip-parent-info": (
         ("fs/f2fs/dir.c", "f2fs_add_dentry"),
         "err = fscrypt_get_encryption_info(dir);", "err = 0;", 1),
+    "f2fs-regular-dir-skip-dentry": (
+        ("fs/f2fs/dir.c", "f2fs_add_dentry"),
+        "\t\terr = -EAGAIN;", "\t\t(void)0;", 1),
     "hmfs-borrowed-takes-cp-lock": (
         ("fs/hmfs/super.c", "hmfs_prepare_context"),
         "if (origin == FSCRYPT_CTX_OWNED_POLICY) {", "if (true) {", 1),
@@ -89,6 +92,9 @@ MUTATIONS = {
     "hmfs-skip-parent-info": (
         ("fs/hmfs/dir.c", "hmfs_add_dentry"),
         "err = fscrypt_get_encryption_info(dir);", "err = 0;", 1),
+    "hmfs-regular-dir-skip-dentry": (
+        ("fs/hmfs/dir.c", "hmfs_add_dentry"),
+        "\t\terr = -EAGAIN;", "\t\t(void)0;", 1),
 }
 
 REQUIRED = (

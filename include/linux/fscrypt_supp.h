@@ -69,6 +69,11 @@ extern void fscrypt_restore_control_page(struct page *);
 struct fscrypt_ce_scope;
 extern int fscrypt_ioctl_set_policy(struct file *, const void __user *);
 extern int fscrypt_ioctl_get_policy(struct file *, void __user *);
+extern int fscrypt_ioctl_add_key(struct file *filp, void __user *uarg);
+extern int fscrypt_ioctl_remove_key(struct file *filp, void __user *uarg);
+extern int fscrypt_ioctl_remove_key_all_users(struct file *filp,
+					      void __user *uarg);
+extern int fscrypt_ioctl_get_key_status(struct file *filp, void __user *uarg);
 extern int fscrypt_has_permitted_context(struct inode *, struct inode *);
 extern int fscrypt_inherit_context_prepared(
 		struct inode *parent, struct inode *child, void *fs_data,
@@ -119,6 +124,7 @@ extern void fscrypt_ce_scope_put(struct fscrypt_ce_scope *scope);
 
 extern int fscrypt_get_encryption_info(struct inode *);
 extern void fscrypt_put_encryption_info(struct inode *);
+extern int fscrypt_drop_inode(struct inode *inode);
 #ifdef CONFIG_HWDPS
 extern int hwdps_update_context(struct inode *, uid_t);
 extern int hwdps_get_context(struct inode *);

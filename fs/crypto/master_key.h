@@ -57,6 +57,8 @@ void fscrypt_mk_release(struct fscrypt_mk_lease *lease);
  * whether owners remain.  It never evicts an inode or calls a filesystem.
  */
 bool fscrypt_mk_remove(struct fscrypt_master_key *key);
+int fscrypt_mk_begin_remove(struct fscrypt_master_key *key,
+			    bool *has_owners_ret, u64 *retired_gen_ret);
 enum fscrypt_mk_state fscrypt_mk_status(struct fscrypt_master_key *key);
 
 #endif

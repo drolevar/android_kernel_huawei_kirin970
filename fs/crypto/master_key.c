@@ -190,6 +190,29 @@ bool fscrypt_mk_remove(struct fscrypt_master_key *key)
 	return busy;
 }
 
+int fscrypt_mk_begin_remove(struct fscrypt_master_key *key,
+			    bool *has_owners_ret, u64 *retired_gen_ret)
+{
+	bool was_present;
+	bool has_owners;
+	u64 gen;
+
+	if (!key || !has_owners_ret || !retired_gen_ret)
+		return -EINVAL;
+	down_write(&key->secret_sem);
+	was_present = key->present;
+	has_owners = atomic_read(&key->owners) != 0;
+	gen = key->generation;
+	memzero_explicit(key->raw, sizeof(key->raw));
+	key->present = false;
+	up_write(&key->secret_sem);
+	if (!was_present && !has_owners)
+		return -ENOKEY;
+	*has_owners_ret = has_owners;
+	*retired_gen_ret = gen;
+	return 0;
+}
+
 enum fscrypt_mk_state fscrypt_mk_status(struct fscrypt_master_key *key)
 {
 	enum fscrypt_mk_state state;

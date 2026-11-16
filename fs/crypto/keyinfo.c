@@ -549,7 +549,8 @@ static int find_and_derive_key_with_scope(const struct inode *inode,
 			       struct fscrypt_info *crypt_info,
 			       const struct fscrypt_context *ctx,
 			       u8 *derived_key, unsigned int derived_keysize,
-			       struct fscrypt_ce_scope *borrowed)
+			       struct fscrypt_ce_scope *borrowed,
+			       bool dummy_ctx)
 {
 	struct fscrypt_ce_scope *scope = borrowed;
 	u8 plain_text[FS_KEY_DERIVATION_CIPHER_SIZE] = {0};
@@ -576,8 +577,25 @@ static int find_and_derive_key_with_scope(const struct inode *inode,
 			goto out;
 		crypt_info->ci_key_index = slot;
 	}
-	err = fscrypt_ce_scope_crypt(scope, ctx->nonce, plain_text, ctx->iv,
-			false);
+	if (dummy_ctx) {
+		u8 dummy_plain[FS_KEY_DERIVATION_CIPHER_SIZE] = { 0 };
+		u8 dummy_cipher[FS_KEY_DERIVATION_CIPHER_SIZE];
+		u8 dummy_iv[FS_KEY_DERIVATION_IV_SIZE] = { 0 };
+
+		memset(dummy_plain, 0x42, FS_KEY_DERIVATION_NONCE_SIZE);
+		err = fscrypt_ce_scope_crypt(scope, dummy_plain, dummy_cipher,
+				dummy_iv, true);
+		if (!err) {
+			memset(dummy_iv, 0, sizeof(dummy_iv));
+			err = fscrypt_ce_scope_crypt(scope, dummy_cipher,
+					plain_text, dummy_iv, false);
+		}
+		memzero_explicit(dummy_plain, sizeof(dummy_plain));
+		memzero_explicit(dummy_cipher, sizeof(dummy_cipher));
+	} else {
+		err = fscrypt_ce_scope_crypt(scope, ctx->nonce, plain_text,
+				ctx->iv, false);
+	}
 	if (err)
 		goto out;
 	memcpy(derived_key, plain_text, derived_keysize);
@@ -596,7 +614,7 @@ static int find_and_derive_key(const struct inode *inode,
 			       u8 *derived_key, unsigned int derived_keysize)
 {
 	return find_and_derive_key_with_scope(inode, crypt_info, ctx,
-			derived_key, derived_keysize, NULL);
+			derived_key, derived_keysize, NULL, false);
 }
 
 static struct fscrypt_mode {
@@ -780,6 +798,7 @@ static int fscrypt_get_encryption_info_internal(struct inode *inode,
 	struct crypto_skcipher *ctfm;
 	struct fscrypt_mode *mode;
 	u8 *raw_key = NULL;
+	bool dummy_ctx = false;
 	int res;
 	int flag = 0;
 
@@ -826,6 +845,7 @@ static int fscrypt_get_encryption_info_internal(struct inode *inode,
 				FS_ENCRYPTION_MODE_AES_256_CTS;
 			memset(ctx.master_key_descriptor, 0x42,
 			       FS_KEY_DESCRIPTOR_SIZE);
+			dummy_ctx = true;
 		} else if (res != sizeof(ctx)) {
 			pr_err("%s: inode %lu incorrect ctx size [%u : %lu]\n",
 				inode->i_sb->s_type->name, inode->i_ino, res,
@@ -875,7 +895,7 @@ static int fscrypt_get_encryption_info_internal(struct inode *inode,
 		goto out;
 
 	res = find_and_derive_key_with_scope(inode, crypt_info, &ctx, raw_key,
-			mode->keysize, scope);
+			mode->keysize, scope, dummy_ctx);
 	if (res)
 		goto out;
 
@@ -987,6 +1007,34 @@ void fscrypt_put_encryption_info(struct inode *inode)
 	inode->i_crypt_info = NULL;
 }
 EXPORT_SYMBOL(fscrypt_put_encryption_info);
+
+/**
+ * fscrypt_drop_inode() - check whether the inode's master key has been removed
+ * @inode: an inode being considered for eviction
+ *
+ * Return: 1 if fscrypt wants the inode to be evicted now, otherwise 0
+ */
+int fscrypt_drop_inode(struct inode *inode)
+{
+	const struct fscrypt_info *ci;
+	const struct fscrypt_master_key *mk;
+
+	/*
+	 * Pairs with cmpxchg(&inode->i_crypt_info, NULL, ci) release barrier
+	 * when publishing ci_owner.
+	 */
+	ci = smp_load_acquire(&inode->i_crypt_info);
+	if (!fscrypt_ci_is_managed(ci))
+		return 0;
+
+	if (inode->i_state & I_DIRTY_ALL)
+		return 0;
+
+	mk = ci->ci_owner.key;
+	return !READ_ONCE(mk->present) ||
+	       READ_ONCE(mk->generation) != ci->ci_owner.generation;
+}
+EXPORT_SYMBOL_GPL(fscrypt_drop_inode);
 
 #ifdef CONFIG_HWDPS
 #ifdef CONFIG_SCSI_UFS_ENHANCED_INLINE_CRYPTO_V2

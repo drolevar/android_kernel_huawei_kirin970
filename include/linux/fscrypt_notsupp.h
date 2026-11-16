@@ -90,6 +90,28 @@ static inline int fscrypt_ioctl_get_policy(struct file *filp, void __user *arg)
 	return -EOPNOTSUPP;
 }
 
+static inline int fscrypt_ioctl_add_key(struct file *filp, void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_remove_key(struct file *filp, void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_remove_key_all_users(struct file *filp,
+						     void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fscrypt_ioctl_get_key_status(struct file *filp,
+					       void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
 static inline int fscrypt_has_permitted_context(struct inode *parent,
 						struct inode *child)
 {
@@ -146,6 +168,11 @@ static inline int fscrypt_get_encryption_info(struct inode *inode)
 static inline void fscrypt_put_encryption_info(struct inode *inode)
 {
 	return;
+}
+
+static inline int fscrypt_drop_inode(struct inode *inode)
+{
+	return 0;
 }
 
 #ifdef CONFIG_HWDPS

@@ -65,6 +65,7 @@ struct f2fs_inode_info {
 	struct rw_semaphore i_xattr_sem;
 	bool encrypted;
 	bool new_inode;
+	bool inline_dentry;
 };
 struct address_space { const void *a_ops; };
 struct inode {
@@ -239,8 +240,7 @@ static int __hmfs_setxattr(struct inode *inode, int index, const char *name,
 }
 static bool f2fs_has_inline_dentry(struct inode *dir)
 {
-	(void)dir;
-	return true;
+	return dir->fi.inline_dentry;
 }
 static bool f2fs_encrypted_inode(struct inode *inode)
 {
@@ -548,7 +548,8 @@ int main(int argc, char **argv)
 		.fi = { .encrypted = true, .new_inode = true },
 		.i_mapping = &mapping };
 	struct inode dir = { .i_ino = 8, .i_sb = &sb, .sbi = &sbi,
-		.fi = { .encrypted = true }, .i_crypt_info = &fixture_scope };
+		.fi = { .encrypted = true, .inline_dentry = true },
+		.i_crypt_info = &fixture_scope };
 	struct page ipage = { .id = 1 };
 	struct fscrypt_context_op *op = NULL;
 	struct qstr user = { (const unsigned char *)"name", 4 };
@@ -609,6 +610,19 @@ int main(int argc, char **argv)
 		assert(get_info_calls == 1 && dir.i_crypt_info == &fixture_scope);
 		assert(lock_order < get_info_order && get_info_order < scope_order);
 		assert(scope_opens == 1 && scope_puts == 1);
+		assert(inline_calls == 1 && regular_calls == 1);
+
+		reset_fixture();
+		dir.fi.inline_dentry = false;
+		dir.fi.encrypted = false;
+		dir.i_crypt_info = NULL;
+		sbi.dummy_encryption = true;
+		cp_locked = true;
+		lock_order = ++order;
+		result = tested_add_dentry(&dir, &fname, NULL, &inode, 9, 0100644);
+		assert(!result && inline_calls == 0 && regular_calls == 1 &&
+		       regular_scope == &fixture_scope && get_info_calls == 1 &&
+		       scope_opens == 1 && scope_puts == 1);
 	} else if (strstr(argv[1], "tmpfile-order")) {
 		created_inode = &inode;
 		assert(!__f2fs_tmpfile(&dir, NULL, 0100600, NULL));

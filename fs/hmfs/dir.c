@@ -629,6 +629,7 @@ int hmfs_add_dentry(struct inode *dir, struct fscrypt_name *fname,
 		err = fscrypt_ce_scope_open_cached(dir, CHILD_WRAP, &scope);
 		if (err)
 			goto out;
+		err = -EAGAIN;
 	}
 
 	if (f2fs_has_inline_dentry(dir))
