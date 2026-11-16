@@ -16,6 +16,7 @@
 #include <linux/bpf.h>
 #include <linux/btf.h>
 #include <linux/mm.h>
+#include <linux/overflow.h>
 #include <uapi/linux/btf.h>
 #include <linux/bpf_verifier.h>
 #include <linux/filter.h>
