@@ -480,6 +480,9 @@ int inet_release(struct socket *sock)
 	if (sk) {
 		long timeout;
 
+		if (!sk->sk_kern_sock)
+			BPF_CGROUP_RUN_PROG_INET_SOCK_RELEASE(sk);
+
 #ifdef CONFIG_HUAWEI_BASTET
 		bastet_inet_release(sk);
 #endif

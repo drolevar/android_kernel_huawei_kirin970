@@ -1,0 +1,26 @@
+Semantic donor: pixel-msm-4.14 bb17b7de4b570f2c0c32ddba0543cac03c58dd84
+Bounded adaptation; original author and trailers retained below.
+
+commit 91e02017294f0b08d60c2caa1bd7fe19726aac75
+Author:     Stanislav Fomichev <sdf@google.com>
+AuthorDate: Mon Jul 6 16:01:25 2020 -0700
+Commit:     Michael Bestas <mkbestas@lineageos.org>
+CommitDate: Tue May 26 06:37:53 2026 +0300
+
+    UPSTREAM: bpf: Add BPF_CGROUP_INET_SOCK_RELEASE hook
+
+    Sometimes it's handy to know when the socket gets freed. In
+    particular, we'd like to try to use a smarter allocation of
+    ports for bpf_bind and explore the possibility of limiting
+    the number of SOCK_DGRAM sockets the process can have.
+
+    Implement BPF_CGROUP_INET_SOCK_RELEASE hook that triggers on
+    inet socket release. It triggers only for userspace sockets
+    (not in-kernel ones) and therefore has the same semantics as
+    the existing BPF_CGROUP_INET_SOCK_CREATE.
+
+    Change-Id: I29e66c3a48a082b5ec4aadd6092877be44f62726
+    Signed-off-by: Stanislav Fomichev <sdf@google.com>
+    Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+    Acked-by: Andrii Nakryiko <andriin@fb.com>
+    Link: https://lore.kernel.org/bpf/20200706230128.4073544-2-sdf@google.com
