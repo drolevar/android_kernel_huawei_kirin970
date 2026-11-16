@@ -222,6 +222,11 @@ struct bpf_verifier_ops {
 };
 
 struct bpf_prog_aux {
+	struct btf *btf;
+	struct bpf_func_info *func_info;
+	u32 func_info_cnt;
+	struct bpf_line_info *linfo;
+	u32 nr_linfo;
 	atomic_t refcnt;
 	u32 used_map_cnt;
 	u32 max_ctx_offset;
@@ -423,7 +428,10 @@ static inline void bpf_long_memcpy(void *dst, const void *src, u32 size)
 }
 
 /* verify correctness of eBPF program */
-int bpf_check(struct bpf_prog **fp, union bpf_attr *attr);
+int bpf_check(struct bpf_prog **fp, union bpf_attr *attr,
+	      union bpf_attr __user *uattr);
+int bpf_check_uarg_tail_zero(void __user *uaddr, size_t expected_size,
+			     size_t actual_size);
 
 /* Map specifics */
 struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);

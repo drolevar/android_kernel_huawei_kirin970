@@ -27,6 +27,7 @@
 #include <linux/random.h>
 #include <linux/moduleloader.h>
 #include <linux/bpf.h>
+#include <linux/btf.h>
 #include <linux/frame.h>
 #include <linux/rbtree_latch.h>
 #include <linux/kallsyms.h>
@@ -179,6 +180,14 @@ struct bpf_prog *bpf_prog_realloc(struct bpf_prog *fp_old, unsigned int size,
 
 void __bpf_prog_free(struct bpf_prog *fp)
 {
+	/* Realloc and JIT clones transfer aux and clear it on the old image. */
+	if (fp->aux) {
+#ifdef CONFIG_BPF_SYSCALL
+		btf_put(fp->aux->btf);
+#endif
+		kfree(fp->aux->func_info);
+		kvfree(fp->aux->linfo);
+	}
 	kfree(fp->aux);
 #ifdef CONFIG_HKIP_PROTECT_BPF
 	pfree(fp);
@@ -315,6 +324,26 @@ static int bpf_adj_branches(struct bpf_prog *prog, u32 pos, u32 delta,
 	return ret;
 }
 
+static void bpf_adj_linfo(struct bpf_prog *prog, u32 off, u32 delta)
+{
+	struct bpf_line_info *linfo;
+	u32 i, nr_linfo;
+
+	nr_linfo = prog->aux->nr_linfo;
+	if (!nr_linfo || !delta)
+		return;
+
+	linfo = prog->aux->linfo;
+
+	for (i = 0; i < nr_linfo; i++)
+		if (off < linfo[i].insn_off)
+			break;
+
+	/* Push all off < linfo[i].insn_off by delta */
+	for (; i < nr_linfo; i++)
+		linfo[i].insn_off += delta;
+}
+
 struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 				       const struct bpf_insn *patch, u32 len)
 {
@@ -369,6 +398,7 @@ struct bpf_prog *bpf_patch_insn_single(struct bpf_prog *prog, u32 off,
 	 * overflow cannot happen at this point.
 	 */
 	BUG_ON(bpf_adj_branches(prog_adj, off, insn_delta, false));
+	bpf_adj_linfo(prog_adj, off, insn_delta);
 
 	return prog_adj;
 }

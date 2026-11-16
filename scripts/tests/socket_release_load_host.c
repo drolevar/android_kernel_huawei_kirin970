@@ -48,7 +48,8 @@ static size_t bpf_prog_insn_size(struct bpf_prog*p){return p->len*sizeof(struct 
 static int find_prog_type(enum bpf_prog_type t,struct bpf_prog*p){p->type=t;return 0;}
 static unsigned long ktime_get_boot_ns(void){return 1;}
 static int bpf_obj_name_cpy(char*d,const char*s){memcpy(d,s,16);return 0;}
-static int bpf_check(struct bpf_prog**p,union bpf_attr*a){verified++;assert((*p)->expected_attach_type==a->expected_attach_type);assert((*p)->type==a->prog_type);return verify_error;}
+static union bpf_attr user_load_attr;
+static int bpf_check(struct bpf_prog**p,union bpf_attr*a,union bpf_attr*u){assert(u==&user_load_attr && u!=a);verified++;assert((*p)->expected_attach_type==a->expected_attach_type);assert((*p)->type==a->prog_type);return verify_error;}
 static struct bpf_prog *bpf_prog_select_runtime(struct bpf_prog*p,int*err){*err=0;return p;}
 static int bpf_prog_alloc_id(struct bpf_prog*p){return 0;}
 static void bpf_prog_kallsyms_add(struct bpf_prog*p){}
@@ -64,7 +65,7 @@ int main(void){
  struct bpf_insn release_insns[2]={{0}};
  for(int hook=2;hook<=34;hook+=32){
   union bpf_attr load={.prog_type=9,.expected_attach_type=hook,.insn_cnt=2,.insns=(uintptr_t)release_insns,.license=(uintptr_t)"GPL"};
-  assert(bpf_prog_load(&load)==42&&program.expected_attach_type==hook&&!allocated);
+  assert(bpf_prog_load(&load,&user_load_attr)==42&&program.expected_attach_type==hook&&!allocated);
   union bpf_attr a={.attach_type=hook,.attach_bpf_fd=3,.target_fd=4};
   assert(!bpf_prog_attach(&a)&&!references&&!fd_gets);
   assert(!bpf_prog_detach(&a)&&!references&&!fd_gets);
@@ -81,14 +82,14 @@ int main(void){
  struct bpf_insn addr_insns[2]={{0}};
  for(unsigned i=0;i<8;i++){
   union bpf_attr load={.prog_type=18,.expected_attach_type=hooks[i],.insn_cnt=2,.insns=(uintptr_t)addr_insns,.license=(uintptr_t)"GPL"};
-  assert(bpf_prog_load(&load)==42&&!allocated);
+  assert(bpf_prog_load(&load,&user_load_attr)==42&&!allocated);
   union bpf_attr att={.attach_type=hooks[i],.attach_bpf_fd=3,.target_fd=4};
   assert(!bpf_prog_attach(&att)&&!references&&!fd_gets);
   assert(!bpf_prog_detach(&att)&&!references&&!fd_gets);
   for(unsigned j=0;j<8;j++)if(i!=j){att.attach_type=hooks[j];assert(bpf_prog_attach(&att)==-EINVAL&&!references&&!fd_gets);assert(bpf_prog_detach(&att)==-EINVAL&&!references&&!fd_gets);}
   union bpf_attr query={.query={.attach_type=hooks[i],.target_fd=4}},reply={0};
   assert(!bpf_prog_query(&query,&reply)&&reply.query.prog_cnt==1&&!fd_gets);
-  load.prog_ifindex=1;assert(bpf_prog_load(&load)==-EOPNOTSUPP&&!allocated);
+  load.prog_ifindex=1;assert(bpf_prog_load(&load,&user_load_attr)==-EOPNOTSUPP&&!allocated);
  }
  for(int h=0;h<32;h++){
   int supported=0;for(unsigned i=0;i<8;i++)supported|=hooks[i]==h;
@@ -126,12 +127,12 @@ int main(void){
  struct bpf_insn instructions[2]={{0}};
  for(int hook=21;hook<=22;hook++){
   a=(union bpf_attr){.prog_type=25,.expected_attach_type=hook,.insn_cnt=2,.insns=(uintptr_t)instructions,.license=(uintptr_t)"GPL"};
-  assert(bpf_prog_load(&a)==42&&program.expected_attach_type==hook&&!allocated);
+  assert(bpf_prog_load(&a,&user_load_attr)==42&&program.expected_attach_type==hook&&!allocated);
  }
- a.expected_attach_type=0;int count=verified;assert(bpf_prog_load(&a)==-EINVAL&&verified==count&&!allocated);
- a.expected_attach_type=21;a.prog_ifindex=1;assert(bpf_prog_load(&a)==-EOPNOTSUPP&&verified==count&&!allocated);
- a.prog_ifindex=0;verify_error=-EACCES;assert(bpf_prog_load(&a)==-EACCES&&!allocated);verify_error=0;
- copy_error=1;assert(bpf_prog_load(&a)==-EFAULT&&!allocated);copy_error=0;
- a.prog_type=9;a.expected_attach_type=0;assert(bpf_prog_load(&a)==42&&a.expected_attach_type==2&&!allocated);
+ a.expected_attach_type=0;int count=verified;assert(bpf_prog_load(&a,&user_load_attr)==-EINVAL&&verified==count&&!allocated);
+ a.expected_attach_type=21;a.prog_ifindex=1;assert(bpf_prog_load(&a,&user_load_attr)==-EOPNOTSUPP&&verified==count&&!allocated);
+ a.prog_ifindex=0;verify_error=-EACCES;assert(bpf_prog_load(&a,&user_load_attr)==-EACCES&&!allocated);verify_error=0;
+ copy_error=1;assert(bpf_prog_load(&a,&user_load_attr)==-EFAULT&&!allocated);copy_error=0;
+ a.prog_type=9;a.expected_attach_type=0;assert(bpf_prog_load(&a,&user_load_attr)==42&&a.expected_attach_type==2&&!allocated);
  assert(!references&&!fd_gets);puts("PASS load admission, ABI and real attach dispatch");return 0;
 }

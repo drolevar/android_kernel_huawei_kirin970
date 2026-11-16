@@ -99,6 +99,15 @@ static int check_uarg_tail_zero(void __user *uaddr,
 	return 0;
 }
 
+/* Shared with program metadata validation; preserve the original user attr
+ * separately so record-size negotiation writes to userspace, not its copy.
+ */
+int bpf_check_uarg_tail_zero(void __user *uaddr, size_t expected_size,
+			     size_t actual_size)
+{
+	return check_uarg_tail_zero(uaddr, expected_size, actual_size);
+}
+
 static struct bpf_map *find_and_alloc_map(union bpf_attr *attr)
 {
 	struct bpf_map *map;
@@ -1336,11 +1345,11 @@ struct bpf_prog *bpf_prog_get_type(u32 ufd, enum bpf_prog_type type)
 EXPORT_SYMBOL_GPL(bpf_prog_get_type);
 
 /* last field in 'union bpf_attr' used by this command */
-#define	BPF_PROG_LOAD_LAST_FIELD expected_attach_type
+#define	BPF_PROG_LOAD_LAST_FIELD line_info_cnt
 
 #include "syscall_sockopt.inc"
 
-static int bpf_prog_load(union bpf_attr *attr)
+static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog;
@@ -1418,7 +1427,7 @@ static int bpf_prog_load(union bpf_attr *attr)
 		goto free_prog;
 
 	/* run eBPF verifier */
-	err = bpf_check(&prog, attr);
+	err = bpf_check(&prog, attr, uattr);
 	if (err < 0)
 		goto free_used_maps;
 
@@ -1832,6 +1841,37 @@ static int bpf_map_get_fd_by_id(const union bpf_attr *attr)
 	return fd;
 }
 
+static int set_info_rec_size(struct bpf_prog_info *info)
+{
+	/*
+	 * Ensure info.*_rec_size is the same as kernel expected size
+	 *
+	 * or
+	 *
+	 * Only allow zero *_rec_size if both _rec_size and _cnt are
+	 * zero.  In this case, the kernel will set the expected
+	 * _rec_size back to the info.
+	 */
+
+	if ((info->nr_func_info || info->func_info_rec_size) &&
+	    info->func_info_rec_size != sizeof(struct bpf_func_info))
+		return -EINVAL;
+
+	if ((info->nr_line_info || info->line_info_rec_size) &&
+	    info->line_info_rec_size != sizeof(struct bpf_line_info))
+		return -EINVAL;
+
+	if ((info->nr_jited_line_info || info->jited_line_info_rec_size) &&
+	    info->jited_line_info_rec_size != sizeof(__u64))
+		return -EINVAL;
+
+	info->func_info_rec_size = sizeof(struct bpf_func_info);
+	info->line_info_rec_size = sizeof(struct bpf_line_info);
+	info->jited_line_info_rec_size = sizeof(__u64);
+
+	return 0;
+}
+
 static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 				   const union bpf_attr *attr,
 				   union bpf_attr __user *uattr)
@@ -1851,6 +1891,19 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	memset(&info, 0, sizeof(info));
 	if (copy_from_user(&info, uinfo, info_len))
 		return -EFAULT;
+
+	err = set_info_rec_size(&info);
+	if (err)
+		return err;
+
+	/* No offload namespace or JIT address/line mapping is implemented here.
+	 * Do not echo user supplied values for these canonical preceding fields.
+	 */
+	memset(&info.ifindex, 0, offsetof(struct bpf_prog_info, func_info_rec_size) -
+			       offsetof(struct bpf_prog_info, ifindex));
+	info.gpl_compatible = prog->gpl_compatible;
+	info.nr_jited_line_info = 0;
+	info.jited_line_info = 0;
 
 	info.type = prog->type;
 	info.id = prog->aux->id;
@@ -1877,8 +1930,24 @@ static int bpf_prog_get_info_by_fd(struct bpf_prog *prog,
 	if (!capable(CAP_SYS_ADMIN)) {
 		info.jited_prog_len = 0;
 		info.xlated_prog_len = 0;
+		info.nr_func_info = 0;
+		info.nr_line_info = 0;
 		goto done;
 	}
+
+	/* Metadata does not expose JIT addresses; interpreters report it too. */
+	if (prog->aux->btf)
+		info.btf_id = btf_id(prog->aux->btf);
+	ulen = min_t(u32, info.nr_func_info, prog->aux->func_info_cnt);
+	info.nr_func_info = prog->aux->func_info_cnt;
+	if (ulen && copy_to_user(u64_to_user_ptr(info.func_info),
+				 prog->aux->func_info, ulen * sizeof(struct bpf_func_info)))
+		return -EFAULT;
+	ulen = min_t(u32, info.nr_line_info, prog->aux->nr_linfo);
+	info.nr_line_info = prog->aux->nr_linfo;
+	if (ulen && copy_to_user(u64_to_user_ptr(info.line_info),
+				 prog->aux->linfo, ulen * sizeof(struct bpf_line_info)))
+		return -EFAULT;
 
 	ulen = info.jited_prog_len;
 	info.jited_prog_len = prog->jited_len;
@@ -2043,7 +2112,7 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 		err = map_get_next_key(&attr);
 		break;
 	case BPF_PROG_LOAD:
-		err = bpf_prog_load(&attr);
+		err = bpf_prog_load(&attr, uattr);
 		break;
 	case BPF_OBJ_PIN:
 		err = bpf_obj_pin(&attr);

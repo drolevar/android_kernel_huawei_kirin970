@@ -1,130 +1,63 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-/* Copyright (c) 2018 Facebook. Donor line-info validation excerpt. */
-#define MIN_BPF_LINEINFO_SIZE	(offsetof(struct bpf_line_info, line_col) + \
-		sizeof(((struct bpf_line_info *)(0))->line_col))
-#define MAX_LINEINFO_REC_SIZE	MAX_FUNCINFO_REC_SIZE
+/* Copyright (c) 2018 Facebook. See program-btf-upstream.txt.
+ * Huawei adaptation: a single entry point, no subprogram table.
+ */
+#define MIN_BPF_LINEINFO_SIZE 16
+#define MAX_LINEINFO_REC_SIZE MAX_FUNCINFO_REC_SIZE
 
 static int check_btf_line(struct bpf_verifier_env *env,
 			  const union bpf_attr *attr,
 			  union bpf_attr __user *uattr)
 {
-	u32 i, s, nr_linfo, ncopy, expected_size, rec_size, prev_offset = 0;
-	struct bpf_subprog_info *sub;
+	struct bpf_prog *prog = env->prog;
 	struct bpf_line_info *linfo;
-	struct bpf_prog *prog;
-	const struct btf *btf;
-	void __user *ulinfo;
+	void __user *ulinfo = u64_to_user_ptr(attr->line_info);
+	u32 count = attr->line_info_cnt, size = attr->line_info_rec_size;
+	u32 i, prev_offset = 0;
 	int err;
 
-	nr_linfo = attr->line_info_cnt;
-	if (!nr_linfo)
+	if (!count)
 		return 0;
-	if (nr_linfo > INT_MAX / sizeof(struct bpf_line_info))
+	if (count > INT_MAX / sizeof(*linfo) || count > prog->len ||
+	    size < MIN_BPF_LINEINFO_SIZE || size > MAX_LINEINFO_REC_SIZE ||
+	    size % sizeof(u32))
 		return -EINVAL;
 
-	rec_size = attr->line_info_rec_size;
-	if (rec_size < MIN_BPF_LINEINFO_SIZE ||
-	    rec_size > MAX_LINEINFO_REC_SIZE ||
-	    rec_size & (sizeof(u32) - 1))
-		return -EINVAL;
-
-	/* Need to zero it in case the userspace may
-	 * pass in a smaller bpf_line_info object.
-	 */
-	linfo = kvcalloc(nr_linfo, sizeof(struct bpf_line_info),
-			 GFP_KERNEL | __GFP_NOWARN);
+	linfo = kvmalloc_array(count, sizeof(*linfo),
+			      GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN);
 	if (!linfo)
 		return -ENOMEM;
 
-	prog = env->prog;
-	btf = prog->aux->btf;
-
-	s = 0;
-	sub = env->subprog_info;
-	ulinfo = u64_to_user_ptr(attr->line_info);
-	expected_size = sizeof(struct bpf_line_info);
-	ncopy = min_t(u32, expected_size, rec_size);
-	for (i = 0; i < nr_linfo; i++) {
-		err = bpf_check_uarg_tail_zero(ulinfo, expected_size, rec_size);
+	for (i = 0; i < count; i++, ulinfo += size) {
+		err = bpf_check_uarg_tail_zero(ulinfo, sizeof(*linfo), size);
 		if (err) {
-			if (err == -E2BIG) {
-				verbose(env, "nonzero tailing record in line_info");
-				if (put_user(expected_size,
-					     &uattr->line_info_rec_size))
-					err = -EFAULT;
-			}
+			if (err == -E2BIG &&
+			    put_user(sizeof(*linfo), &uattr->line_info_rec_size))
+				err = -EFAULT;
 			goto err_free;
 		}
-
-		if (copy_from_user(&linfo[i], ulinfo, ncopy)) {
+		if (copy_from_user(&linfo[i], ulinfo, sizeof(*linfo))) {
 			err = -EFAULT;
 			goto err_free;
 		}
 
-		/*
-		 * Check insn_off to ensure
-		 * 1) strictly increasing AND
-		 * 2) bounded by prog->len
-		 *
-		 * The linfo[0].insn_off == 0 check logically falls into
-		 * the later "missing bpf_line_info for func..." case
-		 * because the first linfo[0].insn_off must be the
-		 * first sub also and the first sub must have
-		 * subprog_info[0].start == 0.
-		 */
-		if ((i && linfo[i].insn_off <= prev_offset) ||
-		    linfo[i].insn_off >= prog->len) {
-			verbose(env, "Invalid line_info[%u].insn_off:%u (prev_offset:%u prog->len:%u)\n",
-				i, linfo[i].insn_off, prev_offset,
-				prog->len);
-			err = -EINVAL;
-			goto err_free;
-		}
-
-		if (!prog->insnsi[linfo[i].insn_off].code) {
-			verbose(env,
-				"Invalid insn code at line_info[%u].insn_off\n",
-				i);
-			err = -EINVAL;
-			goto err_free;
-		}
-
-		if (!btf_name_by_offset(btf, linfo[i].line_off) ||
-		    !btf_name_by_offset(btf, linfo[i].file_name_off)) {
-			verbose(env, "Invalid line_info[%u].line_off or .file_name_off\n", i);
-			err = -EINVAL;
-			goto err_free;
-		}
-
-		if (s != env->subprog_cnt) {
-			if (linfo[i].insn_off == sub[s].start) {
-				sub[s].linfo_idx = i;
-				s++;
-			} else if (sub[s].start < linfo[i].insn_off) {
-				verbose(env, "missing bpf_line_info for func#%u\n", s);
-				err = -EINVAL;
-				goto err_free;
-			}
-		}
-
-		prev_offset = linfo[i].insn_off;
-		ulinfo += rec_size;
-	}
-
-	if (s != env->subprog_cnt) {
-		verbose(env, "missing bpf_line_info for %u funcs starting from func#%u\n",
-			env->subprog_cnt - s, s);
 		err = -EINVAL;
-		goto err_free;
+		if ((!i && linfo[i].insn_off) ||
+		    (i && linfo[i].insn_off <= prev_offset) ||
+		    linfo[i].insn_off >= prog->len ||
+		    !prog->insnsi[linfo[i].insn_off].code)
+			goto err_free;
+		/* These are raw BTF string offsets, not C identifiers. */
+		if (!btf_name_by_offset(prog->aux->btf, linfo[i].line_off) ||
+		    !btf_name_by_offset(prog->aux->btf, linfo[i].file_name_off))
+			goto err_free;
+		prev_offset = linfo[i].insn_off;
 	}
 
 	prog->aux->linfo = linfo;
-	prog->aux->nr_linfo = nr_linfo;
-
+	prog->aux->nr_linfo = count;
 	return 0;
-
 err_free:
 	kvfree(linfo);
 	return err;
 }
-

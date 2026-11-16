@@ -14,6 +14,9 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/bpf.h>
+#include <linux/btf.h>
+#include <linux/mm.h>
+#include <uapi/linux/btf.h>
 #include <linux/bpf_verifier.h>
 #include <linux/filter.h>
 #include <net/netlink.h>
@@ -5378,7 +5381,12 @@ static void free_states(struct bpf_verifier_env *env)
 	kfree(env->explored_states);
 }
 
-int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
+#include "prog_btf_func.inc"
+#include "prog_btf_line.inc"
+#include "prog_btf_info.inc"
+
+int bpf_check(struct bpf_prog **prog, union bpf_attr *attr,
+	      union bpf_attr __user *uattr)
 {
 	char __user *log_ubuf = NULL;
 	struct bpf_verifier_env *env;
@@ -5453,6 +5461,10 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	env->strict_alignment = !!(attr->prog_flags & BPF_F_STRICT_ALIGNMENT);
 	if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS))
 		env->strict_alignment = true;
+
+	ret = check_btf_info(env, attr, uattr);
+	if (ret)
+		goto skip_full_check;
 
 	ret = replace_map_fd_with_map_ptr(env);
 	if (ret < 0)
