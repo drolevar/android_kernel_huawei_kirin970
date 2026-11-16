@@ -259,3 +259,7 @@ cond_syscall(sys_membarrier);
 cond_syscall(sys_pkey_mprotect);
 cond_syscall(sys_pkey_alloc);
 cond_syscall(sys_pkey_free);
+
+/* Huawei delay syscall (CONFIG_ARCH_HISI). */
+cond_syscall(sys_delay);
+cond_syscall(compat_sys_delay);
