@@ -967,13 +967,14 @@ struct __sk_buff {
 	__u32 local_ip6[4];	/* Stored in network byte order */
 	__u32 remote_port;	/* Stored in network byte order */
 	__u32 local_port;	/* stored in host byte order */
-	/* Preserve canonical UAPI offsets. Only sk/gso_segs are enabled here. */
+	/* Preserve canonical offsets; each program type admits its own fields. */
 	__u32 data_meta;
 	union { struct bpf_flow_keys *flow_keys; __u64 :64; } __attribute__((aligned(8)));
 	__u64 tstamp;
 	__u32 wire_len;
 	__u32 gso_segs;
 	union { struct bpf_sock *sk; __u64 :64; } __attribute__((aligned(8)));
+	__u32 gso_size;
 };
 
 struct bpf_tunnel_key {

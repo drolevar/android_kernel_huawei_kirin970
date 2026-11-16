@@ -3832,6 +3832,12 @@ static bool tc_cls_act_is_valid_access(int off, int size,
 				       enum bpf_access_type type,
 				       struct bpf_insn_access_aux *info)
 {
+	/* Only the measured TC scalar GSO reads are admitted. Keep socket
+	 * pointer and other modern fields outside this program's contract. */
+	if (off == offsetof(struct __sk_buff, gso_segs) ||
+	    off == offsetof(struct __sk_buff, gso_size))
+		return type == BPF_READ && size == sizeof(__u32);
+
 	if (type == BPF_WRITE) {
 		switch (off) {
 		case bpf_ctx_range(struct __sk_buff, mark):
@@ -4331,6 +4337,28 @@ u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
 	return sock_filter_convert_ctx_access(type, si, insn_buf, prog, target_size);
 }
 
+static struct bpf_insn *bpf_convert_shinfo_access(const struct bpf_insn *si,
+						  struct bpf_insn *insn)
+{
+	/* si->dst_reg = skb_shinfo(SKB); */
+#ifdef NET_SKBUFF_DATA_USES_OFFSET
+	*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, end),
+			      BPF_REG_AX, si->src_reg,
+			      offsetof(struct sk_buff, end));
+	*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, head),
+			      si->dst_reg, si->src_reg,
+			      offsetof(struct sk_buff, head));
+	*insn++ = BPF_ALU64_REG(BPF_ADD, si->dst_reg, BPF_REG_AX);
+#else
+	*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, end),
+			      si->dst_reg, si->src_reg,
+			      offsetof(struct sk_buff, end));
+#endif
+
+	return insn;
+}
+
+
 static u32 cg_skb_convert_ctx_access(enum bpf_access_type type,
 	const struct bpf_insn *si, struct bpf_insn *insn_buf,
 	struct bpf_prog *prog, u32 *target_size)
@@ -4371,6 +4399,18 @@ static u32 tc_cls_act_convert_ctx_access(enum bpf_access_type type,
 	struct bpf_insn *insn = insn_buf;
 
 	switch (si->off) {
+	case offsetof(struct __sk_buff, gso_segs):
+		insn = bpf_convert_shinfo_access(si, insn);
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct skb_shared_info, gso_segs),
+			si->dst_reg, si->dst_reg,
+			bpf_target_off(struct skb_shared_info, gso_segs, 2, target_size));
+		break;
+	case offsetof(struct __sk_buff, gso_size):
+		insn = bpf_convert_shinfo_access(si, insn);
+		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct skb_shared_info, gso_size),
+			si->dst_reg, si->dst_reg,
+			bpf_target_off(struct skb_shared_info, gso_size, 2, target_size));
+		break;
 	case offsetof(struct __sk_buff, ifindex):
 		*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(struct sk_buff, dev),
 				      si->dst_reg, si->src_reg,
