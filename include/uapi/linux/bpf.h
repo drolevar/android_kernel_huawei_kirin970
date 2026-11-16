@@ -298,6 +298,9 @@ union bpf_attr {
 		__u32		func_info_rec_size;
 		__aligned_u64	func_info;
 		__u32		func_info_cnt;
+		__u32		line_info_rec_size;
+		__aligned_u64	line_info;
+		__u32		line_info_cnt;
 	};
 
 	struct { /* anonymous struct used by BPF_OBJ_* commands */
@@ -1053,6 +1056,13 @@ struct bpf_func_info {
 	__u32 type_id;
 };
 
+struct bpf_line_info {
+	__u32 insn_off;
+	__u32 file_name_off;
+	__u32 line_off;
+	__u32 line_col;
+};
+
 struct bpf_prog_info {
 	__u32 type;
 	__u32 id;
@@ -1066,6 +1076,25 @@ struct bpf_prog_info {
 	__u32 nr_map_ids;
 	__aligned_u64 map_ids;
 	char name[BPF_OBJ_NAME_LEN];
+	__u32 ifindex;
+	__u32 gpl_compatible:1;
+	__u32 :31; /* alignment pad */
+	__u64 netns_dev;
+	__u64 netns_ino;
+	__u32 nr_jited_ksyms;
+	__u32 nr_jited_func_lens;
+	__aligned_u64 jited_ksyms;
+	__aligned_u64 jited_func_lens;
+	__u32 btf_id;
+	__u32 func_info_rec_size;
+	__aligned_u64 func_info;
+	__u32 nr_func_info;
+	__u32 nr_line_info;
+	__aligned_u64 line_info;
+	__aligned_u64 jited_line_info;
+	__u32 nr_jited_line_info;
+	__u32 line_info_rec_size;
+	__u32 jited_line_info_rec_size;
 } __attribute__((aligned(8)));
 
 struct bpf_map_info {
