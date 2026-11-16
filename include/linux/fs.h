@@ -1396,6 +1396,10 @@ struct super_block {
 	const struct xattr_handler **s_xattr;
 
 	const struct fscrypt_operations	*s_cop;
+#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
+	struct key		*s_fscrypt_keys;
+	struct module		*s_fscrypt_keys_owner;
+#endif
 
 	struct hlist_bl_head	s_anon;		/* anonymous dentries for (nfs) exporting */
 #ifdef CONFIG_UNICODE
