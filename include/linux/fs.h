@@ -1396,10 +1396,6 @@ struct super_block {
 	const struct xattr_handler **s_xattr;
 
 	const struct fscrypt_operations	*s_cop;
-#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
-	struct key		*s_fscrypt_keys;
-	struct module		*s_fscrypt_keys_owner;
-#endif
 
 	struct hlist_bl_head	s_anon;		/* anonymous dentries for (nfs) exporting */
 #ifdef CONFIG_UNICODE
@@ -1491,6 +1487,11 @@ struct super_block {
 
 	spinlock_t		s_inode_wblist_lock;
 	struct list_head	s_inodes_wb;	/* writeback inodes */
+#if IS_ENABLED(CONFIG_FS_ENCRYPTION)
+	/* Appended at tail to preserve Huawei precompiled .S (mm/pagecache_manage.S) super_block offsets */
+	struct key		*s_fscrypt_keys;
+	struct module		*s_fscrypt_keys_owner;
+#endif
 };
 
 /* Helper functions so that in most cases filesystems will

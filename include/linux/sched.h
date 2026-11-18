@@ -700,6 +700,8 @@ struct sched_rt_entity {
 	struct rt_rq			*rt_rq;
 	/* rq "owned" by this entity/group: */
 	struct rt_rq			*my_q;
+#else
+	void				*__kabi_rt_group_pad[3];
 #endif
 };
 
@@ -1345,10 +1347,6 @@ struct task_struct {
 	siginfo_t			*last_siginfo;
 
 	struct task_io_accounting	ioac;
-#ifdef CONFIG_PSI
-	/* Pressure stall state */
-	unsigned int			psi_flags;
-#endif
 #ifdef CONFIG_TASK_XACCT
 	/* Accumulated RSS usage: */
 	u64				acct_rss_mem1;
@@ -1550,9 +1548,6 @@ struct task_struct {
 	unsigned int			memcg_nr_pages_over_high;
 #endif
 
-#ifdef CONFIG_UPROBES
-	struct uprobe_task		*utask;
-#endif
 #if defined(CONFIG_BCACHE) || defined(CONFIG_BCACHE_MODULE)
 	unsigned int			sequential_io;
 	unsigned int			sequential_io_avg;
@@ -1590,6 +1585,13 @@ struct task_struct {
 	/* Used to record Slab total used memory */
 	atomic_long_t			slab_reclaimable;
 	atomic_long_t			slab_unreclaim;
+#endif
+#ifdef CONFIG_PSI
+	/* Appended above thread_struct to preserve Huawei precompiled block/mas_*.S task_struct offsets */
+	unsigned int			psi_flags;
+#endif
+#ifdef CONFIG_UPROBES
+	struct uprobe_task		*utask;
 #endif
 
 	/*
