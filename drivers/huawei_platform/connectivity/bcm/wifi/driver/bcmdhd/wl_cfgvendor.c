@@ -2639,7 +2639,14 @@ static int wl_cfgvendor_set_country(struct wiphy *wiphy,
 		}
 	}
 
-	err = wldev_set_country(wdev->netdev, country_code, true, true);
+	/*
+	 * nl80211_vendor_cmd invokes wl_cfgvendor_set_country under rtnl_lock().
+	 * Avoid forcing synchronous WLC_DISASSOC mid-association when Android
+	 * WifiHal applies the cellular country code, and match wl_cfg80211.c by
+	 * passing notify=false so wiphy_apply_custom_regulatory() is not called
+	 * after wiphy_register().
+	 */
+	err = wldev_set_country(wdev->netdev, country_code, false, false);
 	if (err < 0) {
 		WL_ERR(("Set country failed ret:%d\n", err));
 	}
