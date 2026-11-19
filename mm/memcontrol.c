@@ -6344,9 +6344,13 @@ long mem_cgroup_get_nr_swap_pages(struct mem_cgroup *memcg)
 {
 	long nr_swap_pages = get_nr_swap_pages();
 
-	if (!do_swap_account || !cgroup_subsys_on_dfl(memory_cgrp_subsys))
+	if (mem_cgroup_disabled() || !do_swap_account ||
+	    !cgroup_subsys_on_dfl(memory_cgrp_subsys))
 		return nr_swap_pages;
-	for (; memcg != root_mem_cgroup; memcg = parent_mem_cgroup(memcg))
+	if (!memcg)
+		memcg = root_mem_cgroup;
+	for (; memcg && memcg != root_mem_cgroup;
+	     memcg = parent_mem_cgroup(memcg))
 		nr_swap_pages = min_t(long, nr_swap_pages,
 				      READ_ONCE(memcg->swap.limit) -
 				      page_counter_read(&memcg->swap));
@@ -6365,14 +6369,16 @@ bool mem_cgroup_swap_full(struct page *page)
 #endif
 	if (vm_swap_full())
 		return true;
-	if (!do_swap_account || !cgroup_subsys_on_dfl(memory_cgrp_subsys))
+	if (mem_cgroup_disabled() || !do_swap_account ||
+	    !cgroup_subsys_on_dfl(memory_cgrp_subsys))
 		return false;
 
 	memcg = page->mem_cgroup;
 	if (!memcg)
 		return false;
 
-	for (; memcg != root_mem_cgroup; memcg = parent_mem_cgroup(memcg))
+	for (; memcg && memcg != root_mem_cgroup;
+	     memcg = parent_mem_cgroup(memcg))
 		if (page_counter_read(&memcg->swap) * 2 >= memcg->swap.limit)
 			return true;
 
