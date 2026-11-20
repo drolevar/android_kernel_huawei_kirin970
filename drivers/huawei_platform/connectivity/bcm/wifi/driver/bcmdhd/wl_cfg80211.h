@@ -856,6 +856,7 @@ struct bcm_cfg80211 {
 #else
 	bool roam_offload;
 #endif
+	char country[WLC_CNTRY_BUF_SZ];
 };
 
 #ifdef BRCM_RSDB

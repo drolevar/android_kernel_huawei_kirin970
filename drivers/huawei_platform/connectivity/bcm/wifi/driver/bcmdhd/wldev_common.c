@@ -25,6 +25,7 @@
  */
 
 #include <osl.h>
+#include <linux/ctype.h>
 #include <linux/kernel.h>
 #include <linux/kthread.h>
 #include <linux/netdevice.h>
@@ -349,9 +350,15 @@ int wldev_set_country(
 	wl_country_t cspec = {{0}, 0, {0}};
 	scb_val_t scbval;
 	char smbuf[WLC_IOCTL_SMLEN];
+	char iso_ccode[WLC_CNTRY_BUF_SZ] = {0};
 
-	if (!country_code)
-		return error;
+	if (!country_code || !isalnum((unsigned char)country_code[0]) ||
+	    !isalnum((unsigned char)country_code[1]))
+		return -EINVAL;
+
+	iso_ccode[0] = (char)toupper((unsigned char)country_code[0]);
+	iso_ccode[1] = (char)toupper((unsigned char)country_code[1]);
+	iso_ccode[2] = '\0';
 
 	bzero(&scbval, sizeof(scb_val_t));
 	error = wldev_iovar_getbuf(dev, "country", NULL, 0, &cspec, sizeof(cspec), NULL);
@@ -361,9 +368,13 @@ int wldev_set_country(
 	}
 
 	if ((error < 0) || dhd_force_country_change(dev) ||
-	    (strncmp(country_code, cspec.country_abbrev, WLC_CNTRY_BUF_SZ) != 0)) {
+	    (strncmp(iso_ccode, cspec.country_abbrev, WLC_CNTRY_BUF_SZ) != 0)) {
 
-		if (user_enforced) {
+		if (user_enforced
+#ifdef WL_CFG80211
+		    && wl_cfg80211_is_sta_connected(dev)
+#endif
+		   ) {
 			bzero(&scbval, sizeof(scb_val_t));
 			error = wldev_ioctl(dev, WLC_DISASSOC, &scbval, sizeof(scb_val_t), true);
 			if (error < 0) {
@@ -374,8 +385,8 @@ int wldev_set_country(
 		}
 
 		cspec.rev = -1;
-		memcpy(cspec.country_abbrev, country_code, WLC_CNTRY_BUF_SZ);
-		memcpy(cspec.ccode, country_code, WLC_CNTRY_BUF_SZ);
+		memcpy(cspec.country_abbrev, iso_ccode, WLC_CNTRY_BUF_SZ);
+		memcpy(cspec.ccode, iso_ccode, WLC_CNTRY_BUF_SZ);
 #ifndef HW_CUST_COUNTRY_CODE
 		dhd_get_customized_country_code(dev, (char *)&cspec.country_abbrev, &cspec);
 #else
@@ -385,12 +396,21 @@ int wldev_set_country(
 			smbuf, sizeof(smbuf), NULL);
 		if (error < 0) {
 			WLDEV_ERROR(("%s: set country for %s as %s rev %d failed\n",
-				__FUNCTION__, country_code, cspec.ccode, cspec.rev));
+				__FUNCTION__, iso_ccode, cspec.ccode, cspec.rev));
 			return error;
 		}
+#ifdef WL_CFG80211
+		wl_cfg80211_set_country_iso(iso_ccode);
+#endif
 		dhd_bus_country_set(dev, &cspec, notify);
 		WLDEV_ERROR(("%s: set country for %s as %s rev %d\n",
-			__FUNCTION__, country_code, cspec.ccode, cspec.rev));
+			__FUNCTION__, iso_ccode, cspec.ccode, cspec.rev));
+	} else {
+#ifdef WL_CFG80211
+		wl_cfg80211_set_country_iso(iso_ccode);
+		if (notify)
+			wl_cfg80211_notify_country(dev);
+#endif
 	}
 	return 0;
 }

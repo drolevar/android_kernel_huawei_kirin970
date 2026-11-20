@@ -27,6 +27,7 @@
 #include <typedefs.h>
 #include <linuxver.h>
 #include <osl.h>
+#include <linux/ctype.h>
 #include <linux/kernel.h>
 #ifdef WL_TEM_CTRL
 #include <linux/timer.h>
@@ -299,20 +300,22 @@ _Pragma("GCC diagnostic ignored \"-Wmissing-field-initializers\"")
 #endif
 static const struct ieee80211_regdomain brcm_regdom = {
 	.n_reg_rules = 4,
-	.alpha2 =  "99",
+	.alpha2 =  "00",
 	.reg_rules = {
-		/* IEEE 802.11b/g, channels 1..11 */
+		/* IEEE 802.11b/g, channels 1..13 */
 		REG_RULE(2412-10, 2472+10, 40, 6, 20, 0),
 		/* If any */
 		/* IEEE 802.11 channel 14 - Only JP enables
 		 * this and for 802.11b only
 		 */
 		REG_RULE(2484-10, 2484+10, 20, 6, 20, 0),
-		/* IEEE 802.11a, channel 36..64 */
-		REG_RULE(5150-10, 5350+10, 40, 6, 20, 0),
-		/* IEEE 802.11a, channel 100..165 */
-		REG_RULE(5470-10, 5850+10, 40, 6, 20, 0), }
+		/* IEEE 802.11a/n/ac, channels 34..64 (up to 80 MHz VHT) */
+		REG_RULE(5150-10, 5350+10, 80, 6, 20, 0),
+		/* IEEE 802.11a/n/ac, channels 100..165 (up to 80 MHz VHT) */
+		REG_RULE(5470-10, 5850+10, 80, 6, 20, 0), }
 };
+
+static void wl_notify_regd(struct wiphy *wiphy, const char *country_code);
 #ifdef  BRCM_RSDB
 #if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
 	4 && __GNUC_MINOR__ >= 6))
@@ -13298,13 +13301,9 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 10) */
 #endif /* CONFIG_PM && WL_CFG80211_P2P_DEV_IF */
 
-	WL_DBG(("Registering custom regulatory)\n"));
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
-	wdev->wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG;
-#else
-	wdev->wiphy->flags |= WIPHY_FLAG_CUSTOM_REGULATORY;
-#endif
-	wiphy_apply_custom_regulatory(wdev->wiphy, &brcm_regdom);
+	WL_DBG(("Registering self-managed regulatory\n"));
+	wdev->wiphy->regulatory_flags |=
+		REGULATORY_WIPHY_SELF_MANAGED | REGULATORY_IGNORE_STALE_KICKOFF;
 
 #if defined(WL_VENDOR_EXT_SUPPORT)
 	WL_ERR(("Registering Vendor80211\n"));
@@ -13324,6 +13323,10 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 	if (unlikely(err < 0)) {
 		WL_ERR(("Couldn not register wiphy device (%d)\n", err));
 		wiphy_free(wdev->wiphy);
+	} else {
+		rtnl_lock();
+		wl_notify_regd(wdev->wiphy, NULL);
+		rtnl_unlock();
 	}
 
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)) && (LINUX_VERSION_CODE <= \
@@ -19910,16 +19913,94 @@ eventmsg_out:
 	return err;
 }
 
+static void wl_notify_regd(struct wiphy *wiphy, const char *country_code)
+{
+	struct ieee80211_regdomain *regd_copy;
+	size_t regd_len;
+	u32 i;
+
+	if (!wiphy)
+		return;
+
+	regd_len = sizeof(struct ieee80211_regdomain) +
+		(brcm_regdom.n_reg_rules * sizeof(struct ieee80211_reg_rule));
+	regd_copy = kzalloc(regd_len, GFP_KERNEL);
+	if (!regd_copy) {
+		WL_ERR(("failed to alloc regd_copy\n"));
+		return;
+	}
+
+	memcpy(regd_copy, &brcm_regdom, sizeof(struct ieee80211_regdomain));
+	for (i = 0; i < brcm_regdom.n_reg_rules; i++) {
+		memcpy(&regd_copy->reg_rules[i], &brcm_regdom.reg_rules[i],
+			sizeof(struct ieee80211_reg_rule));
+	}
+
+	if (country_code &&
+	    isalnum((unsigned char)country_code[0]) &&
+	    isalnum((unsigned char)country_code[1])) {
+		regd_copy->alpha2[0] = (char)toupper((unsigned char)country_code[0]);
+		regd_copy->alpha2[1] = (char)toupper((unsigned char)country_code[1]);
+		regd_copy->alpha2[2] = '\0';
+	}
+
+	if (rtnl_is_locked())
+		regulatory_set_wiphy_regd_sync_rtnl(wiphy, regd_copy);
+	else
+		regulatory_set_wiphy_regd(wiphy, regd_copy);
+
+	kfree(regd_copy);
+}
+
+void wl_cfg80211_set_country_iso(const char *country_code)
+{
+	struct bcm_cfg80211 *cfg = g_bcm_cfg;
+
+	if (!cfg || !country_code ||
+	    !isalnum((unsigned char)country_code[0]) ||
+	    !isalnum((unsigned char)country_code[1]))
+		return;
+
+	cfg->country[0] = (char)toupper((unsigned char)country_code[0]);
+	cfg->country[1] = (char)toupper((unsigned char)country_code[1]);
+	cfg->country[2] = '\0';
+}
+
+void wl_cfg80211_notify_country(struct net_device *dev)
+{
+	struct bcm_cfg80211 *cfg = g_bcm_cfg;
+	dhd_pub_t *dhd;
+
+	(void)dev;
+	if (!cfg || !cfg->pub)
+		return;
+	dhd = (dhd_pub_t *)cfg->pub;
+	if (!dhd->up)
+		return;
+
+	mutex_lock(&cfg->usr_sync);
+	wl_notify_regd(bcmcfg_to_wiphy(cfg),
+		cfg->country[0] ? cfg->country : NULL);
+	mutex_unlock(&cfg->usr_sync);
+}
+
+bool wl_cfg80211_is_sta_connected(struct net_device *dev)
+{
+	struct bcm_cfg80211 *cfg = g_bcm_cfg;
+
+	if (!cfg || !dev)
+		return false;
+	return wl_get_drv_status(cfg, CONNECTED, dev);
+}
+
 static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 {
 	struct net_device *dev = bcmcfg_to_prmry_ndev(cfg);
 	struct ieee80211_channel *band_chan_arr = NULL;
 	wl_uint32_list_t *list;
-	u32 i, j, index, n_2g, n_5g, band, channel, array_size;
-	u32 *n_cnt = NULL;
+	u32 i, j, index, band, channel, array_size, chan_cnt;
 	chanspec_t c = 0;
 	s32 err = BCME_OK;
-	bool update;
 	bool ht40_allowed;
 	u8 *pbuf = NULL;
 	bool dfs_radar_disabled = FALSE;
@@ -19934,7 +20015,6 @@ static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 	list = (wl_uint32_list_t *)(void *)pbuf;
 	list->count = htod32(WL_NUMCHANSPECS);
 
-
 	err = wldev_iovar_getbuf_bsscfg(dev, "chanspecs", NULL,
 		0, pbuf, LOCAL_BUF_LEN, 0, &cfg->ioctl_buf_sync);
 	if (err != 0) {
@@ -19942,19 +20022,31 @@ static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 		kfree(pbuf);
 		return err;
 	}
-#undef LOCAL_BUF_LEN
 
 	list = (wl_uint32_list_t *)(void *)pbuf;
-	band = array_size = n_2g = n_5g = 0;
-	for (i = 0; i < dtoh32(list->count); i++) {
-		index = 0;
-		update = false;
+	chan_cnt = MIN(dtoh32(list->count),
+		(u32)((LOCAL_BUF_LEN - sizeof(u32)) / sizeof(u32)));
+#undef LOCAL_BUF_LEN
+
+	for (i = 0; i < ARRAYSIZE(__wl_2ghz_channels); i++) {
+		__wl_2ghz_channels[i].flags =
+			IEEE80211_CHAN_DISABLED | IEEE80211_CHAN_NO_HT40;
+		__wl_2ghz_channels[i].beacon_found = false;
+	}
+	for (i = 0; i < ARRAYSIZE(__wl_5ghz_a_channels); i++) {
+		__wl_5ghz_a_channels[i].flags =
+			IEEE80211_CHAN_DISABLED | IEEE80211_CHAN_NO_HT40;
+		__wl_5ghz_a_channels[i].beacon_found = false;
+	}
+
+	band = array_size = 0;
+	for (i = 0; i < chan_cnt; i++) {
 		ht40_allowed = false;
 		c = (chanspec_t)dtoh32(list->element[i]);
 		c = wl_chspec_driver_to_host(c);
 		channel = wf_chspec_ctlchan(c);
 
-		if (!CHSPEC_IS40(c) && ! CHSPEC_IS20(c)) {
+		if (!CHSPEC_IS40(c) && !CHSPEC_IS20(c)) {
 			WL_DBG(("HT80/160/80p80 center channel : %d\n", channel));
 			continue;
 		}
@@ -19962,115 +20054,110 @@ static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 			(channel <= CH_MAX_2G_CHANNEL)) {
 			band_chan_arr = __wl_2ghz_channels;
 			array_size = ARRAYSIZE(__wl_2ghz_channels);
-			n_cnt = &n_2g;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
 			band = NL80211_BAND_2GHZ;
 #else
 			band = IEEE80211_BAND_2GHZ;
 #endif
-			ht40_allowed = (bw_cap  == WLC_N_BW_40ALL)? true : false;
+			ht40_allowed = (bw_cap == WLC_N_BW_40ALL) ? true : false;
 		} else if (CHSPEC_IS5G(c) && channel >= CH_MIN_5G_CHANNEL) {
 			band_chan_arr = __wl_5ghz_a_channels;
 			array_size = ARRAYSIZE(__wl_5ghz_a_channels);
-			n_cnt = &n_5g;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
 			band = NL80211_BAND_5GHZ;
 #else
 			band = IEEE80211_BAND_5GHZ;
 #endif
-			ht40_allowed = (bw_cap  == WLC_N_BW_20ALL)? false : true;
+			ht40_allowed = (bw_cap == WLC_N_BW_20ALL) ? false : true;
 		} else {
 			WL_ERR(("Invalid channel Sepc. 0x%x.\n", c));
 			continue;
 		}
 		if (!ht40_allowed && CHSPEC_IS40(c))
 			continue;
-		for (j = 0; (j < *n_cnt && (*n_cnt < array_size)); j++) {
-			if (band_chan_arr[j].hw_value == channel) {
-				update = true;
+		for (j = 0; j < array_size; j++) {
+			if (band_chan_arr[j].hw_value == channel)
 				break;
-			}
 		}
-		if (update)
-			index = j;
-		else
-			index = *n_cnt;
-		if (index <  array_size) {
-#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 38) && !defined(WL_COMPAT_WIRELESS)
-			band_chan_arr[index].center_freq =
-				ieee80211_channel_to_frequency(channel);
-#else
-			band_chan_arr[index].center_freq =
-				ieee80211_channel_to_frequency(channel, band);
-#endif
-			band_chan_arr[index].hw_value = channel;
+		if (j >= array_size)
+			continue;
+		index = j;
 
-			if (CHSPEC_IS40(c) && ht40_allowed) {
-				/* assuming the order is HT20, HT40 Upper,
-				 *  HT40 lower from chanspecs
-				 */
-				u32 ht40_flag = band_chan_arr[index].flags & IEEE80211_CHAN_NO_HT40;
-				if (CHSPEC_SB_UPPER(c)) {
-					if (ht40_flag == IEEE80211_CHAN_NO_HT40)
-						band_chan_arr[index].flags &=
-							~IEEE80211_CHAN_NO_HT40;
-					band_chan_arr[index].flags |= IEEE80211_CHAN_NO_HT40PLUS;
-				} else {
-					/* It should be one of
-					 * IEEE80211_CHAN_NO_HT40 or IEEE80211_CHAN_NO_HT40PLUS
-					 */
-					band_chan_arr[index].flags &= ~IEEE80211_CHAN_NO_HT40;
-					if (ht40_flag == IEEE80211_CHAN_NO_HT40)
-						band_chan_arr[index].flags |=
-							IEEE80211_CHAN_NO_HT40MINUS;
-				}
+		band_chan_arr[index].beacon_found = false;
+		band_chan_arr[index].flags &= ~IEEE80211_CHAN_DISABLED;
+
+		if (CHSPEC_IS40(c) && ht40_allowed) {
+			/* assuming the order is HT20, HT40 Upper,
+			 *  HT40 lower from chanspecs
+			 */
+			u32 ht40_flag = band_chan_arr[index].flags & IEEE80211_CHAN_NO_HT40;
+			if (CHSPEC_SB_UPPER(c)) {
+				if (ht40_flag == IEEE80211_CHAN_NO_HT40)
+					band_chan_arr[index].flags &=
+						~IEEE80211_CHAN_NO_HT40;
+				band_chan_arr[index].flags |= IEEE80211_CHAN_NO_HT40PLUS;
 			} else {
-				band_chan_arr[index].flags = IEEE80211_CHAN_NO_HT40;
-				if (!dfs_radar_disabled) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
-					if (band == NL80211_BAND_2GHZ)
-#else
-					if (band == IEEE80211_BAND_2GHZ)
-#endif
-						channel |= WL_CHANSPEC_BAND_2G;
-					else
-						channel |= WL_CHANSPEC_BAND_5G;
-					channel |= WL_CHANSPEC_BW_20;
-					channel = wl_chspec_host_to_driver(channel);
-					err = wldev_iovar_getint(dev, "per_chan_info", &channel);
-					if (!err) {
-						if (channel & WL_CHAN_RADAR) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-							band_chan_arr[index].flags |=
-								(IEEE80211_CHAN_RADAR
-								| IEEE80211_CHAN_NO_IBSS);
-#else
-							band_chan_arr[index].flags |=
-								IEEE80211_CHAN_RADAR;
-#endif
-						}
+				/* It should be one of
+				 * IEEE80211_CHAN_NO_HT40 or IEEE80211_CHAN_NO_HT40PLUS
+				 */
+				band_chan_arr[index].flags &= ~IEEE80211_CHAN_NO_HT40;
+				if (ht40_flag == IEEE80211_CHAN_NO_HT40)
+					band_chan_arr[index].flags |=
+						IEEE80211_CHAN_NO_HT40MINUS;
+			}
+		} else {
+			band_chan_arr[index].flags = IEEE80211_CHAN_NO_HT40;
+			if (!dfs_radar_disabled) {
+				u32 chaninfo = channel;
+				s32 chan_err;
 
-						if (channel & WL_CHAN_PASSIVE)
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-							band_chan_arr[index].flags |=
-								IEEE80211_CHAN_PASSIVE_SCAN;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
+				if (band == NL80211_BAND_2GHZ)
 #else
-							band_chan_arr[index].flags |=
-								IEEE80211_CHAN_NO_IR;
+				if (band == IEEE80211_BAND_2GHZ)
 #endif
-					} else if (err == BCME_UNSUPPORTED) {
-						dfs_radar_disabled = TRUE;
-						WL_ERR(("does not support per_chan_info\n"));
+					chaninfo |= WL_CHANSPEC_BAND_2G;
+				else
+					chaninfo |= WL_CHANSPEC_BAND_5G;
+				chaninfo |= WL_CHANSPEC_BW_20;
+				chaninfo = wl_chspec_host_to_driver(chaninfo);
+				chan_err = wldev_iovar_getint(dev, "per_chan_info",
+					(s32 *)&chaninfo);
+				if (!chan_err) {
+					if (chaninfo & WL_CHAN_RADAR) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
+						band_chan_arr[index].flags |=
+							(IEEE80211_CHAN_RADAR
+							| IEEE80211_CHAN_NO_IBSS);
+#else
+						band_chan_arr[index].flags |=
+							IEEE80211_CHAN_RADAR;
+#endif
 					}
+
+					if (chaninfo & WL_CHAN_PASSIVE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
+						band_chan_arr[index].flags |=
+							IEEE80211_CHAN_PASSIVE_SCAN;
+#else
+						band_chan_arr[index].flags |=
+							IEEE80211_CHAN_NO_IR;
+#endif
+				} else if (chan_err == BCME_UNSUPPORTED) {
+					dfs_radar_disabled = TRUE;
+					WL_ERR(("does not support per_chan_info\n"));
 				}
 			}
-			if (!update)
-				(*n_cnt)++;
 		}
-
 	}
-	__wl_band_2ghz.n_channels = n_2g;
-	__wl_band_5ghz_a.n_channels = n_5g;
+
+	for (i = 0; i < ARRAYSIZE(__wl_2ghz_channels); i++)
+		__wl_2ghz_channels[i].orig_flags = __wl_2ghz_channels[i].flags;
+	for (i = 0; i < ARRAYSIZE(__wl_5ghz_a_channels); i++)
+		__wl_5ghz_a_channels[i].orig_flags = __wl_5ghz_a_channels[i].flags;
+
+	__wl_band_2ghz.n_channels = ARRAYSIZE(__wl_2ghz_channels);
+	__wl_band_5ghz_a.n_channels = ARRAYSIZE(__wl_5ghz_a_channels);
 	kfree(pbuf);
 	return err;
 }
@@ -20357,7 +20444,7 @@ s32 wl_update_wiphybands(struct bcm_cfg80211 *cfg, bool notify)
 #endif
 
 	if (notify)
-		wiphy_apply_custom_regulatory(wiphy, &brcm_regdom);
+		wl_notify_regd(wiphy, cfg->country[0] ? cfg->country : NULL);
 
 	end_bands:
 		if (rollback_lock)
@@ -20559,6 +20646,7 @@ static s32 __wl_cfg80211_down(struct bcm_cfg80211 *cfg)
 		wl_cfg80211_del_iface(cfg->wdev->wiphy, cfg->bss_cfgdev);
 #endif /* defined (DUAL_STA) || defined (DUAL_STA_STATIC_IF) */
 
+	memset(cfg->country, 0, sizeof(cfg->country));
 	DNGL_FUNC(dhd_cfg80211_down, (cfg));
 
 	return err;
@@ -20727,6 +20815,7 @@ _Pragma("GCC diagnostic pop")
 
 	cfg->disable_roam_event = false;
 
+	memset(cfg->country, 0, sizeof(cfg->country));
 	DNGL_FUNC(dhd_cfg80211_down, (cfg));
 
 #ifdef DHD_IFDEBUG

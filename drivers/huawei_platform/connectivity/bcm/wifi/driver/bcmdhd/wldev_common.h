@@ -99,6 +99,11 @@ extern bool dhd_force_country_change(struct net_device *dev);
 extern void dhd_bus_band_set(struct net_device *dev, uint band);
 extern int wldev_set_country(struct net_device *dev, char *country_code, bool notify,
 	bool user_enforced);
+#ifdef WL_CFG80211
+extern void wl_cfg80211_set_country_iso(const char *country_code);
+extern void wl_cfg80211_notify_country(struct net_device *dev);
+extern bool wl_cfg80211_is_sta_connected(struct net_device *dev);
+#endif
 extern int net_os_wake_lock(struct net_device *dev);
 extern int net_os_wake_unlock(struct net_device *dev);
 extern int net_os_wake_lock_timeout(struct net_device *dev);
