@@ -801,6 +801,7 @@ extern int dhd_os_wd_wake_lock(dhd_pub_t *pub);
 extern int dhd_os_wd_wake_unlock(dhd_pub_t *pub);
 #ifdef BCM_PCIE_UPDATE
 extern void dhd_os_wake_lock_init(struct dhd_info *dhd);
+extern void dhd_os_wake_lock_reset(struct dhd_info *dhd);
 extern void dhd_os_wake_lock_destroy(struct dhd_info *dhd);
 #endif
 #ifdef BCMPCIE_OOB_HOST_WAKE
@@ -908,6 +909,11 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 	do { \
 		PRINT_CALL_INFO("call wake_lock_init"); \
 		dhd_os_wake_lock_init(dhd); \
+	} while (0)
+#define DHD_OS_WAKE_LOCK_RESET(dhd) \
+	do { \
+		PRINT_CALL_INFO("call wake_lock_reset"); \
+		dhd_os_wake_lock_reset(dhd); \
 	} while (0)
 #define DHD_OS_WAKE_LOCK_DESTROY(dhd) \
 	do { \

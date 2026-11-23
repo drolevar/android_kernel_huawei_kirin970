@@ -2801,8 +2801,12 @@ dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 	}
 
 	dhd_net_if_lock_local(dhd);
-	DHD_OS_WAKE_LOCK(&dhd->pub);
-	DHD_PERIM_LOCK(&dhd->pub);
+
+	if (ifp == NULL || !dhd->pub.up) {
+		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
+		dhd_net_if_unlock_local(dhd);
+		return;
+	}
 
 #ifdef SOFTAP
 	{
@@ -2814,16 +2818,15 @@ dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 
 		if (in_ap)  {
 			DHD_ERROR(("attempt to set MAC for %s in AP Mode, blocked. \n",
-			           ifp->net->name));
-			goto done;
+			           ifp->net ? ifp->net->name : "unknown"));
+			dhd_net_if_unlock_local(dhd);
+			return;
 		}
 	}
 #endif /* SOFTAP */
 
-	if (ifp == NULL || !dhd->pub.up) {
-		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
-		goto done;
-	}
+	DHD_OS_WAKE_LOCK(&dhd->pub);
+	DHD_PERIM_LOCK(&dhd->pub);
 
 	DHD_ERROR(("%s: MACID is overwritten\n", __FUNCTION__));
 	ifp->set_macaddress = FALSE;
@@ -2832,7 +2835,6 @@ dhd_set_mac_addr_handler(void *handle, void *event_info, u8 event)
 	else
 		DHD_ERROR(("%s: _dhd_set_mac_address() failed\n", __FUNCTION__));
 
-done:
 	DHD_PERIM_UNLOCK(&dhd->pub);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	dhd_net_if_unlock_local(dhd);
@@ -2856,8 +2858,12 @@ dhd_set_mcast_list_handler(void *handle, void *event_info, u8 event)
 	}
 
 	dhd_net_if_lock_local(dhd);
-	DHD_OS_WAKE_LOCK(&dhd->pub);
-	DHD_PERIM_LOCK(&dhd->pub);
+
+	if (ifp == NULL || !dhd->pub.up) {
+		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
+		dhd_net_if_unlock_local(dhd);
+		return;
+	}
 
 #ifdef SOFTAP
 	{
@@ -2869,17 +2875,16 @@ dhd_set_mcast_list_handler(void *handle, void *event_info, u8 event)
 
 		if (in_ap)  {
 			DHD_ERROR(("set MULTICAST list for %s in AP Mode, blocked. \n",
-			           ifp->net->name));
+			           ifp->net ? ifp->net->name : "unknown"));
 			ifp->set_multicast = FALSE;
-			goto done;
+			dhd_net_if_unlock_local(dhd);
+			return;
 		}
 	}
 #endif /* SOFTAP */
 
-	if (ifp == NULL || !dhd->pub.up) {
-		DHD_ERROR(("%s: interface info not available/down \n", __FUNCTION__));
-		goto done;
-	}
+	DHD_OS_WAKE_LOCK(&dhd->pub);
+	DHD_PERIM_LOCK(&dhd->pub);
 
 	ifidx = ifp->idx;
 
@@ -2887,7 +2892,6 @@ dhd_set_mcast_list_handler(void *handle, void *event_info, u8 event)
 	_dhd_set_multicast_list(dhd, ifidx);
 	DHD_INFO(("%s: set multicast list for if %d\n", __FUNCTION__, ifidx));
 
-done:
 	DHD_PERIM_UNLOCK(&dhd->pub);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 	dhd_net_if_unlock_local(dhd);
@@ -5090,6 +5094,7 @@ dhd_stop_no_lock(struct net_device *net)
 	DHD_PERIM_LOCK(&dhd->pub);
 	HW_PRINT((WIFI_TAG"Enter: %s\n", __FUNCTION__));
 	DHD_TRACE(("%s: Enter %p\n", __FUNCTION__, net));
+	ifidx = dhd_net2idx(dhd, net);
 	if (dhd->pub.up == 0) {
 		goto exit;
 	}
@@ -5097,8 +5102,6 @@ dhd_stop_no_lock(struct net_device *net)
 	hw_reset_beacon_interval(net);
 #endif
 	dhd_if_flush_sta(DHD_DEV_IFP(net));
-
-	ifidx = dhd_net2idx(dhd, net);
 	BCM_REFERENCE(ifidx);
 #ifdef DHD_TPUT_MONITOR
 	dhd_tput_monitor_release(&dhd->pub);
@@ -5205,12 +5208,11 @@ exit:
 	DHD_PERIM_UNLOCK(&dhd->pub);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 #ifdef BCM_PCIE_UPDATE
-	/* Destroy wakelock */
-	if (!dhd_download_fw_on_driverload &&
+	/* Relax and reset wakelocks on primary interface stop without trashing wakeup_sources */
+	if (ifidx == 0 && !dhd_download_fw_on_driverload &&
 		(dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
 		dhd_wk_lock_stats_dump(&dhd->pub);
-		DHD_OS_WAKE_LOCK_DESTROY(dhd);
-		dhd->dhd_state &= ~DHD_ATTACH_STATE_WAKELOCKS_INIT;
+		DHD_OS_WAKE_LOCK_RESET(dhd);
 	}
 #endif
 	HW_PRINT((WIFI_TAG"Exit: %s\n", __FUNCTION__));
@@ -5290,16 +5292,18 @@ dhd_open(struct net_device *net)
 	/* set bus to osl for linkdown checking later */
 	osl_set_bus_handle(dhd->pub.osh, dhd->pub.bus);
 #endif /* BCMPCIE */
-	/* Init wakelock */
+#endif
+	DHD_ERROR(("%s enter\n", __FUNCTION__));
+#ifdef HW_WIFI_OPEN_STOP
+	dhd_open_stop_if_mutex_lock(dhd);
+#endif
+#ifdef BCM_PCIE_UPDATE
+	/* Wakelocks are initialized in dhd_attach; guard fallback under open/stop mutex */
 	if (!dhd_download_fw_on_driverload &&
 		!(dhd->dhd_state & DHD_ATTACH_STATE_WAKELOCKS_INIT)) {
 		DHD_OS_WAKE_LOCK_INIT(dhd);
 		dhd->dhd_state |= DHD_ATTACH_STATE_WAKELOCKS_INIT;
 	}
-#endif
-	DHD_ERROR(("%s enter\n", __FUNCTION__));
-#ifdef HW_WIFI_OPEN_STOP
-	dhd_open_stop_if_mutex_lock(dhd);
 #endif
 
 	DHD_OS_WAKE_LOCK(&dhd->pub);
@@ -5446,6 +5450,9 @@ exit:
 	DHD_GENERAL_UNLOCK(&dhd->pub, flags);
 #endif /* HW_PCIE_STABILITY */
 
+	DHD_PERIM_UNLOCK(&dhd->pub);
+	DHD_OS_WAKE_UNLOCK(&dhd->pub);
+
 	if (ret){
 #ifdef HW_WIFI_OPEN_STOP
 		DHD_ERROR(("%s: open wifi fail, goto dhd_stop, ret:%d\n", __FUNCTION__, ret));
@@ -5464,8 +5471,6 @@ exit:
 		dhd_stop(net);
 #endif
 	}
-	DHD_PERIM_UNLOCK(&dhd->pub);
-	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 
 
 #ifdef HW_WIFI_OPEN_STOP
@@ -11877,6 +11882,8 @@ static void dhd_wk_lock_trace_deinit(struct dhd_info *dhd)
 #endif /* KERNEL_VER >= KERNEL_VERSION(3, 7, 0)) */
 			kfree(wklock_info);
 		}
+	wklock_hold_ms = 0;
+	wklock_start_jiffies = 0;
 	spin_unlock_irqrestore(&dhd->wakelock_spinlock, flags);
 }
 
@@ -12320,6 +12327,45 @@ void dhd_os_wake_lock_init(struct dhd_info *dhd)
 #endif /* CONFIG_HAS_WAKELOCK */
 #ifdef DHD_TRACE_WAKE_LOCK
 	dhd_wk_lock_trace_init(dhd);
+#endif /* DHD_TRACE_WAKE_LOCK */
+}
+
+void dhd_os_wake_lock_reset(struct dhd_info *dhd)
+{
+	unsigned long flags;
+
+	if (!dhd)
+		return;
+
+	DHD_TRACE(("%s: reset wake_lock_counters\n", __FUNCTION__));
+	spin_lock_irqsave(&dhd->wakelock_spinlock, flags);
+	dhd->wakelock_counter = 0;
+	dhd->wakelock_rx_timeout_enable = 0;
+	dhd->wakelock_ctrl_timeout_enable = 0;
+	dhd->waive_wakelock = FALSE;
+	dhd->wakelock_before_waive = 0;
+#ifdef CONFIG_HAS_WAKELOCK
+	__pm_relax(&dhd->wl_wifi);
+	__pm_relax(&dhd->wl_rxwake);
+	__pm_relax(&dhd->wl_ctrlwake);
+#ifdef BCMPCIE_OOB_HOST_WAKE
+	__pm_relax(&dhd->wl_intrwake);
+#endif /* BCMPCIE_OOB_HOST_WAKE */
+#ifdef DHD_USE_SCAN_WAKELOCK
+	__pm_relax(&dhd->wl_scanwake);
+#endif /* DHD_USE_SCAN_WAKELOCK */
+#endif /* CONFIG_HAS_WAKELOCK */
+	spin_unlock_irqrestore(&dhd->wakelock_spinlock, flags);
+
+	spin_lock_irqsave(&dhd->wakelock_evt_spinlock, flags);
+	dhd->wakelock_event_counter = 0;
+#ifdef CONFIG_HAS_WAKELOCK
+	__pm_relax(&dhd->wl_evtwake);
+#endif /* CONFIG_HAS_WAKELOCK */
+	spin_unlock_irqrestore(&dhd->wakelock_evt_spinlock, flags);
+
+#ifdef DHD_TRACE_WAKE_LOCK
+	dhd_wk_lock_trace_deinit(dhd);
 #endif /* DHD_TRACE_WAKE_LOCK */
 }
 
