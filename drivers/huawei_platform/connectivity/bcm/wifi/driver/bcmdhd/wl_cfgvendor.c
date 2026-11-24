@@ -210,6 +210,10 @@ static int wl_cfgvendor_set_rand_mac_oui(struct wiphy *wiphy,
 	int type;
 	uint8 random_mac_oui[DOT11_OUI_LEN];
 
+	if (!data || len < NLA_HDRLEN || !nla_ok(data, len) ||
+	    nla_len(data) < DOT11_OUI_LEN)
+		return -EINVAL;
+
 	type = nla_type(data);
 
 	if (type == ANDR_WIFI_ATTRIBUTE_RANDOM_MAC_OUI) {
@@ -234,6 +238,10 @@ static int wl_cfgvendor_set_nodfs_flag(struct wiphy *wiphy,
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
 	int type;
 	u32 nodfs;
+
+	if (!data || len < NLA_HDRLEN || !nla_ok(data, len) ||
+	    nla_len(data) < sizeof(u32))
+		return -EINVAL;
 
 	type = nla_type(data);
 	if (type == ANDR_WIFI_ATTRIBUTE_NODFS_SET) {
@@ -2623,6 +2631,7 @@ static int wl_cfgvendor_set_country(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
 	int err = BCME_ERROR, rem, type;
+	bool has_country = false;
 	char country_code[WLC_CNTRY_BUF_SZ] = {0};
 	const struct nlattr *iter;
 
@@ -2631,13 +2640,17 @@ static int wl_cfgvendor_set_country(struct wiphy *wiphy,
 		switch (type) {
 			case ANDR_WIFI_ATTRIBUTE_COUNTRY:
 				memcpy(country_code, nla_data(iter),
-					MIN(nla_len(iter), WLC_CNTRY_BUF_SZ));
+					MIN(nla_len(iter), WLC_CNTRY_BUF_SZ - 1));
+				has_country = true;
 				break;
 			default:
 				WL_ERR(("Unknown type: %d\n", type));
 				return err;
 		}
 	}
+
+	if (!has_country)
+		return -EINVAL;
 
 	/*
 	 * nl80211_vendor_cmd invokes wl_cfgvendor_set_country under rtnl_lock().
