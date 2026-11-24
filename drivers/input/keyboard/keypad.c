@@ -14,6 +14,7 @@
  *
  */
 #include "keypad.h"
+#include <linux/mutex.h>
 
 #define INT_STR_LEN 8
 #define MAX_BUF_LEN 64
@@ -254,15 +255,41 @@ static void keypad_free_irqs(struct keypad_key_devices *keypad_key_dev,
 		free_irq(key_common_data->irq_arr[i], keypad_key_dev);
 }
 
+#ifdef CONFIG_KEY_MASK
+static DEFINE_MUTEX(key_mask_proc_lock);
+static unsigned int key_mask_proc_users;
+static bool key_mask_proc_created;
+
 static int keypad_key_create_node(void)
 {
-	/* 0660 is S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR */
-	pr_err("%s enter\n", __func__);
-	if (!proc_create("key_mask", 0660, NULL, &key_mask_fops))
-		pr_err("[%s]:failed to create key_mask proc\n", __func__);
+	mutex_lock(&key_mask_proc_lock);
+	if (key_mask_proc_users == 0) {
+		/* 0660 is S_IRGRP | S_IWGRP | S_IRUSR | S_IWUSR */
+		pr_err("%s enter\n", __func__);
+		if (proc_create("key_mask", 0660, NULL, &key_mask_fops))
+			key_mask_proc_created = true;
+		else
+			pr_err("[%s]:failed to create key_mask proc\n", __func__);
+	}
+	key_mask_proc_users++;
+	mutex_unlock(&key_mask_proc_lock);
 
 	return 0;
 }
+
+static void keypad_key_remove_node(void)
+{
+	mutex_lock(&key_mask_proc_lock);
+	if (key_mask_proc_users > 0) {
+		key_mask_proc_users--;
+		if (key_mask_proc_users == 0 && key_mask_proc_created) {
+			remove_proc_entry("key_mask", NULL);
+			key_mask_proc_created = false;
+		}
+	}
+	mutex_unlock(&key_mask_proc_lock);
+}
+#endif
 
 struct keypad_common_data *keypad_get_common_data(void)
 {
@@ -360,8 +387,7 @@ int keypad_unregister_dev(struct keypad_key_devices *keypad_key_dev)
 
 	input_unregister_device(keypad_key_dev->input_dev);
 #ifdef CONFIG_KEY_MASK
-	if (g_key_common_data.irq_cnt == 0)
-		remove_proc_entry("key_mask", NULL);
+	keypad_key_remove_node();
 #endif
 	return 0;
 }
