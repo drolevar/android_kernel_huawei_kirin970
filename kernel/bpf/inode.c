@@ -22,6 +22,7 @@
 #include <linux/filter.h>
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
+#include <linux/security.h>
 
 enum bpf_type {
 	BPF_TYPE_UNSPEC	= 0,
@@ -369,6 +370,54 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(bpf_obj_get_user);
+
+static void *bpf_obj_get_type(const char *pathname, enum bpf_type type)
+{
+	struct filename *pname;
+	enum bpf_type found_type = BPF_TYPE_UNSPEC;
+	void *raw;
+
+	pname = getname_kernel(pathname);
+	if (IS_ERR(pname))
+		return pname;
+
+	raw = bpf_obj_do_get(pname, &found_type, O_RDONLY);
+	putname(pname);
+	if (IS_ERR(raw))
+		return raw;
+
+	if (found_type != type) {
+		bpf_any_put(raw, found_type);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return raw;
+}
+
+struct bpf_prog *bpf_prog_get_type_path(const char *name,
+					enum bpf_prog_type type)
+{
+	struct bpf_prog *prog;
+	int ret;
+
+	prog = bpf_obj_get_type(name, BPF_TYPE_PROG);
+	if (IS_ERR(prog))
+		return prog;
+
+	ret = security_bpf_prog(prog);
+	if (ret < 0) {
+		bpf_prog_put(prog);
+		return ERR_PTR(ret);
+	}
+
+	if (prog->type != type) {
+		bpf_prog_put(prog);
+		return ERR_PTR(-EINVAL);
+	}
+
+	return prog;
+}
+EXPORT_SYMBOL_GPL(bpf_prog_get_type_path);
 
 /*
  * Display the mount options in /proc/mounts.
