@@ -820,6 +820,8 @@ __SYSCALL(__NR_statx, sys_statx)
 /* add for hrdelay */
 #define __NR_delay 400
 __SYSCALL(__NR_delay, compat_sys_delay)
+#define __NR_close_range 436
+__SYSCALL(__NR_close_range, sys_close_range)
 /*
  * Please add new compat syscalls above this comment and update
  * __NR_compat_syscalls in asm/unistd.h.
