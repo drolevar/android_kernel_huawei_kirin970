@@ -66,6 +66,7 @@
 #define IVP_IOCTL_BM_INIT             _IOW('v', 0x7C, unsigned int)
 #define IVP_IOCTL_CLK_LEVEL           _IOW('v', 0x7D, unsigned int)
 #define IVP_IOCTL_POWER_UP            _IOW('v', 0x7E, struct ivp_power_up_info)
+#define IVP_IOCTL_POWER_UP_V2         _IOW('v', 0x7E, struct ivp_power_up_info_v2)
 #define IVP_IOCTL_DUMP_DSP_STATUS     _IOW('v', 0x7F, unsigned int)
 #define IVP_IOCTL_QUERY_CHIP_TYPE     _IOW('v', 0x80, unsigned int)
 #define IVP_IOCTL_LOAD_FIRMWARE       _IOW('v', 0x8A, struct ivp_image_info)
@@ -156,6 +157,12 @@ struct ivp_image_info {
 struct ivp_power_up_info {
 	int sec_mode;
 	int sec_buff_fd;
+};
+
+struct ivp_power_up_info_v2 {
+	int sec_mode;
+	int sec_buff_fd;
+	unsigned int sec_buff_size;
 };
 
 struct ion_page_info {

@@ -323,11 +323,17 @@ err_ivp_sec_process:
 	return ret;
 }
 
-static long ioctl_power_up(struct file *fd, unsigned long args)
+static long ioctl_power_up_common(struct file *fd, unsigned long args,
+		bool has_sec_buff_size)
 {
 	long ret;
 	struct ivp_power_up_info info = {0};
+	struct ivp_power_up_info_v2 info_v2 = {0};
 	struct ivp_device *pdev = NULL;
+
+	BUILD_BUG_ON(sizeof(struct ivp_power_up_info) != 8);
+	BUILD_BUG_ON(sizeof(struct ivp_power_up_info_v2) != 12);
+
 	if (!fd) {
 		ivp_err("invalid input fd");
 		return -EINVAL;
@@ -339,29 +345,50 @@ static long ioctl_power_up(struct file *fd, unsigned long args)
 		return -EINVAL;
 	}
 
-	mutex_lock(&pdev->ivp_comm.ivp_power_up_off_mutex);
-	if (copy_from_user(&info, (void *)(uintptr_t)args, sizeof(info)) != 0) {
-		ivp_err("invalid input param size");
-		goto power_up_err;
+	if (has_sec_buff_size) {
+		if (copy_from_user(&info_v2, (const void __user *)(uintptr_t)args,
+				sizeof(info_v2)) != 0) {
+			ivp_err("invalid input v2 param size");
+			return -EINVAL;
+		}
+		if (info_v2.sec_mode == SECURE_MODE && info_v2.sec_buff_size == 0) {
+			ivp_err("invalid sec buffer size");
+			return -EINVAL;
+		}
+		info.sec_mode = info_v2.sec_mode;
+		info.sec_buff_fd = info_v2.sec_buff_fd;
+	} else {
+		if (copy_from_user(&info, (const void __user *)(uintptr_t)args,
+				sizeof(info)) != 0) {
+			ivp_err("invalid input param size");
+			return -EINVAL;
+		}
 	}
 
 	if (info.sec_mode != SECURE_MODE && info.sec_mode != NOSEC_MODE) {
 		ivp_err("invalid input secMode value:%d", info.sec_mode);
-		goto power_up_err;
+		return -EINVAL;
 	}
 	if (info.sec_mode == SECURE_MODE && info.sec_buff_fd < 0) {
 		ivp_err("invalid sec buffer fd value:%d", info.sec_buff_fd);
-		goto power_up_err;
+		return -EINVAL;
 	}
 
+	mutex_lock(&pdev->ivp_comm.ivp_power_up_off_mutex);
 	ret = ivp_poweron(pdev, &info);
 	mutex_unlock(&pdev->ivp_comm.ivp_power_up_off_mutex);
 
 	return ret;
+}
 
-power_up_err:
-	mutex_unlock(&pdev->ivp_comm.ivp_power_up_off_mutex);
-	return -EINVAL;
+static long ioctl_power_up(struct file *fd, unsigned long args)
+{
+	return ioctl_power_up_common(fd, args, false);
+}
+
+static long ioctl_power_up_v2(struct file *fd, unsigned long args)
+{
+	return ioctl_power_up_common(fd, args, true);
 }
 
 static long ioctl_power_down(struct file *fd,
@@ -1061,6 +1088,7 @@ static struct ivp_ioctl_ops ioctl_normal_ops[] = {
 	IVP_IOCTL_OPS(IVP_IOCTL_SECTINFO, ioctl_sect_info),
 	IVP_IOCTL_OPS(IVP_IOCTL_SECTCOUNT, ioctl_sect_count),
 	IVP_IOCTL_OPS(IVP_IOCTL_POWER_UP, ioctl_power_up),
+	IVP_IOCTL_OPS(IVP_IOCTL_POWER_UP_V2, ioctl_power_up_v2),
 	IVP_IOCTL_OPS(IVP_IOCTL_HIDL_MAP, ioctl_hidl_map),
 	IVP_IOCTL_OPS(IVP_IOCTL_HIDL_UNMAP, ioctl_hidl_unmap),
 	IVP_IOCTL_OPS(IVP_IOCTL_AVAILABLE_CORE, ioctl_available_core),
